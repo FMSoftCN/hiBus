@@ -39,6 +39,10 @@ hiBus includes the following three components:
    for test and debugging.
 1. hiBus library, an library which provides some APIs for clients using hiBus.
 
+For more information, please refer to:
+
+<https://github.com/FMSoftCN/hybridos/blob/master/docs/design/hybridos-data-bus-zh.md>
+
 ## Current Status
 
 - Oct. 2020: Skeleton of source code.
