@@ -2,6 +2,14 @@
 
 hiBus is the data bus for device side of HybridOS.
 
+- [Introduction](#introduction)
+- [Current Status](#current-status)
+- [Copying](#copying)
+   + [For the Server and the Command Line](#for-the-server-and-the-command-line)
+   + [For the Library](#for-the-library)
+   + [Commercial License](#commercial-license)
+   + [Special Statement](#special-statement)
+
 ## Introduction
 
 In HybridOS, an important design idea is always implemented: data-driven.
