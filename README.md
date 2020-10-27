@@ -27,7 +27,7 @@ But compared to uBus, hiBus has the following important improvements:
 - Provide a basic security mechanism to determine whether an application or a remote
   node can subscribe to a specific event, and whether to call a specific procedure.
 - Considering that in the future, hiBus can provide services to other IoT device nodes
-  in the local area network through Web Socket. Therefore, you need to include host name
+  in the local area network through Web Socket. Therefore, we include host name
   information when subscribing to events and calling remote procedures.
 - The redesigned communication protocol can avoid deadlock when the same app plays
   different roles.
@@ -37,7 +37,7 @@ hiBus includes the following three components:
 1. hiBus server, an executable program which runs as a daemon in the system.
 1. hiBus cmdline, an executable program which provides an interactive command line program
    for test and debugging.
-1. hiBus library, an library which provides some APIs for clients using hiBus.
+1. hiBus library, an library which provides some APIs for clients to use hiBus easily.
 
 For more information, please refer to:
 
