@@ -1,50 +1,35 @@
-cmake_minimum_required(VERSION 2.6)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
-PROJECT(ubus C)
-ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations)
+PROJECT(hibus C)
+
+SET(PROJECT_NAME "hibus")
+SET(PROJECT_VERSION "0.9")
+
+ADD_DEFINITIONS(-O2 -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations)
 
 OPTION(BUILD_LUA "build Lua plugin" ON)
 OPTION(BUILD_EXAMPLES "build examples" ON)
 
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
-SET(UBUS_UNIX_SOCKET "/var/run/ubus.sock")
-SET(UBUS_MAX_MSGLEN 1048576)
+SET(HIBUS_UNIX_SOCKET "/var/run/hibus.sock")
+SET(HIBUS_WEB_SOCKET_PORT 7700)
+SET(HIBUS_MAX_MSGLEN 1048576)
 
-ADD_DEFINITIONS( -DUBUS_UNIX_SOCKET="${UBUS_UNIX_SOCKET}")
-ADD_DEFINITIONS( -DUBUS_MAX_MSGLEN=${UBUS_MAX_MSGLEN})
+ADD_DEFINITIONS( -DHIBUS_UNIX_SOCKET="${HIBUS_UNIX_SOCKET}")
+ADD_DEFINITIONS( -DHIBUS_WEB_SOCKET_PORT="${HIBUS_WEB_SOCKET_PORT}")
+ADD_DEFINITIONS( -DHIBUS_MAX_MSGLEN=${HIBUS_MAX_MSGLEN})
 
-IF(BUILD_STATIC)
-  FIND_LIBRARY(ubox_library NAMES ubox.a)
-  FIND_LIBRARY(blob_library NAMES blobmsg_json.a)
-ELSE(BUILD_STATIC)
-  FIND_LIBRARY(ubox_library NAMES ubox)
-  FIND_LIBRARY(blob_library NAMES blobmsg_json)
-ENDIF(BUILD_STATIC)
+ADD_SUBDIRECTORY(src)
 
-FIND_PATH(ubox_include_dir libubox/usock.h)
-INCLUDE_DIRECTORIES(${ubox_include_dir})
+# Packing stuff
+SET(CPACK_PACKAGE_VENDOR "FMSoft")
+SET(CPACK_PACKAGE_NAME ${PROJECT_NAME})
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "The data bus server, library, and utilities for device side of HybridOS")
+SET(CPACK_SOURCE_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
+SET(CPACK_SOURCE_GENERATOR "TGZ")
+SET(CPACK_SOURCE_IGNORE_FILES
+      "/auto/;/cmake/;/.svn/;/.git/;/.bzr/;/CMakeFiles/;/_CPack_Packages/;CMakeCache.txt$;
+      ~$;.swp$;.cmake$;
+      ${CPACK_SOURCE_IGNORE_FILES}")
 
-ADD_LIBRARY(ubus SHARED libubus.c libubus-io.c libubus-obj.c libubus-sub.c libubus-req.c libubus-acl.c)
-TARGET_LINK_LIBRARIES(ubus ${ubox_library})
-
-find_library(json NAMES json-c json)
-
-ADD_EXECUTABLE(ubusd ubusd.c ubusd_id.c ubusd_obj.c ubusd_proto.c ubusd_event.c ubusd_acl.c ubusd_monitor.c)
-TARGET_LINK_LIBRARIES(ubusd ${ubox_library} ${blob_library} ${json})
-
-ADD_EXECUTABLE(cli cli.c)
-SET_TARGET_PROPERTIES(cli PROPERTIES OUTPUT_NAME ubus)
-TARGET_LINK_LIBRARIES(cli ubus ${ubox_library} ${blob_library} ${json})
-
-ADD_SUBDIRECTORY(lua)
-ADD_SUBDIRECTORY(examples)
-
-INSTALL(TARGETS ubus cli
-	LIBRARY DESTINATION lib
-	RUNTIME DESTINATION bin
-)
-INSTALL(TARGETS ubusd
-	RUNTIME DESTINATION sbin
-)
-
-INSTALL(FILES ubusmsg.h ubus_common.h libubus.h DESTINATION include)
+INCLUDE(CPack)
