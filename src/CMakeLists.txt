@@ -1,13 +1,22 @@
-FIND_LIBRARY(glib NAMES ubox.a)
-FIND_LIBRARY(glib NAMES blobmsg_json.a)
+FIND_LIBRARY(hibox NAMES hibox.a)
 
-ADD_LIBRARY(hibus SHARED unixsocket.c websocket.c)
+IF(BUILD_STATIC)
+  FIND_LIBRARY(libhibox NAMES hibox.a)
+ELSE(BUILD_STATIC)
+  FIND_LIBRARY(libhibox NAMES hibox)
+ENDIF(BUILD_STATIC)
 
-ADD_EXECUTABLE(hibusd server.c unixsocket.c websocket.c sha1.c base64.c cJSON.c)
-TARGET_LINK_LIBRARIES(hibusd ${json})
+FIND_PATH(hibox_inc_dir hibox/utils.h)
+INCLUDE_DIRECTORIES(${hibox_inc_dir})
 
-ADD_EXECUTABLE(hibus-cl cmdline.c unixsocket.c cJSON.c)
-TARGET_LINK_LIBRARIES(hibus-cl ${json})
+ADD_LIBRARY(hibus SHARED libhibus.c)
+TARGET_LINK_LIBRARIES(hibus ${libhibox})
+
+ADD_EXECUTABLE(hibus-cl cmdline.c libhibus.c)
+TARGET_LINK_LIBRARIES(hibus-cl ${libhibox})
+
+ADD_EXECUTABLE(hibusd hibusd.c unixsocket.c websocket.c)
+TARGET_LINK_LIBRARIES(hibusd ${libhibox})
 
 INSTALL(TARGETS hibus hibus-cl
 	LIBRARY DESTINATION lib
@@ -17,4 +26,4 @@ INSTALL(TARGETS hibusd
 	RUNTIME DESTINATION sbin
 )
 
-INSTALL(FILES hibus.h cJSON.h DESTINATION include)
+INSTALL(FILES hibus.h DESTINATION include)

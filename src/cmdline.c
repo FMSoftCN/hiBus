@@ -24,4 +24,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <hibus.h>
+#include "hibus.h"
+
+
+int
+main (int argc, char **argv)
+{
+    return 0;
+}
+
