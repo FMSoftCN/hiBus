@@ -49,16 +49,12 @@
 #include "config.h"
 #endif
 
-#include "wdserver.h"
+#include <hibox/gslist.h>
+#include <hibox/utils.h>
+
+#include "hibusd.h"
 #include "websocket.h"
 #include "unixsocket.h"
-#include "pixelencoder.h"
-
-#include "base64.h"
-#include "log.h"
-#include "gslist.h"
-#include "sha1.h"
-#include "xmalloc.h"
 
 /* *INDENT-OFF* */
 
@@ -247,7 +243,7 @@ escape_http_request (const char *src)
     return NULL;
 
   p = (unsigned char *) src;
-  q = dest = xmalloc (strlen (src) * 4 + 1);
+  q = dest = malloc (strlen (src) * 4 + 1);
 
   while (*p) {
     switch (*p) {
@@ -991,7 +987,7 @@ ws_parse_request (char *line, char **method, char **protocol)
     if ((rlen = proto - req) <= 0)
       return NULL;
 
-    request = xmalloc (rlen + 1);
+    request = malloc (rlen + 1);
     strncpy (request, req, rlen);
     request[rlen] = 0;
 
@@ -1123,7 +1119,7 @@ parse_headers (WSHeaders * headers)
     if (len <= 0)
       return 1;
 
-    tmp = xmalloc (len + 1);
+    tmp = malloc (len + 1);
     memcpy (tmp, line, len);
     tmp[len] = '\0';
 
@@ -1459,7 +1455,7 @@ ws_set_handshake_headers (WSHeaders * headers)
   size_t klen = strlen (headers->ws_key);
   size_t mlen = strlen (WS_MAGIC_STR);
   size_t len = klen + mlen;
-  char *s = xmalloc (klen + mlen + 1);
+  char *s = malloc (klen + mlen + 1);
   uint8_t digest[SHA_DIGEST_LENGTH];
 
   memset (digest, 0, sizeof *digest);
@@ -1604,7 +1600,7 @@ ws_send_data (WSClient * client, WSOpcode opcode, const char *p, int sz)
   if (opcode != WS_OPCODE_BIN) {
     buf = sanitize_utf8 (p, sz);
   } else {
-    buf = xmalloc (sz);
+    buf = malloc (sz);
     memcpy (buf, p, sz);
   }
   ws_send_frame (client, opcode, buf, sz);
