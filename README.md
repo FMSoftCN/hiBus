@@ -49,8 +49,6 @@ For more information, please refer to:
 
 ## Copying
 
-### For the Server and the Command Line
-
 Copyright (C) 2020 FMSoft <https://www.fmsoft.cn>
 
 This program is free software: you can redistribute it and/or modify
@@ -66,26 +64,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-### For the Library
-
-Copyright (C) 2020 FMSoft <https://www.fmsoft.cn>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 ### Commercial License
 
-If you cannot accept GPLv3 or LGPLv3, you need to be licensed from FMSoft.
+If you cannot accept GPLv3, you need to be licensed from FMSoft.
 
 For more information about the commercial license, please refer to
 <https://hybridos.fmsoft.cn/blog/hybridos-licensing-policy>.
