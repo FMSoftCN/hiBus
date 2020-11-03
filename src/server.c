@@ -34,14 +34,82 @@
 #include <hibox/ulog.h>
 
 #include "hibus.h"
+#include "server.h"
 #include "websocket.h"
 #include "unixsocket.h"
 
-static int max_file_fd = 0;
-static WSEState fdstate;
-static WSConfig wsconfig = { 0 };
+static ServerConfig srvcfg = { 0 };
+static WSServer *ws_srv = NULL;
+// static USServer *us_srv = NULL;
 
-static WSServer *server = NULL;
+/* Set the origin so the server can force connections to have the
+ * given HTTP origin. */
+void
+srv_set_config_origin (const char *origin)
+{
+  srvcfg.origin = origin;
+}
+
+/* Set the the maximum websocket frame size. */
+void
+srv_set_config_frame_size (int max_frm_size)
+{
+  srvcfg.max_frm_size = max_frm_size;
+}
+
+/* Set specific name for the UNIX socket. */
+void
+srv_set_config_unixsocket (const char *unixsocket)
+{
+  srvcfg.unixsocket = unixsocket;
+}
+
+/* Set a path and a file for the access log. */
+void
+srv_set_config_accesslog (const char *accesslog)
+{
+  srvcfg.accesslog = accesslog;
+
+#if 0
+  if (access_log_open (srvcfg.accesslog) == 1)
+    ULOG_ERR ("Unable to open access log: %s.", strerror (errno));
+#endif
+}
+
+/* Set the server into echo mode. */
+void
+srv_set_config_echomode (int echomode)
+{
+  srvcfg.echomode = echomode;
+}
+
+/* Set the server host bind address. */
+void
+srv_set_config_host (const char *host)
+{
+  srvcfg.host = host;
+}
+
+/* Set the server port bind address. */
+void
+srv_set_config_port (const char *port)
+{
+  srvcfg.port = port;
+}
+
+/* Set specific name for the SSL certificate. */
+void
+srv_set_config_sslcert (const char *sslcert)
+{
+  srvcfg.sslcert = sslcert;
+}
+
+/* Set specific name for the SSL key. */
+void
+srv_set_config_sslkey (const char *sslkey)
+{
+  srvcfg.sslkey = sslkey;
+}
 
 /* *INDENT-OFF* */
 static char short_options[] = "dp:Vh";
@@ -110,7 +178,7 @@ handle_signal_action (int sig_number)
     if (sig_number == SIGINT) {
         printf ("SIGINT caught!\n");
         /* if it fails to write, force stop */
-        ws_stop (server);
+        ws_stop (ws_srv);
         _exit (1);
     }
     else if (sig_number == SIGPIPE) {
@@ -143,22 +211,22 @@ static void
 parse_long_opt (const char *name, const char *oarg)
 {
     if (!strcmp ("echo-mode", name))
-        ws_set_config_echomode (1);
+        srv_set_config_echomode (1);
     if (!strcmp ("max-frame-size", name))
-        ws_set_config_frame_size (atoi (oarg));
+        srv_set_config_frame_size (atoi (oarg));
     if (!strcmp ("origin", name))
-        ws_set_config_origin (oarg);
+        srv_set_config_origin (oarg);
     if (!strcmp ("unixsocket", name))
-        ws_set_config_unixsocket (oarg);
+        srv_set_config_unixsocket (oarg);
     else
-        ws_set_config_unixsocket (HIBUS_US_PATH);
+        srv_set_config_unixsocket (HIBUS_US_PATH);
     if (!strcmp ("access-log", name))
-        ws_set_config_accesslog (oarg);
+        srv_set_config_accesslog (oarg);
 #if HAVE_LIBSSL
     if (!strcmp ("ssl-cert", name))
-        ws_set_config_sslcert (oarg);
+        srv_set_config_sslcert (oarg);
     if (!strcmp ("ssl-key", name))
-        ws_set_config_sslkey (oarg);
+        srv_set_config_sslkey (oarg);
 #endif
 }
 
@@ -177,7 +245,7 @@ read_option_args (int argc, char **argv)
       daemon = 1;
       break;
     case 'p':
-      ws_set_config_port (optarg);
+      srv_set_config_port (optarg);
       break;
     case 'h':
       cmd_help ();
@@ -246,6 +314,9 @@ wd_daemon (void)
 
     return 0;
 }
+
+static int max_file_fd = 0;
+static WSEState fdstate;
 
 /* Handle a UnixSocket read. */
 static void
@@ -330,7 +401,7 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
         ws_handle_accept (ws_listener, server);
     /* handle new UnixSocket connections */
     else if (FD_ISSET (us_listener, &fdstate.rfds))
-        us_handle_accept (us_listener, server);
+        us_handle_accept (us_listener, NULL);
 
     while (client_node) {
         int ws_fd;
@@ -391,9 +462,9 @@ void ws_start (WSServer * server)
   int ws_listener = 0, us_listener = 0, retval;
 
 #ifdef HAVE_LIBSSL
-  if (wsconfig.sslcert && wsconfig.sslkey) {
+  if (srvcfg.sslcert && srvcfg.sslkey) {
     ULOG_NOTE ("==Using TLS/SSL==\n");
-    wsconfig.use_ssl = 1;
+    srvcfg.use_ssl = 1;
     if (initialize_ssl_ctx (server)) {
       ULOG_NOTE ("Unable to initialize_ssl_ctx\n");
       return;
@@ -402,13 +473,13 @@ void ws_start (WSServer * server)
 #endif
 
   memset (&fdstate, 0, sizeof fdstate);
-  if ((us_listener = us_listen (wsconfig.unixsocket)) < 0) {
-    ULOG_ERR ("Unable to create Unix socket (%s): %s.",  wsconfig.unixsocket, strerror (errno));
+  if ((us_listener = us_listen (srvcfg.unixsocket)) < 0) {
+    ULOG_ERR ("Unable to create Unix socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
     goto error;
   }
 
-  if ((ws_listener = ws_socket ()) < 0) {
-    ULOG_ERR ("Unable to create Web socket (%s): %s.",  wsconfig.unixsocket, strerror (errno));
+  if ((ws_listener = ws_socket (server)) < 0) {
+    ULOG_ERR ("Unable to create Web socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
     goto error;
   }
 
@@ -452,9 +523,9 @@ main (int argc, char **argv)
 {
     int retval;
 
-    ws_set_config_host ("localhost");
-    ws_set_config_port (HIBUS_WS_PORT);
-    ws_set_config_unixsocket (HIBUS_US_PATH);
+    srv_set_config_host ("localhost");
+    srv_set_config_port (HIBUS_WS_PORT);
+    srv_set_config_unixsocket (HIBUS_US_PATH);
 
     retval = read_option_args (argc, argv);
     if (retval >= 0) {
@@ -465,13 +536,13 @@ main (int argc, char **argv)
 
         setup_signals ();
 
-        if ((server = ws_init ()) == NULL) {
+        if ((ws_srv = ws_init (&srvcfg)) == NULL) {
             perror ("Error during ws_init");
             exit (EXIT_FAILURE);
         }
 
-        ws_start (server);
-        ws_stop (server);
+        ws_start (ws_srv);
+        ws_stop (ws_srv);
     }
 
     return EXIT_SUCCESS;

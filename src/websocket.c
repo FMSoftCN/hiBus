@@ -53,6 +53,7 @@
 #include <hibox/ulog.h>
 
 #include "hibus.h"
+#include "server.h"
 #include "websocket.h"
 
 /* *INDENT-OFF* */
@@ -79,8 +80,6 @@ static const uint8_t utf8d[] = {
   1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, /* s7..s8 */
 };
 /* *INDENT-ON* */
-
-static WSConfig wsconfig = { 0 };
 
 static void handle_ws_read_close (int conn, WSClient * client, WSServer * server);
 #ifdef HAVE_LIBSSL
@@ -167,13 +166,6 @@ sanitize_utf8 (const char *str, int len)
 }
 
 /* Allocate memory for a websocket server */
-static WSServer *
-new_wsserver (void)
-{
-  WSServer *server = calloc (1, sizeof (WSServer));
-
-  return server;
-}
 
 /* Allocate memory for a websocket client */
 static WSClient *
@@ -469,7 +461,7 @@ ws_shutdown_dangling_clients (WSClient * client)
 static void
 ws_ssl_cleanup (WSServer * server)
 {
-  if (!wsconfig.use_ssl)
+  if (!server->config->use_ssl)
     return;
 
   if (server->ctx)
@@ -514,7 +506,7 @@ ws_stop (WSServer * server)
 {
 #if 0
   /* close access log (if any) */
-  if (wsconfig.accesslog)
+  if (server->config->accesslog)
     access_log_close ();
 #endif
 
@@ -585,10 +577,10 @@ initialize_ssl_ctx (WSServer * server)
   if (!(ctx = SSL_CTX_new (SSLv23_server_method ())))
     goto out;
   /* set certificate */
-  if (!SSL_CTX_use_certificate_file (ctx, wsconfig.sslcert, SSL_FILETYPE_PEM))
+  if (!SSL_CTX_use_certificate_file (ctx, server->config->sslcert, SSL_FILETYPE_PEM))
     goto out;
   /* ssl private key */
-  if (!SSL_CTX_use_PrivateKey_file (ctx, wsconfig.sslkey, SSL_FILETYPE_PEM))
+  if (!SSL_CTX_use_PrivateKey_file (ctx, server->config->sslkey, SSL_FILETYPE_PEM))
     goto out;
   if (!SSL_CTX_check_private_key (ctx))
     goto out;
@@ -772,7 +764,7 @@ handle_accept_ssl (WSClient * client, WSServer * server)
 static int
 handle_ssl_pending_rw (int conn, WSServer * server, WSClient * client)
 {
-  if (!wsconfig.use_ssl)
+  if (!server->config->use_ssl)
     return 1;
 
   /* trying to write but still waiting for a successful SSL_accept */
@@ -1022,7 +1014,7 @@ ws_set_header_key_value (WSHeaders * headers, char *key, char *value)
  * On error, or header missing, 1 is returned.
  * On success, 0 is returned. */
 static int
-ws_verify_req_headers (WSHeaders * headers)
+ws_verify_req_headers (WSServer *server, WSHeaders * headers)
 {
   if (!headers->host)
     return 1;
@@ -1032,9 +1024,9 @@ ws_verify_req_headers (WSHeaders * headers)
     return 1;
   if (!headers->path)
     return 1;
-  if (wsconfig.origin && !headers->origin)
+  if (server->config->origin && !headers->origin)
     return 1;
-  if (wsconfig.origin && strcasecmp (wsconfig.origin, headers->origin) != 0)
+  if (server->config->origin && strcasecmp (server->config->origin, headers->origin) != 0)
     return 1;
   if (!headers->connection)
     return 1;
@@ -1177,7 +1169,7 @@ static int
 read_socket (WSClient * client, char *buffer, int size)
 {
 #ifdef HAVE_LIBSSL
-  if (wsconfig.use_ssl)
+  if (server->config->use_ssl)
     return read_ssl_socket (client, buffer, size);
   else
     return read_plain_socket (client, buffer, size);
@@ -1196,7 +1188,7 @@ static int
 send_buffer (WSClient * client, const char *buffer, int len)
 {
 #ifdef HAVE_LIBSSL
-  if (wsconfig.use_ssl)
+  if (server->config->use_ssl)
     return send_ssl_buffer (client, buffer, len);
   else
     return send_plain_buffer (client, buffer, len);
@@ -1420,11 +1412,11 @@ access_log (WSClient * client, int status_code)
  *
  * On success, the number of sent bytes is returned. */
 static int
-http_error (WSClient * client, const char *buffer)
+http_error (WSServer *server, WSClient *client, const char *buffer)
 {
   /* do access logging */
   gettimeofday (&client->end_proc, NULL);
-  if (wsconfig.accesslog)
+  if (server->config->accesslog)
     access_log (client, 400);
 
   return ws_respond (client, buffer, strlen (buffer));
@@ -1519,7 +1511,7 @@ ws_get_handshake (WSClient * client, WSServer * server)
   /* Probably the connection was closed before finishing handshake */
   if ((bytes = read_socket (client, buf + readh, WS_MAX_HEAD_SZ - readh)) < 1) {
     if (client->status & WS_CLOSE)
-      http_error (client, WS_BAD_REQUEST_STR);
+      http_error (server, client, WS_BAD_REQUEST_STR);
     return bytes;
   }
   client->headers->buflen += bytes;
@@ -1531,19 +1523,19 @@ ws_get_handshake (WSClient * client, WSServer * server)
     if (strlen (buf) < WS_MAX_HEAD_SZ)
       return ws_set_status (client, WS_READING, bytes);
 
-    http_error (client, WS_BAD_REQUEST_STR);
+    http_error (server, client, WS_BAD_REQUEST_STR);
     return ws_set_status (client, WS_CLOSE, bytes);
   }
 
   /* Ensure we have valid HTTP headers for the handshake */
   if (parse_headers (client->headers) != 0) {
-    http_error (client, WS_BAD_REQUEST_STR);
+    http_error (server, client, WS_BAD_REQUEST_STR);
     return ws_set_status (client, WS_CLOSE, bytes);
   }
 
   /* Ensure we have the required headers */
-  if (ws_verify_req_headers (client->headers) != 0) {
-    http_error (client, WS_BAD_REQUEST_STR);
+  if (ws_verify_req_headers (server, client->headers) != 0) {
+    http_error (server, client, WS_BAD_REQUEST_STR);
     return ws_set_status (client, WS_CLOSE, bytes);
   }
 
@@ -1554,7 +1546,7 @@ ws_get_handshake (WSClient * client, WSServer * server)
 
 #if 0
   /* upon success, call onopen() callback */
-  if (server->onopen && !wsconfig.echomode) {
+  if (server->onopen && !server->config->echomode) {
     pid_t pid_buddy = server->onopen (client);
 
     if (pid_buddy > 0) {
@@ -1563,11 +1555,11 @@ ws_get_handshake (WSClient * client, WSServer * server)
         client->launched_time_buddy = time (NULL);
     }
     else if (pid_buddy == 0) {
-        http_error (client, WS_BAD_REQUEST_STR);
+        http_error (server, client, WS_BAD_REQUEST_STR);
         return ws_set_status (client, WS_CLOSE, bytes);
     }
     else {
-        http_error (client, WS_INTERNAL_ERROR_STR);
+        http_error (server, client, WS_INTERNAL_ERROR_STR);
         return ws_set_status (client, WS_CLOSE, bytes);
     }
   }
@@ -1577,7 +1569,7 @@ ws_get_handshake (WSClient * client, WSServer * server)
 
   /* do access logging */
   gettimeofday (&client->end_proc, NULL);
-  if (wsconfig.accesslog)
+  if (server->config->accesslog)
     access_log (client, 101);
   ULOG_NOTE ("Active: %d\n", gslist_count (server->colist));
 
@@ -1830,7 +1822,7 @@ ws_handle_text_bin (WSClient * client, WSServer * server)
 
   if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->onmessage) {
     /* just echo the message to the client */
-    if (wsconfig.echomode)
+    if (server->config->echomode)
       ws_send_data (client, (*msg)->opcode, (*msg)->payload, (*msg)->payloadsz);
     else
       server->onmessage (client);
@@ -1942,7 +1934,7 @@ ws_set_masking_key (WSFrame * frm, const char *buf)
  * returned and the appropriate connection status is set.
  * On success, the number of bytes is returned. */
 static int
-ws_get_frm_header (WSClient * client)
+ws_get_frm_header (WSServer * server, WSClient *client)
 {
   WSFrame **frm = NULL;
   int bytes = 0, readh = 0, need = 0, offset = 0, extended = 0;
@@ -1992,7 +1984,7 @@ ws_get_frm_header (WSClient * client)
   ws_set_payloadlen ((*frm), (*frm)->buf);
   ws_set_masking_key ((*frm), (*frm)->buf);
 
-  if ((*frm)->payloadlen > wsconfig.max_frm_size) {
+  if ((*frm)->payloadlen > server->config->max_frm_size) {
     ws_error (client, WS_CLOSE_TOO_LARGE, "Frame is too big");
     return ws_set_status (client, WS_ERR | WS_CLOSE, bytes);
   }
@@ -2079,7 +2071,7 @@ ws_get_message (WSClient * client, WSServer * server)
 {
   int bytes = 0;
   if ((client->frame == NULL) || (client->frame->reading))
-    if ((bytes = ws_get_frm_header (client)) < 1 || client->frame->reading)
+    if ((bytes = ws_get_frm_header (server, client)) < 1 || client->frame->reading)
       return bytes;
   return ws_get_frm_payload (client, server);
 }
@@ -2113,12 +2105,12 @@ ws_handle_tcp_close (int conn, WSClient * client, WSServer * server)
 
   shutdown (conn, SHUT_RDWR);
   /* upon close, call onclose() callback */
-  if (server->onclose && !wsconfig.echomode)
+  if (server->onclose && !server->config->echomode)
     (*server->onclose) (client);
 
   /* do access logging */
   gettimeofday (&client->end_proc, NULL);
-  if (wsconfig.accesslog)
+  if (server->config->accesslog)
     access_log (client, 200);
 
   /* errored out while parsing a frame or a message */
@@ -2170,13 +2162,13 @@ ws_handle_accept (int listener, WSServer * server)
   if (nr_clients > MAX_WS_CLIENTS || newfd > FD_SETSIZE - 1) {
     ULOG_NOTE ("Too busy: %d %s.\n", newfd, client->remote_ip);
 
-    http_error (client, WS_TOO_BUSY_STR);
+    http_error (server, client, WS_TOO_BUSY_STR);
     handle_ws_read_close (newfd, client, server);
     return;
   }
 #ifdef HAVE_LIBSSL
   /* set flag to do TLS handshake */
-  if (wsconfig.use_ssl)
+  if (server->config->use_ssl)
     client->sslstatus |= WS_TLS_ACCEPTING;
 #endif
 
@@ -2292,7 +2284,7 @@ unpack_uint32 (const void *buf, uint32_t * val, int convert)
 /* Creates an endpoint for communication and start listening for
  * connections on a socket */
 int
-ws_socket (void)
+ws_socket (WSServer* server)
 {
   int listener = -1, ov = 1;
   struct addrinfo hints, *ai;
@@ -2302,7 +2294,7 @@ ws_socket (void)
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   /*hints.ai_flags = AI_PASSIVE; */
-  if (getaddrinfo (wsconfig.host, wsconfig.port, &hints, &ai) != 0)
+  if (getaddrinfo (server->config->host, server->config->port, &hints, &ai) != 0)
     ULOG_ERR ("Unable to set server: %s.", gai_strerror (errno));
 
   /* Create a TCP socket.  */
@@ -2340,6 +2332,28 @@ close_error:
 
 error:
   return -1;
+}
+
+/* Create a new websocket server context. */
+WSServer *
+ws_init (ServerConfig *config)
+{
+  WSServer *server = calloc (1, sizeof (WSServer));
+
+  server->config = config;
+
+#if 0
+  wsconfig.accesslog = NULL;
+  wsconfig.host = wsconfig.host;
+  wsconfig.max_frm_size = WS_MAX_FRM_SZ;
+  wsconfig.origin = NULL;
+  wsconfig.sslcert = wsconfig.sslcert;
+  wsconfig.sslkey = wsconfig.sslkey;
+  wsconfig.port = wsconfig.port;
+  wsconfig.use_ssl = 0;
+#endif
+
+  return server;
 }
 
 #if 0
@@ -2417,89 +2431,3 @@ handle_us_accept (int listener, WSServer * server)
 }
 #endif
 
-/* Set the origin so the server can force connections to have the
- * given HTTP origin. */
-void
-ws_set_config_origin (const char *origin)
-{
-  wsconfig.origin = origin;
-}
-
-/* Set the the maximum websocket frame size. */
-void
-ws_set_config_frame_size (int max_frm_size)
-{
-  wsconfig.max_frm_size = max_frm_size;
-}
-
-/* Set specific name for the UNIX socket. */
-void
-ws_set_config_unixsocket (const char *unixsocket)
-{
-  wsconfig.unixsocket = unixsocket;
-}
-
-/* Set a path and a file for the access log. */
-void
-ws_set_config_accesslog (const char *accesslog)
-{
-  wsconfig.accesslog = accesslog;
-
-#if 0
-  if (access_log_open (wsconfig.accesslog) == 1)
-    ULOG_ERR ("Unable to open access log: %s.", strerror (errno));
-#endif
-}
-
-/* Set the server into echo mode. */
-void
-ws_set_config_echomode (int echomode)
-{
-  wsconfig.echomode = echomode;
-}
-
-/* Set the server host bind address. */
-void
-ws_set_config_host (const char *host)
-{
-  wsconfig.host = host;
-}
-
-/* Set the server port bind address. */
-void
-ws_set_config_port (const char *port)
-{
-  wsconfig.port = port;
-}
-
-/* Set specific name for the SSL certificate. */
-void
-ws_set_config_sslcert (const char *sslcert)
-{
-  wsconfig.sslcert = sslcert;
-}
-
-/* Set specific name for the SSL key. */
-void
-ws_set_config_sslkey (const char *sslkey)
-{
-  wsconfig.sslkey = sslkey;
-}
-
-/* Create a new websocket server context. */
-WSServer *
-ws_init (void)
-{
-  WSServer *server = new_wsserver ();
-
-  wsconfig.accesslog = NULL;
-  wsconfig.host = wsconfig.host;
-  wsconfig.max_frm_size = WS_MAX_FRM_SZ;
-  wsconfig.origin = NULL;
-  wsconfig.sslcert = wsconfig.sslcert;
-  wsconfig.sslkey = wsconfig.sslkey;
-  wsconfig.port = wsconfig.port;
-  wsconfig.use_ssl = 0;
-
-  return server;
-}

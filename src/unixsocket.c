@@ -36,7 +36,7 @@
 #include <hibox/ulog.h>
 
 #include "hibus.h"
-#include "websocket.h"
+#include "server.h"
 #include "unixsocket.h"
 
 /* returns fd if all OK, -1 on error */
@@ -134,7 +134,7 @@ int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
 
 /* Handle a new UNIX socket connection. */
 USClient *
-us_handle_accept (int listener, WSServer * server)
+us_handle_accept (int listener, USServer * server)
 {
   USClient *usc = NULL;
   pid_t pid_buddy;

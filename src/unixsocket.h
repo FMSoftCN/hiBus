@@ -43,6 +43,12 @@ typedef struct USClient_
     pid_t pid;                      /* client PID */
 } USClient;
 
+/* The UnixSocket Server */
+typedef struct USServer_
+{
+    int listener;
+} USServer;
+
 typedef struct USFrameHeader_ {
     int type;
     size_t payload_len;
@@ -54,7 +60,7 @@ int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr);
 int us_on_connected (USClient* us_client);
 int us_client_cleanup (USClient* us_client);
 
-USClient *us_handle_accept (int listener, WSServer * server);
+USClient *us_handle_accept (int listener, USServer * server);
 int us_ping_client (const USClient* us_client);
 int us_send_data (const USClient* us_client, USOpcode op, const char *data, int sz);
 int us_on_client_data (USClient* us_client);
