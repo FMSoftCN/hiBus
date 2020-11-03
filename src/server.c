@@ -47,28 +47,28 @@ static WSServer *ws_srv = NULL;
 void
 srv_set_config_origin (const char *origin)
 {
-  srvcfg.origin = origin;
+    srvcfg.origin = origin;
 }
 
 /* Set the the maximum websocket frame size. */
 void
 srv_set_config_frame_size (int max_frm_size)
 {
-  srvcfg.max_frm_size = max_frm_size;
+    srvcfg.max_frm_size = max_frm_size;
 }
 
 /* Set specific name for the UNIX socket. */
 void
 srv_set_config_unixsocket (const char *unixsocket)
 {
-  srvcfg.unixsocket = unixsocket;
+    srvcfg.unixsocket = unixsocket;
 }
 
 /* Set a path and a file for the access log. */
 void
 srv_set_config_accesslog (const char *accesslog)
 {
-  srvcfg.accesslog = accesslog;
+    srvcfg.accesslog = accesslog;
 
 #if 0
   if (access_log_open (srvcfg.accesslog) == 1)
@@ -80,95 +80,95 @@ srv_set_config_accesslog (const char *accesslog)
 void
 srv_set_config_echomode (int echomode)
 {
-  srvcfg.echomode = echomode;
+    srvcfg.echomode = echomode;
 }
 
 /* Set the server host bind address. */
 void
 srv_set_config_host (const char *host)
 {
-  srvcfg.host = host;
+    srvcfg.host = host;
 }
 
 /* Set the server port bind address. */
 void
 srv_set_config_port (const char *port)
 {
-  srvcfg.port = port;
+    srvcfg.port = port;
 }
 
 /* Set specific name for the SSL certificate. */
 void
 srv_set_config_sslcert (const char *sslcert)
 {
-  srvcfg.sslcert = sslcert;
+    srvcfg.sslcert = sslcert;
 }
 
 /* Set specific name for the SSL key. */
 void
 srv_set_config_sslkey (const char *sslkey)
 {
-  srvcfg.sslkey = sslkey;
+    srvcfg.sslkey = sslkey;
 }
 
 /* *INDENT-OFF* */
 static char short_options[] = "dp:Vh";
 static struct option long_opts[] = {
-  {"port"           , required_argument , 0 , 'p' } ,
-  {"addr"           , required_argument , 0 ,  0  } ,
-  {"echo-mode"      , no_argument       , 0 ,  0  } ,
-  {"max-frame-size" , required_argument , 0 ,  0  } ,
-  {"origin"         , required_argument , 0 ,  0  } ,
-  {"pipein"         , required_argument , 0 ,  0  } ,
-  {"pipeout"        , required_argument , 0 ,  0  } ,
+    {"port"           , required_argument , 0 , 'p' } ,
+    {"addr"           , required_argument , 0 ,  0  } ,
+    {"echo-mode"      , no_argument       , 0 ,  0  } ,
+    {"max-frame-size" , required_argument , 0 ,  0  } ,
+    {"origin"         , required_argument , 0 ,  0  } ,
+    {"pipein"         , required_argument , 0 ,  0  } ,
+    {"pipeout"        , required_argument , 0 ,  0  } ,
 #if HAVE_LIBSSL
-  {"ssl-cert"       , required_argument , 0 ,  0  } ,
-  {"ssl-key"        , required_argument , 0 ,  0  } ,
+    {"ssl-cert"       , required_argument , 0 ,  0  } ,
+    {"ssl-key"        , required_argument , 0 ,  0  } ,
 #endif
-  {"access-log"     , required_argument , 0 ,  0  } ,
-  {"version"        , no_argument       , 0 , 'V' } ,
-  {"help"           , no_argument       , 0 , 'h' } ,
-  {0, 0, 0, 0}
+    {"access-log"     , required_argument , 0 ,  0  } ,
+    {"version"        , no_argument       , 0 , 'V' } ,
+    {"help"           , no_argument       , 0 , 'h' } ,
+    {0, 0, 0, 0}
 };
 
 /* Command line help. */
 static void
 cmd_help (void)
 {
-  printf ("\nhibusd - %s\n\n", HIBUS_VERSION);
+    printf ("\nhibusd - %s\n\n", HIBUS_VERSION);
 
-  printf (
-  "Usage: "
-  "wdserver [ options ... ] -p [--addr][--origin][...]\n"
-  "The following options can also be supplied to the command:\n\n"
-  ""
-  "  -d                       - Run as a daemon.\n"
-  "  -p --port=<port>         - Specifies the port to bind.\n"
-  "  -h --help                - This help.\n"
-  "  -V --version             - Display version information and exit.\n"
-  "  --access-log=<path/file> - Specifies the path/file for the access log.\n"
-  "  --addr=<addr>            - Specify an IP address to bind to.\n"
-  "  --echo-mode              - Echo all received messages.\n"
-  "  --max-frame-size=<bytes> - Maximum size of a websocket frame. This\n"
-  "                             includes received frames from the client\n"
-  "                             and messages through the named pipe.\n"
-  "  --origin=<origin>        - Ensure clients send the specified origin\n"
-  "                             header upon the WebSocket handshake.\n"
-  "  --pipein=<path/file>     - Creates a named pipe (FIFO) that reads\n"
-  "                             from on the given path/file.\n"
-  "  --pipeout=<path/file>    - Creates a named pipe (FIFO) that writes\n"
-  "                             to on the given path/file.\n"
-  "  --ssl-cert=<cert.crt>    - Path to SSL certificate.\n"
-  "  --ssl-key=<priv.key>     - Path to SSL private key.\n"
-  "\n"
-  "See the man page for more information `man wdserver`.\n\n"
-  "For more details visit: http://www.minigui.com\n"
-  "wdserver Copyright (C) 2018 by FMSoft\n"
-  "\n"
-  "wdserver is derived from gwsocket\n"
-  "gwsocket Copyright (C) 2016 by Gerardo Orellana"
-  "\n\n"
-  );
+    printf (
+            "Usage: "
+            "wdserver [ options ... ] -p [--addr][--origin][...]\n"
+            "The following options can also be supplied to the command:\n\n"
+            ""
+            "  -d                       - Run as a daemon.\n"
+            "  -p --port=<port>         - Specifies the port to bind.\n"
+            "  -h --help                - This help.\n"
+            "  -V --version             - Display version information and exit.\n"
+            "  --access-log=<path/file> - Specifies the path/file for the access log.\n"
+            "  --addr=<addr>            - Specify an IP address to bind to.\n"
+            "  --echo-mode              - Echo all received messages.\n"
+            "  --max-frame-size=<bytes> - Maximum size of a websocket frame. This\n"
+            "                             includes received frames from the client\n"
+            "                             and messages through the named pipe.\n"
+            "  --origin=<origin>        - Ensure clients send the specified origin\n"
+            "                             header upon the WebSocket handshake.\n"
+            "  --pipein=<path/file>     - Creates a named pipe (FIFO) that reads\n"
+            "                             from on the given path/file.\n"
+            "  --pipeout=<path/file>    - Creates a named pipe (FIFO) that writes\n"
+            "                             to on the given path/file.\n"
+            "  --ssl-cert=<cert.crt>    - Path to SSL certificate.\n"
+            "  --ssl-key=<priv.key>     - Path to SSL private key.\n"
+            "\n"
+            "See the man page for more information `man wdserver`.\n\n"
+            "For more details visit: http://www.minigui.com\n"
+            "wdserver Copyright (C) 2018 by FMSoft\n"
+            "\n"
+            "wdserver is derived from gwsocket\n"
+            "gwsocket Copyright (C) 2016 by Gerardo Orellana"
+            "\n\n"
+            );
 }
 /* *INDENT-ON* */
 
@@ -292,7 +292,7 @@ wd_set_null_stdio (void)
 }
 
 static int
-wd_daemon (void)
+srv_daemon (void)
 {
     pid_t pid;
 
@@ -348,44 +348,44 @@ handle_us_writes (USClient *us_client, WSClient* ws_client, WSServer* server)
 static void
 set_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
 {
-  GSLList *client_node = server->colist;
-  WSClient *client = NULL;
+    GSLList *client_node = server->colist;
+    WSClient *client = NULL;
 
-  /* WebSocket server socket, ready for accept() */
-  FD_SET (ws_listener, &fdstate.rfds);
+    /* WebSocket server socket, ready for accept() */
+    FD_SET (ws_listener, &fdstate.rfds);
 
-  /* UnixSocket server socket, ready for accept() */
-  FD_SET (us_listener, &fdstate.rfds);
+    /* UnixSocket server socket, ready for accept() */
+    FD_SET (us_listener, &fdstate.rfds);
 
-  while (client_node) {
-    int ws_fd, us_fd = 0;
+    while (client_node) {
+        int ws_fd, us_fd = 0;
 
-    client = (WSClient*)(client_node->data);
-    ws_fd = client->listener;
+        client = (WSClient*)(client_node->data);
+        ws_fd = client->listener;
 
-    /* As long as we are not closing a connection, we assume we always
-     * check a client for reading */
-    if (!server->closing) {
-      FD_SET (ws_fd, &fdstate.rfds);
-      if (ws_fd > max_file_fd)
-        max_file_fd = ws_fd;
+        /* As long as we are not closing a connection, we assume we always
+         * check a client for reading */
+        if (!server->closing) {
+            FD_SET (ws_fd, &fdstate.rfds);
+            if (ws_fd > max_file_fd)
+                max_file_fd = ws_fd;
 
-      if (us_fd > 0) {
-        FD_SET (us_fd, &fdstate.rfds);
-        if (us_fd > max_file_fd)
-          max_file_fd = us_fd;
-      }
+            if (us_fd > 0) {
+                FD_SET (us_fd, &fdstate.rfds);
+                if (us_fd > max_file_fd)
+                    max_file_fd = us_fd;
+            }
+        }
+
+        /* Only if we have data to send to the WebSocket client */
+        if (client->status & WS_SENDING) {
+            FD_SET (ws_fd, &fdstate.wfds);
+            if (ws_fd > max_file_fd)
+                max_file_fd = ws_fd;
+        }
+
+        client_node = client_node->next;
     }
-
-    /* Only if we have data to send to the WebSocket client */
-    if (client->status & WS_SENDING) {
-      FD_SET (ws_fd, &fdstate.wfds);
-      if (ws_fd > max_file_fd)
-        max_file_fd = ws_fd;
-    }
-
-    client_node = client_node->next;
-  }
 }
 
 /* Check and handle fds. */
@@ -457,65 +457,65 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
 
 /* Start the websocket server and start to monitor multiple file
  * descriptors until we have something to read or write. */
-void ws_start (WSServer * server)
+static void ws_start (WSServer * server)
 {
-  int ws_listener = 0, us_listener = 0, retval;
+    int ws_listener = 0, us_listener = 0, retval;
 
 #ifdef HAVE_LIBSSL
-  if (srvcfg.sslcert && srvcfg.sslkey) {
-    ULOG_NOTE ("==Using TLS/SSL==\n");
-    srvcfg.use_ssl = 1;
-    if (initialize_ssl_ctx (server)) {
-      ULOG_NOTE ("Unable to initialize_ssl_ctx\n");
-      return;
+    if (srvcfg.sslcert && srvcfg.sslkey) {
+        ULOG_NOTE ("==Using TLS/SSL==\n");
+        srvcfg.use_ssl = 1;
+        if (initialize_ssl_ctx (server)) {
+            ULOG_NOTE ("Unable to initialize_ssl_ctx\n");
+            return;
+        }
     }
-  }
 #endif
 
-  memset (&fdstate, 0, sizeof fdstate);
-  if ((us_listener = us_listen (srvcfg.unixsocket)) < 0) {
-    ULOG_ERR ("Unable to create Unix socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
-    goto error;
-  }
-
-  if ((ws_listener = ws_socket (server)) < 0) {
-    ULOG_ERR ("Unable to create Web socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
-    goto error;
-  }
-
-  while (1) {
-    struct timeval timeout = {0, 10000};   /* 10 ms */
-    max_file_fd = MAX (ws_listener, us_listener);
-
-    /* Clear out the fd sets for this iteration. */
-    FD_ZERO (&fdstate.rfds);
-    FD_ZERO (&fdstate.wfds);
-
-    set_rfds_wfds (ws_listener, us_listener, server);
-    max_file_fd += 1;
-
-    /* yep, wait patiently */
-    /* should it be using epoll/kqueue? will see... */
-    retval = select (max_file_fd, &fdstate.rfds, &fdstate.wfds, NULL, &timeout);
-    if (retval == 0) {
-        //check_dirty_pixels (server);
-    }
-    else if (retval > 0) {
-        check_rfds_wfds (ws_listener, us_listener, server);
-    }
-    else {
-      switch (errno) {
-      case EINTR:
-        break;
-      default:
-        ULOG_ERR ("Unable to select: %s.", strerror (errno));
+    memset (&fdstate, 0, sizeof fdstate);
+    if ((us_listener = us_listen (srvcfg.unixsocket)) < 0) {
+        ULOG_ERR ("Unable to create Unix socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
         goto error;
-      }
     }
-  }
+
+    if ((ws_listener = ws_socket (server)) < 0) {
+        ULOG_ERR ("Unable to create Web socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
+        goto error;
+    }
+
+    while (1) {
+        struct timeval timeout = {0, 10000};   /* 10 ms */
+        max_file_fd = MAX (ws_listener, us_listener);
+
+        /* Clear out the fd sets for this iteration. */
+        FD_ZERO (&fdstate.rfds);
+        FD_ZERO (&fdstate.wfds);
+
+        set_rfds_wfds (ws_listener, us_listener, server);
+        max_file_fd += 1;
+
+        /* yep, wait patiently */
+        /* should it be using epoll/kqueue? will see... */
+        retval = select (max_file_fd, &fdstate.rfds, &fdstate.wfds, NULL, &timeout);
+        if (retval == 0) {
+            //check_dirty_pixels (server);
+        }
+        else if (retval > 0) {
+            check_rfds_wfds (ws_listener, us_listener, server);
+        }
+        else {
+            switch (errno) {
+                case EINTR:
+                    break;
+                default:
+                    ULOG_ERR ("Unable to select: %s.", strerror (errno));
+                    goto error;
+            }
+        }
+    }
 
 error:
-  return;
+    return;
 }
 
 int
@@ -529,8 +529,8 @@ main (int argc, char **argv)
 
     retval = read_option_args (argc, argv);
     if (retval >= 0) {
-        if (retval && wd_daemon ()) {
-            perror ("Error during wd_daemon");
+        if (retval && srv_daemon ()) {
+            perror ("Error during srv_daemon");
             exit (EXIT_FAILURE);
         }
 

@@ -293,7 +293,6 @@ void ws_handle_tcp_close (int conn, WSClient * client, WSServer * server);
 int ws_handle_reads (int conn, WSServer * server);
 int ws_handle_writes (int conn, WSServer * server);
 
-void ws_start (WSServer *server);
 void ws_stop (WSServer *server);
 
 #endif // _HIBUS_WEBSOCKET_H
