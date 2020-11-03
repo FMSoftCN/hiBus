@@ -81,13 +81,9 @@ static const uint8_t utf8d[] = {
 };
 /* *INDENT-ON* */
 
-static int max_file_fd = 0;
-static WSEState fdstate;
 static WSConfig wsconfig = { 0 };
 
 static void handle_ws_read_close (int conn, WSClient * client, WSServer * server);
-static int handle_ws_reads (int conn, WSServer * server);
-static int handle_ws_writes (int conn, WSServer * server);
 #ifdef HAVE_LIBSSL
 static int shutdown_ssl (WSClient * client);
 #endif
@@ -787,12 +783,12 @@ handle_ssl_pending_rw (int conn, WSServer * server, WSClient * client)
   }
   /* trying to read but still waiting for a successful SSL_read */
   if (client->sslstatus & WS_TLS_READING) {
-    handle_ws_reads (conn, server);
+    ws_handle_reads (conn, server);
     return 0;
   }
   /* trying to write but still waiting for a successful SSL_write */
   if (client->sslstatus & WS_TLS_WRITING) {
-    handle_ws_writes (conn, server);
+    ws_handle_writes (conn, server);
     return 0;
   }
   /* trying to write but still waiting for a successful SSL_shutdown */
@@ -2159,8 +2155,8 @@ handle_ws_read_close (int conn, WSClient * client, WSServer * server)
 }
 
 /* Handle a new socket connection. */
-static void
-handle_ws_accept (int listener, WSServer * server)
+void
+ws_handle_accept (int listener, WSServer * server)
 {
   WSClient *client = NULL;
   int newfd, nr_clients;
@@ -2193,8 +2189,8 @@ handle_ws_accept (int listener, WSServer * server)
   <0: socket closed
   >0: socket other error 
 */
-static int
-handle_ws_reads (int conn, WSServer * server)
+int
+ws_handle_reads (int conn, WSServer * server)
 {
   WSClient *client = NULL;
 
@@ -2232,8 +2228,8 @@ handle_write_close (int conn, WSClient * client, WSServer * server)
   <0: socket closed
   >0: socket other error 
 */
-static int
-handle_ws_writes (int conn, WSServer * server)
+int
+ws_handle_writes (int conn, WSServer * server)
 {
   WSClient *client = NULL; 
 
@@ -2296,10 +2292,10 @@ unpack_uint32 (const void *buf, uint32_t * val, int convert)
 
 /* Creates an endpoint for communication and start listening for
  * connections on a socket */
-static void
-ws_socket (int *listener)
+int
+ws_socket (void)
 {
-  int ov = 1;
+  int listener = -1, ov = 1;
   struct addrinfo hints, *ai;
 
   /* get a socket and bind it */
@@ -2311,24 +2307,40 @@ ws_socket (int *listener)
     ULOG_ERR ("Unable to set server: %s.", gai_strerror (errno));
 
   /* Create a TCP socket.  */
-  *listener = socket (ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-  if (*listener < 0)
+  listener = socket (ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+  if (listener < 0) {
     ULOG_ERR ("Unable to create socket: %s.", strerror (errno));
+    goto error;
+  }
 
-  fcntl (*listener, F_SETFD, FD_CLOEXEC);
+  fcntl (listener, F_SETFD, FD_CLOEXEC);
 
   /* Options */
-  if (setsockopt (*listener, SOL_SOCKET, SO_REUSEADDR, &ov, sizeof (ov)) == -1)
+  if (setsockopt (listener, SOL_SOCKET, SO_REUSEADDR, &ov, sizeof (ov)) == -1) {
     ULOG_ERR ("Unable to set setsockopt: %s.", strerror (errno));
+    goto close_error;
+  }
 
   /* Bind the socket to the address. */
-  if (bind (*listener, ai->ai_addr, ai->ai_addrlen) != 0)
+  if (bind (listener, ai->ai_addr, ai->ai_addrlen) != 0) {
     ULOG_ERR ("Unable to set bind: %s.", strerror (errno));
+    goto close_error;
+  }
   freeaddrinfo (ai);
 
   /* Tell the socket to accept connections. */
-  if (listen (*listener, SOMAXCONN) == -1)
+  if (listen (listener, SOMAXCONN) == -1) {
     ULOG_ERR ("Unable to listen: %s.", strerror (errno));
+    goto close_error;
+  }
+
+  return listener;
+
+close_error:
+  close (listener);
+
+error:
+  return -1;
 }
 
 #if 0

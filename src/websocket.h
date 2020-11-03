@@ -300,7 +300,6 @@ void set_nonblocking (int listener);
 
 int ws_send_data (WSClient * client, WSOpcode opcode, const char *p, int sz);
 int ws_validate_string (const char *str, int len);
-void ws_handle_buddy_exit (WSServer * server, pid_t pid);
 void ws_set_config_accesslog (const char *accesslog);
 void ws_set_config_echomode (int echomode);
 void ws_set_config_frame_size (int max_frm_size);
@@ -310,8 +309,15 @@ void ws_set_config_unixsocket (const char *unixsocket);
 void ws_set_config_port (const char *port);
 void ws_set_config_sslcert (const char *sslcert);
 void ws_set_config_sslkey (const char *sslkey);
-void ws_start (WSServer * server);
-void ws_stop (WSServer * server);
+
 WSServer *ws_init (void);
+int ws_socket (void);
+
+void ws_handle_accept (int listener, WSServer * server);
+int ws_handle_reads (int conn, WSServer * server);
+int ws_handle_writes (int conn, WSServer * server);
+
+void ws_start (WSServer *server);
+void ws_stop (WSServer *server);
 
 #endif // _HIBUS_WEBSOCKET_H
