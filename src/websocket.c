@@ -51,10 +51,10 @@
 
 #include <hibox/gslist.h>
 #include <hibox/utils.h>
+#include <hibox/ulog.h>
 
-#include "hibusd.h"
+#include "hibus.h"
 #include "websocket.h"
-#include "unixsocket.h"
 
 /* *INDENT-OFF* */
 
@@ -137,7 +137,7 @@ sanitize_utf8 (const char *str, int len)
   uint32_t state = UTF8_VALID, prev = UTF8_VALID, cp = 0;
   int i = 0, j = 0, k = 0, l = 0;
 
-  buf = xcalloc (len + 1, sizeof (char));
+  buf = calloc (len + 1, sizeof (char));
   for (; i < len; prev = state, ++i) {
     switch (utf8_decode (&state, &cp, (unsigned char) str[i])) {
     case UTF8_INVAL:
@@ -175,7 +175,7 @@ sanitize_utf8 (const char *str, int len)
 static WSServer *
 new_wsserver (void)
 {
-  WSServer *server = xcalloc (1, sizeof (WSServer));
+  WSServer *server = calloc (1, sizeof (WSServer));
 
   return server;
 }
@@ -184,14 +184,10 @@ new_wsserver (void)
 static WSClient *
 new_wsclient (void)
 {
-    USClient *us_client;
     WSClient *ws_client;
 
-    us_client = xcalloc (1, sizeof (USClient));
-    ws_client = xcalloc (1, sizeof (WSClient));
+    ws_client = calloc (1, sizeof (WSClient));
 
-    us_client->fd = -1;
-    ws_client->us_buddy = us_client;
     ws_client->status = WS_OK;
 
     return ws_client;
@@ -201,7 +197,7 @@ new_wsclient (void)
 static WSHeaders *
 new_wsheader (void)
 {
-  WSHeaders *headers = xcalloc (1, sizeof (WSHeaders));
+  WSHeaders *headers = calloc (1, sizeof (WSHeaders));
   memset (headers->buf, 0, sizeof (headers->buf));
   headers->reading = 1;
 
@@ -212,7 +208,7 @@ new_wsheader (void)
 static WSFrame *
 new_wsframe (void)
 {
-  WSFrame *frame = xcalloc (1, sizeof (WSFrame));
+  WSFrame *frame = calloc (1, sizeof (WSFrame));
   memset (frame->buf, 0, sizeof (frame->buf));
   frame->reading = 1;
 
@@ -223,7 +219,7 @@ new_wsframe (void)
 static WSMessage *
 new_wsmessage (void)
 {
-  WSMessage *msg = xcalloc (1, sizeof (WSMessage));
+  WSMessage *msg = calloc (1, sizeof (WSMessage));
 
   return msg;
 }
@@ -336,7 +332,7 @@ ws_get_list_node_from_list (int listener, GSLList ** colist)
   GSLList *match = NULL;
 
   /* Find the client data for the socket in use */
-  if (!(match = list_find (*colist, ws_find_client_sock_in_list, &listener)))
+  if (!(match = gslist_find (*colist, ws_find_client_sock_in_list, &listener)))
     return NULL;
   return match;
 }
@@ -350,7 +346,7 @@ ws_get_client_from_list (int listener, GSLList ** colist)
   GSLList *match = NULL;
 
   /* Find the client data for the socket in use */
-  if (!(match = list_find (*colist, ws_find_client_sock_in_list, &listener)))
+  if (!(match = gslist_find (*colist, ws_find_client_sock_in_list, &listener)))
     return NULL;
   return (WSClient *) match->data;
 }
@@ -453,11 +449,11 @@ ws_remove_client_from_list (WSClient * client, WSServer * server)
     if (client->headers)
         ws_clear_handshake_headers (client->headers);
 
-    us_client_cleanup (client->us_buddy);
-    free (client->us_buddy);
-    client->us_buddy = NULL;
+    //us_client_cleanup (client->us_buddy);
+    //free (client->us_buddy);
+    //client->us_buddy = NULL;
 
-    list_remove_node (&server->colist, node);
+    gslist_remove_node (&server->colist, node);
 }
 
 #if HAVE_LIBSSL
@@ -521,16 +517,18 @@ ws_remove_dangling_clients (void *value, void *user_data)
 void
 ws_stop (WSServer * server)
 {
+#if 0
   /* close access log (if any) */
   if (wsconfig.accesslog)
     access_log_close ();
+#endif
 
   /* remove dangling clients */
-  if (list_count (server->colist) > 0)
-    list_foreach (server->colist, ws_remove_dangling_clients, NULL);
+  if (gslist_count (server->colist) > 0)
+    gslist_foreach (server->colist, ws_remove_dangling_clients, NULL);
 
   if (server->colist)
-    list_remove_nodes (server->colist);
+    gslist_remove_nodes (server->colist);
 
 #ifdef HAVE_LIBSSL
   ws_ssl_cleanup (server);
@@ -566,7 +564,7 @@ ws_append_str (char **dest, const char *src)
   size_t srclen = strlen (src);
   size_t newlen = curlen + srclen;
 
-  char *str = xrealloc (*dest, newlen + 1);
+  char *str = realloc (*dest, newlen + 1);
   memcpy (str + curlen, src, srclen + 1);
   *dest = str;
 }
@@ -610,7 +608,7 @@ initialize_ssl_ctx (WSServer * server)
 out:
   if (ret) {
     SSL_CTX_free (ctx);
-    LOG (("Error: %s\n", ERR_error_string (ERR_get_error (), NULL)));
+    ULOG_NOTE "Error: %s\n", ERR_error_string (ERR_get_error (), NULL);
   }
 
   return ret;
@@ -624,45 +622,45 @@ log_return_message (int ret, int err, const char *fn)
 
   switch (err) {
   case SSL_ERROR_NONE:
-    LOG (("SSL: %s -> SSL_ERROR_NONE\n", fn));
-    LOG (("SSL: TLS/SSL I/O operation completed\n"));
+    ULOG_NOTE ("SSL: %s -> SSL_ERROR_NONE\n", fn);
+    ULOG_NOTE ("SSL: TLS/SSL I/O operation completed\n");
     break;
   case SSL_ERROR_WANT_READ:
-    LOG (("SSL: %s -> SSL_ERROR_WANT_READ\n", fn));
-    LOG (("SSL: incomplete, data available for reading\n"));
+    ULOG_NOTE ("SSL: %s -> SSL_ERROR_WANT_READ\n", fn);
+    ULOG_NOTE ("SSL: incomplete, data available for reading\n");
     break;
   case SSL_ERROR_WANT_WRITE:
-    LOG (("SSL: %s -> SSL_ERROR_WANT_WRITE\n", fn));
-    LOG (("SSL: incomplete, data available for writing\n"));
+    ULOG_NOTE ("SSL: %s -> SSL_ERROR_WANT_WRITE\n", fn);
+    ULOG_NOTE ("SSL: incomplete, data available for writing\n");
     break;
   case SSL_ERROR_ZERO_RETURN:
-    LOG (("SSL: %s -> SSL_ERROR_ZERO_RETURN\n", fn));
-    LOG (("SSL: TLS/SSL connection has been closed\n"));
+    ULOG_NOTE ("SSL: %s -> SSL_ERROR_ZERO_RETURN\n", fn);
+    ULOG_NOTE ("SSL: TLS/SSL connection has been closed\n");
     break;
   case SSL_ERROR_WANT_X509_LOOKUP:
-    LOG (("SSL: %s -> SSL_ERROR_WANT_X509_LOOKUP\n", fn));
+    ULOG_NOTE ("SSL: %s -> SSL_ERROR_WANT_X509_LOOKUP\n", fn);
     break;
   case SSL_ERROR_SYSCALL:
-    LOG (("SSL: %s -> SSL_ERROR_SYSCALL\n", fn));
+    ULOG_NOTE ("SSL: %s -> SSL_ERROR_SYSCALL\n", fn);
 
     e = ERR_get_error ();
     if (e > 0)
-      LOG (("SSL: %s -> %s\n", fn, ERR_error_string (e, NULL)));
+      ULOG_NOTE ("SSL: %s -> %s\n", fn, ERR_error_string (e, NULL));
 
     /* call was not successful because a fatal error occurred either at the
      * protocol level or a connection failure occurred. */
     if (ret != 0) {
-      LOG (("SSL bogus handshake interrupt: \n", strerror (errno)));
+      ULOG_NOTE ("SSL bogus handshake interrupt: \n", strerror (errno));
       break;
     }
     /* call not yet finished. */
-    LOG (("SSL: handshake interrupted, got EOF\n"));
+    ULOG_NOTE ("SSL: handshake interrupted, got EOF\n");
     if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
-      LOG (("SSL: %s -> not yet finished %s\n", fn, strerror (errno)));
+      ULOG_NOTE ("SSL: %s -> not yet finished %s\n", fn, strerror (errno));
     break;
   default:
-    LOG (("SSL: %s -> failed fatal error code: %d\n", fn, err));
-    LOG (("SSL: %s\n", ERR_error_string (ERR_get_error (), NULL)));
+    ULOG_NOTE ("SSL: %s -> failed fatal error code: %d\n", fn, err);
+    ULOG_NOTE ("SSL: %s\n", ERR_error_string (ERR_get_error (), NULL));
     break;
   }
 }
@@ -691,13 +689,13 @@ shutdown_ssl (WSClient * client)
     break;
   case SSL_ERROR_SYSCALL:
     if (ret == 0) {
-      LOG (("SSL: SSL_shutdown, connection unexpectedly closed by peer.\n"));
+      ULOG_NOTE ("SSL: SSL_shutdown, connection unexpectedly closed by peer.\n");
       /* The shutdown is not yet finished. */
       if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
         client->sslstatus = WS_TLS_SHUTTING;
       break;
     }
-    LOG (("SSL: SSL_shutdown, probably unrecoverable, forcing close.\n"));
+    ULOG_NOTE ("SSL: SSL_shutdown, probably unrecoverable, forcing close.\n");
   case SSL_ERROR_ZERO_RETURN:
   case SSL_ERROR_WANT_X509_LOOKUP:
   default:
@@ -757,18 +755,18 @@ handle_accept_ssl (WSClient * client, WSServer * server)
   /* attempt to create SSL connection if we don't have one yet */
   if (!client->ssl) {
     if (!(client->ssl = SSL_new (server->ctx))) {
-      LOG (("SSL: SSL_new, new SSL structure failed.\n"));
+      ULOG_NOTE ("SSL: SSL_new, new SSL structure failed.\n");
       return;
     }
     if (!SSL_set_fd (client->ssl, client->listener)) {
-      LOG (("SSL: unable to set file descriptor\n"));
+      ULOG_NOTE ("SSL: unable to set file descriptor\n");
       return;
     }
   }
 
   /* attempt to initiate the TLS/SSL handshake */
   if (accept_ssl (client) == 0) {
-    LOG (("SSL Accepted: %d %s\n", client->listener, client->remote_ip));
+    ULOG_NOTE ("SSL Accepted: %d %s\n", client->listener, client->remote_ip);
   }
 }
 
@@ -903,7 +901,7 @@ void
 set_nonblocking (int sock)
 {
   if (fcntl (sock, F_SETFL, fcntl (sock, F_GETFL, 0) | O_NONBLOCK) == -1)
-    FATAL ("Unable to set socket as non-blocking: %s.", strerror (errno));
+    ULOG_ERR ("Unable to set socket as non-blocking: %s.", strerror (errno));
 }
 
 /* Accept a new connection on a socket and add it to the list of
@@ -921,12 +919,12 @@ accept_client (int listener, GSLList ** colist)
 
   alen = sizeof (raddr);
   if ((newfd = accept (listener, (struct sockaddr *) &raddr, &alen)) == -1)
-    FATAL ("Unable to set accept: %s.", strerror (errno));
+    ULOG_ERR ("Unable to set accept: %s.", strerror (errno));
 
   fcntl (newfd, F_SETFD, FD_CLOEXEC);
 
   if (newfd == -1) {
-    LOG (("Unable to accept: %s.", strerror (errno)));
+    ULOG_NOTE ("Unable to accept: %s.", strerror (errno));
     return newfd;
   }
   src = ws_get_raddr ((struct sockaddr *) &raddr);
@@ -938,9 +936,9 @@ accept_client (int listener, GSLList ** colist)
 
   /* add up our new client to keep track of */
   if (*colist == NULL)
-    *colist = list_create (client);
+    *colist = gslist_create (client);
   else
-    *colist = list_insert_prepend (*colist, client);
+    *colist = gslist_insert_prepend (*colist, client);
 
   /* make the socket non-blocking */
   set_nonblocking (client->listener);
@@ -991,8 +989,8 @@ ws_parse_request (char *line, char **method, char **protocol)
     strncpy (request, req, rlen);
     request[rlen] = 0;
 
-    (*method) = strtoupper (xstrdup (meth));
-    (*protocol) = strtoupper (xstrdup (++proto));
+    (*method) = strtoupper (strdup (meth));
+    (*protocol) = strtoupper (strdup (++proto));
   }
 
   return request;
@@ -1004,23 +1002,23 @@ static void
 ws_set_header_key_value (WSHeaders * headers, char *key, char *value)
 {
   if (strcasecmp ("Host", key) == 0)
-    headers->host = xstrdup (value);
+    headers->host = strdup (value);
   else if (strcasecmp ("Origin", key) == 0)
-    headers->origin = xstrdup (value);
+    headers->origin = strdup (value);
   else if (strcasecmp ("Upgrade", key) == 0)
-    headers->upgrade = xstrdup (value);
+    headers->upgrade = strdup (value);
   else if (strcasecmp ("Connection", key) == 0)
-    headers->connection = xstrdup (value);
+    headers->connection = strdup (value);
   else if (strcasecmp ("Sec-WebSocket-Protocol", key) == 0)
-    headers->ws_protocol = xstrdup (value);
+    headers->ws_protocol = strdup (value);
   else if (strcasecmp ("Sec-WebSocket-Key", key) == 0)
-    headers->ws_key = xstrdup (value);
+    headers->ws_key = strdup (value);
   else if (strcasecmp ("Sec-WebSocket-Version", key) == 0)
-    headers->ws_sock_ver = xstrdup (value);
+    headers->ws_sock_ver = strdup (value);
   else if (strcasecmp ("User-Agent", key) == 0)
-    headers->agent = xstrdup (value);
+    headers->agent = strdup (value);
   else if (strcasecmp ("Referer", key) == 0)
-    headers->referer = xstrdup (value);
+    headers->referer = strdup (value);
 }
 
 /* Verify that the given HTTP headers were passed upon doing the
@@ -1142,12 +1140,12 @@ parse_headers (WSHeaders * headers)
 static void
 ws_queue_sockbuf (WSClient * client, const char *buffer, int len, int bytes)
 {
-  WSQueue *queue = xcalloc (1, sizeof (WSQueue));
+  WSQueue *queue = calloc (1, sizeof (WSQueue));
 
   if (bytes < 1)
     bytes = 0;
 
-  queue->queued = xcalloc (len - bytes, sizeof (char));
+  queue->queued = calloc (len - bytes, sizeof (char));
   memcpy (queue->queued, buffer + bytes, len - bytes);
   queue->qlen = len - bytes;
   client->sockqueue = queue;
@@ -1350,7 +1348,7 @@ ws_send_frame (WSClient * client, WSOpcode opcode, const char *p, int sz)
   default:
     buf[1] = (sz & 0xff);
   }
-  frm = xcalloc (hsize + sz, sizeof (unsigned char));
+  frm = calloc (hsize + sz, sizeof (unsigned char));
   memcpy (frm, buf, hsize);
   if (p != NULL && sz > 0)
     memcpy (frm + hsize, p, sz);
@@ -1403,17 +1401,17 @@ access_log (WSClient * client, int status_code)
   ref = escape_http_request (hdrs->referer);
   ua = escape_http_request (hdrs->agent);
 
-  ACCESS_LOG (("%s ", client->remote_ip));
-  ACCESS_LOG (("- - "));
-  ACCESS_LOG (("%s ", buf));
-  ACCESS_LOG (("\"%s ", hdrs->method));
-  ACCESS_LOG (("%s ", req ? req : "-"));
-  ACCESS_LOG (("%s\" ", hdrs->protocol));
-  ACCESS_LOG (("%d ", status_code));
-  ACCESS_LOG (("%d ", hdrs->buflen));
-  ACCESS_LOG (("\"%s\" ", ref ? ref : "-"));
-  ACCESS_LOG (("\"%s\" ", ua ? ua : "-"));
-  ACCESS_LOG (("%zu\n", elapsed));
+  ULOG_INFO ("%s ", client->remote_ip);
+  ULOG_INFO ("- - ");
+  ULOG_INFO ("%s ", buf);
+  ULOG_INFO ("\"%s ", hdrs->method);
+  ULOG_INFO ("%s ", req ? req : "-");
+  ULOG_INFO ("%s\" ", hdrs->protocol);
+  ULOG_INFO ("%d ", status_code);
+  ULOG_INFO ("%d ", hdrs->buflen);
+  ULOG_INFO ("\"%s\" ", ref ? ref : "-");
+  ULOG_INFO ("\"%s\" ", ua ? ua : "-");
+  ULOG_INFO ("%u\n", elapsed);
 
   if (req)
     free (req);
@@ -1443,9 +1441,9 @@ ws_sha1_digest (const char *s, int len, unsigned char *digest)
 {
   SHA1_CTX sha;
 
-  SHA1Init (&sha);
-  SHA1Update (&sha, (uint8_t *) s, len);
-  SHA1Final (digest, &sha);
+  sha1_init (&sha);
+  sha1_update (&sha, (uint8_t *) s, len);
+  sha1_finalize (digest, &sha);
 }
 
 /* Set the parsed websocket handshake headers. */
@@ -1467,13 +1465,13 @@ ws_set_handshake_headers (WSHeaders * headers)
 
   /* set response headers */
   headers->ws_accept =
-    base64_encode ((unsigned char *) digest, sizeof (digest));
-  headers->ws_resp = xstrdup (WS_SWITCH_PROTO_STR);
+    b64_encode_alloc ((unsigned char *) digest, sizeof (digest));
+  headers->ws_resp = strdup (WS_SWITCH_PROTO_STR);
 
   if (!headers->upgrade)
-    headers->upgrade = xstrdup ("websocket");
+    headers->upgrade = strdup ("websocket");
   if (!headers->connection)
-    headers->upgrade = xstrdup ("Upgrade");
+    headers->upgrade = strdup ("Upgrade");
 
   free (s);
 }
@@ -1485,7 +1483,7 @@ static int
 ws_send_handshake_headers (WSClient * client, WSHeaders * headers)
 {
   int bytes = 0;
-  char *str = xstrdup ("");
+  char *str = strdup ("");
 
   ws_append_str (&str, headers->ws_resp);
   ws_append_str (&str, CRLF);
@@ -1559,6 +1557,7 @@ ws_get_handshake (WSClient * client, WSServer * server)
   /* handshake response */
   ws_send_handshake_headers (client, client->headers);
 
+#if 0
   /* upon success, call onopen() callback */
   if (server->onopen && !wsconfig.echomode) {
     pid_t pid_buddy = server->onopen (client);
@@ -1577,6 +1576,7 @@ ws_get_handshake (WSClient * client, WSServer * server)
         return ws_set_status (client, WS_CLOSE, bytes);
     }
   }
+#endif
 
   client->headers->reading = 0;
 
@@ -1584,7 +1584,7 @@ ws_get_handshake (WSClient * client, WSServer * server)
   gettimeofday (&client->end_proc, NULL);
   if (wsconfig.accesslog)
     access_log (client, 101);
-  LOG (("Active: %d\n", list_count (server->colist)));
+  ULOG_NOTE ("Active: %d\n", gslist_count (server->colist));
 
   return ws_set_status (client, WS_OK, bytes);
 }
@@ -1748,7 +1748,7 @@ ws_handle_ping (WSClient * client)
 
   /* Copy the ping payload */
   pos = (*msg)->payloadsz - len;
-  buf = xcalloc (len, sizeof (char));
+  buf = calloc (len, sizeof (char));
   memcpy (buf, (*msg)->payload + pos, len);
 
   /* Unmask it */
@@ -1789,11 +1789,11 @@ ws_validate_string (const char *str, int len)
   uint32_t state = UTF8_VALID;
 
   if (verify_utf8 (&state, str, len) == UTF8_INVAL) {
-    LOG (("Invalid UTF8 data!\n"));
+    ULOG_NOTE ("Invalid UTF8 data!\n");
     return 1;
   }
   if (state != UTF8_VALID) {
-    LOG (("Invalid UTF8 data!\n"));
+    ULOG_NOTE ("Invalid UTF8 data!\n");
     return 1;
   }
 
@@ -1852,7 +1852,7 @@ ws_manage_payload_opcode (WSClient * client, WSServer * server)
 
   switch ((*frm)->opcode) {
   case WS_OPCODE_CONTINUATION:
-    LOG (("CONTINUATION\n"));
+    ULOG_NOTE ("CONTINUATION\n");
     /* first frame can't be a continuation frame */
     if (!(*msg)->fragmented) {
       client->status = WS_ERR | WS_CLOSE;
@@ -1862,20 +1862,20 @@ ws_manage_payload_opcode (WSClient * client, WSServer * server)
     break;
   case WS_OPCODE_TEXT:
   case WS_OPCODE_BIN:
-    LOG (("TEXT\n"));
+    ULOG_NOTE ("TEXT\n");
     client->message->opcode = (*frm)->opcode;
     ws_handle_text_bin (client, server);
     break;
   case WS_OPCODE_PONG:
-    LOG (("PONG\n"));
+    ULOG_NOTE ("PONG\n");
     ws_handle_pong (client);
     break;
   case WS_OPCODE_PING:
-    LOG (("PING\n"));
+    ULOG_NOTE ("PING\n");
     ws_handle_ping (client);
     break;
   default:
-    LOG (("CLOSE\n"));
+    ULOG_NOTE ("CLOSE\n");
     ws_handle_close (client);
   }
 }
@@ -2052,7 +2052,7 @@ ws_get_frm_payload (WSClient * client, WSServer * server)
 
   /* message within the same frame */
   if ((*msg)->payload == NULL && (*frm)->payloadlen)
-    (*msg)->payload = xcalloc ((*frm)->payloadlen, sizeof (char));
+    (*msg)->payload = calloc ((*frm)->payloadlen, sizeof (char));
   /* handle a new frame */
   else if ((*msg)->buflen == 0 && (*frm)->payloadlen) {
     if (ws_realloc_frm_payload ((*frm), (*msg)) == 1)
@@ -2144,7 +2144,7 @@ handle_tcp_close (int conn, WSClient * client, WSServer * server)
 
   /* remove client from our list */
   ws_remove_client_from_list (client, server);
-  LOG (("Active: %d\n", list_count (server->colist)));
+  ULOG_NOTE ("Active: %d\n", gslist_count (server->colist));
 }
 
 /* Handle a tcp read close connection. */
@@ -2170,10 +2170,10 @@ handle_ws_accept (int listener, WSServer * server)
     return;
 
   client = ws_get_client_from_list (newfd, &server->colist);
-  nr_clients = list_count (server->colist);
+  nr_clients = gslist_count (server->colist);
 
   if (nr_clients > MAX_WS_CLIENTS || newfd > FD_SETSIZE - 1) {
-    LOG (("Too busy: %d %s.\n", newfd, client->remote_ip));
+    ULOG_NOTE ("Too busy: %d %s.\n", newfd, client->remote_ip);
 
     http_error (client, WS_TOO_BUSY_STR);
     handle_ws_read_close (newfd, client, server);
@@ -2185,7 +2185,7 @@ handle_ws_accept (int listener, WSServer * server)
     client->sslstatus |= WS_TLS_ACCEPTING;
 #endif
 
-  LOG (("Accepted: %d %s\n", newfd, client->remote_ip));
+  ULOG_NOTE ("Accepted: %d %s\n", newfd, client->remote_ip);
 }
 
 /* Handle a tcp read:
@@ -2308,80 +2308,30 @@ ws_socket (int *listener)
   hints.ai_socktype = SOCK_STREAM;
   /*hints.ai_flags = AI_PASSIVE; */
   if (getaddrinfo (wsconfig.host, wsconfig.port, &hints, &ai) != 0)
-    FATAL ("Unable to set server: %s.", gai_strerror (errno));
+    ULOG_ERR ("Unable to set server: %s.", gai_strerror (errno));
 
   /* Create a TCP socket.  */
   *listener = socket (ai->ai_family, ai->ai_socktype, ai->ai_protocol);
   if (*listener < 0)
-    FATAL ("Unable to create socket: %s.", strerror (errno));
+    ULOG_ERR ("Unable to create socket: %s.", strerror (errno));
 
   fcntl (*listener, F_SETFD, FD_CLOEXEC);
 
   /* Options */
   if (setsockopt (*listener, SOL_SOCKET, SO_REUSEADDR, &ov, sizeof (ov)) == -1)
-    FATAL ("Unable to set setsockopt: %s.", strerror (errno));
+    ULOG_ERR ("Unable to set setsockopt: %s.", strerror (errno));
 
   /* Bind the socket to the address. */
   if (bind (*listener, ai->ai_addr, ai->ai_addrlen) != 0)
-    FATAL ("Unable to set bind: %s.", strerror (errno));
+    ULOG_ERR ("Unable to set bind: %s.", strerror (errno));
   freeaddrinfo (ai);
 
   /* Tell the socket to accept connections. */
   if (listen (*listener, SOMAXCONN) == -1)
-    FATAL ("Unable to listen: %s.", strerror (errno));
+    ULOG_ERR ("Unable to listen: %s.", strerror (errno));
 }
 
-/* Set each client to determine if:
- * 1. We want to see if it has data for reading
- * 2. We want to write data to it.
- * If so, set the client's socket descriptor in the descriptor set. */
-static void
-set_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
-{
-  GSLList *client_node = server->colist;
-  WSClient *client = NULL;
-
-  /* WebSocket server socket, ready for accept() */
-  FD_SET (ws_listener, &fdstate.rfds);
-
-  /* UnixSocket server socket, ready for accept() */
-  FD_SET (us_listener, &fdstate.rfds);
-
-  while (client_node) {
-    int ws_fd, us_fd = 0;
-
-    client = (WSClient*)(client_node->data);
-    ws_fd = client->listener;
-
-    if (client->us_buddy) {
-      us_fd = client->us_buddy->fd;
-    }
-
-    /* As long as we are not closing a connection, we assume we always
-     * check a client for reading */
-    if (!server->closing) {
-      FD_SET (ws_fd, &fdstate.rfds);
-      if (ws_fd > max_file_fd)
-        max_file_fd = ws_fd;
-
-      if (us_fd > 0) {
-        FD_SET (us_fd, &fdstate.rfds);
-        if (us_fd > max_file_fd)
-          max_file_fd = us_fd;
-      }
-    }
-
-    /* Only if we have data to send to the WebSocket client */
-    if (client->status & WS_SENDING) {
-      FD_SET (ws_fd, &fdstate.wfds);
-      if (ws_fd > max_file_fd)
-        max_file_fd = ws_fd;
-    }
-
-    client_node = client_node->next;
-  }
-}
-
+#if 0
 /* Match a client given a pid and an item from the list.
  *
  * On match, 1 is returned, else 0. */
@@ -2402,7 +2352,7 @@ ws_get_client_from_list_by_buddy (pid_t pid, GSLList ** colist)
   GSLList *match = NULL;
 
   /* Find the client matched the pid */
-  if (!(match = list_find (*colist, ws_find_client_pid_in_list, &pid)))
+  if (!(match = gslist_find (*colist, ws_find_client_pid_in_list, &pid)))
     return NULL;
   return (WSClient *) match->data;
 }
@@ -2433,7 +2383,7 @@ handle_us_accept (int listener, WSServer * server)
 
   newfd = us_accept (listener, &pid_buddy, NULL);
   if (newfd < 0) {
-    LOG (("handle_us_accept: failed to accept UNIX socket client: %d\n", newfd));
+    ULOG_NOTE ("handle_us_accept: failed to accept UNIX socket client: %d\n", newfd);
     return;
   }
 
@@ -2447,127 +2397,14 @@ handle_us_accept (int listener, WSServer * server)
   client->us_buddy->fd = newfd;
   client->us_buddy->pid = pid_buddy;
 
-  LOG (("Accepted UnixSocket client: %d\n", pid_buddy));
+  ULOG_NOTE ("Accepted UnixSocket client: %d\n", pid_buddy);
 
   retval = us_on_connected (client->us_buddy);
   if (retval) {
     printf ("handle_us_accept: failed when calling us_on_connected: %d\n", retval);
   }
 }
-
-/* Handle a UnixSocket read. */
-static void
-handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
-{
-    int retval = us_on_client_data (us_client);
-
-    if (retval < 0) {
-        LOG (("handle_us_reads: client #%d exited.\n", us_client->pid));
-        /* force to close the connection */
-        handle_tcp_close (ws_client->listener, ws_client, server);
-    }
-    else if (retval > 0) {
-        LOG (("handle_us_reads: error when handling data from client #d.\n", us_client->pid));
-    }
-}
-
-/* Handle a UnixSocket write. */
-static void
-handle_us_writes (USClient *us_client, WSClient* ws_client, WSServer* server)
-{
-    LOG (("handle_us_writes: do nothing for client #%d.\n", us_client->pid));
-}
-
-/* Check Zombie local buddy client */
-static void check_buddy_client (WSServer * server)
-{
-    GSLList *client_node = server->colist;
-    WSClient *ws_client = NULL;
-
-    while (client_node) {
-        int ws_fd;
-
-        ws_client = (WSClient*)(client_node->data);
-        ws_fd = ws_client->listener;
-
-        if (ws_client->status_buddy == WS_BUDDY_LAUNCHED
-                && (time (NULL) - ws_client->launched_time_buddy) > 10) {
-            LOG (("check_rfds_wfds: force to close client #%d because long tiem no connection\n", ws_fd));
-            handle_tcp_close (ws_fd, ws_client, server);
-        }
-        else if (ws_client->status_buddy == WS_BUDDY_EXITED) {
-            LOG (("check_rfds_wfds: force to close client #%d because already exited.\n", ws_fd));
-            handle_tcp_close (ws_fd, ws_client, server);
-        }
-
-        client_node = client_node->next;
-    }
-}
-
-/* Check and handle fds. */
-static void
-check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
-{
-    GSLList *client_node = server->colist;
-    WSClient *ws_client = NULL;
-    USClient *us_client = NULL;
-
-    /* handle new WebSocket connections */
-    if (FD_ISSET (ws_listener, &fdstate.rfds))
-        handle_ws_accept (ws_listener, server);
-    /* handle new UnixSocket connections */
-    else if (FD_ISSET (us_listener, &fdstate.rfds))
-        handle_us_accept (us_listener, server);
-
-    while (client_node) {
-        int ws_fd;
-        int retval = 0;
-
-        ws_client = (WSClient*)(client_node->data);
-        us_client = ws_client->us_buddy;
-        ws_fd = ws_client->listener;
-
-        /* check died buddy */
-        {
-            int free_client = 0;
-            if (ws_client->status_buddy == WS_BUDDY_LAUNCHED
-                    && (time (NULL) - ws_client->launched_time_buddy) > 10) {
-                free_client = 1;
-            }
-            else if (ws_client->status_buddy == WS_BUDDY_EXITED) {
-                free_client = 1;
-            }
-
-            if (free_client) {
-                handle_tcp_close (ws_fd, ws_client, server);
-                printf ("check_rfds_wfds: force to close client #%d\n", ws_fd);
-                if (FD_ISSET (ws_fd, &fdstate.rfds))
-                    FD_CLR (ws_fd, &fdstate.rfds);
-                if (FD_ISSET (ws_fd, &fdstate.wfds))
-                    FD_CLR (ws_fd, &fdstate.wfds);
-            }
-        }
-
-        /* handle reading data from a WebSocket client */
-        if (FD_ISSET (ws_fd, &fdstate.rfds))
-            retval = handle_ws_reads (ws_fd, server);
-        /* handle sending data to a WebSocket client */
-        else if (FD_ISSET (ws_fd, &fdstate.wfds))
-            retval = handle_ws_writes (ws_fd, server);
-
-        if (retval >= 0 && ws_client->status_buddy == WS_BUDDY_CONNECTED) {
-
-            /* handle reading data from a UnixSocket client */
-            if (FD_ISSET (us_client->fd, &fdstate.rfds))
-                handle_us_reads (us_client, ws_client, server);
-            /* handle sending data to a UnixSocket client */
-            else if (FD_ISSET (us_client->fd, &fdstate.wfds))
-                handle_us_writes (us_client, ws_client, server);
-        }
-
-        client_node = client_node->next;
-    }
-}
+#endif
 
 /* Set the origin so the server can force connections to have the
  * given HTTP origin. */
@@ -2597,8 +2434,10 @@ ws_set_config_accesslog (const char *accesslog)
 {
   wsconfig.accesslog = accesslog;
 
+#if 0
   if (access_log_open (wsconfig.accesslog) == 1)
-    FATAL ("Unable to open access log: %s.", strerror (errno));
+    ULOG_ERR ("Unable to open access log: %s.", strerror (errno));
+#endif
 }
 
 /* Set the server into echo mode. */

@@ -27,8 +27,8 @@
  * SOFTWARE.
  */
 
-#ifndef WEBSOCKET_H_INCLUDED
-#define WEBSOCKET_H_INCLUDED
+#ifndef _HIBUS_WEBSOCKET_H
+#define _HIBUS_WEBSOCKET_H
 
 #include <netinet/in.h>
 #include <limits.h>
@@ -234,8 +234,6 @@ typedef struct WSEState_
   fd_set wfds;
 } WSEState;
 
-struct USClient_;
-
 /* A WebSocket Client */
 typedef struct WSClient_
 {
@@ -257,12 +255,6 @@ typedef struct WSClient_
   SSL *ssl;
   WSStatus sslstatus;           /* ssl connection status */
 #endif
-
-  pid_t pid_buddy;             /* PID of local buddy */
-  WSBuddyStatus status_buddy;  /* buddy status */
-  time_t launched_time_buddy;  /* Epoch time launched the buddy */
-
-  struct USClient_* us_buddy;  /* UNIX socket */
 } WSClient;
 
 #define MAX_WS_CLIENTS  10
@@ -322,4 +314,4 @@ void ws_start (WSServer * server);
 void ws_stop (WSServer * server);
 WSServer *ws_init (void);
 
-#endif // for #ifndef WEBSOCKET_H
+#endif // _HIBUS_WEBSOCKET_H

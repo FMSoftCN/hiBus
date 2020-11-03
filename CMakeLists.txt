@@ -5,7 +5,7 @@ PROJECT(hibus C)
 SET(PROJECT_NAME "hibus")
 SET(PROJECT_VERSION "0.9")
 
-ADD_DEFINITIONS(-O2 -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations)
+ADD_DEFINITIONS(-O2 -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations -fmax-errors=10)
 
 OPTION(BUILD_LUA "build Lua plugin" ON)
 OPTION(BUILD_EXAMPLES "build examples" ON)
@@ -33,3 +33,4 @@ SET(CPACK_SOURCE_IGNORE_FILES
       ${CPACK_SOURCE_IGNORE_FILES}")
 
 INCLUDE(CPack)
+

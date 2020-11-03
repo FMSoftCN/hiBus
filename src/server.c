@@ -420,6 +420,171 @@ int wd_daemon (void)
     return 0;
 }
 
+/* Handle a UnixSocket read. */
+static void
+handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
+{
+    int retval = us_on_client_data (us_client);
+
+    if (retval < 0) {
+        LOG (("handle_us_reads: client #%d exited.\n", us_client->pid));
+        /* force to close the connection */
+        handle_tcp_close (ws_client->listener, ws_client, server);
+    }
+    else if (retval > 0) {
+        LOG (("handle_us_reads: error when handling data from client #d.\n", us_client->pid));
+    }
+}
+
+/* Handle a UnixSocket write. */
+static void
+handle_us_writes (USClient *us_client, WSClient* ws_client, WSServer* server)
+{
+    LOG (("handle_us_writes: do nothing for client #%d.\n", us_client->pid));
+}
+
+/* Check Zombie local buddy client */
+static void check_buddy_client (WSServer * server)
+{
+    GSLList *client_node = server->colist;
+    WSClient *ws_client = NULL;
+
+    while (client_node) {
+        int ws_fd;
+
+        ws_client = (WSClient*)(client_node->data);
+        ws_fd = ws_client->listener;
+
+        if (ws_client->status_buddy == WS_BUDDY_LAUNCHED
+                && (time (NULL) - ws_client->launched_time_buddy) > 10) {
+            LOG (("check_rfds_wfds: force to close client #%d because long tiem no connection\n", ws_fd));
+            handle_tcp_close (ws_fd, ws_client, server);
+        }
+        else if (ws_client->status_buddy == WS_BUDDY_EXITED) {
+            LOG (("check_rfds_wfds: force to close client #%d because already exited.\n", ws_fd));
+            handle_tcp_close (ws_fd, ws_client, server);
+        }
+
+        client_node = client_node->next;
+    }
+}
+
+/* Set each client to determine if:
+ * 1. We want to see if it has data for reading
+ * 2. We want to write data to it.
+ * If so, set the client's socket descriptor in the descriptor set. */
+static void
+set_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
+{
+  GSLList *client_node = server->colist;
+  WSClient *client = NULL;
+
+  /* WebSocket server socket, ready for accept() */
+  FD_SET (ws_listener, &fdstate.rfds);
+
+  /* UnixSocket server socket, ready for accept() */
+  FD_SET (us_listener, &fdstate.rfds);
+
+  while (client_node) {
+    int ws_fd, us_fd = 0;
+
+    client = (WSClient*)(client_node->data);
+    ws_fd = client->listener;
+
+    if (client->us_buddy) {
+      us_fd = client->us_buddy->fd;
+    }
+
+    /* As long as we are not closing a connection, we assume we always
+     * check a client for reading */
+    if (!server->closing) {
+      FD_SET (ws_fd, &fdstate.rfds);
+      if (ws_fd > max_file_fd)
+        max_file_fd = ws_fd;
+
+      if (us_fd > 0) {
+        FD_SET (us_fd, &fdstate.rfds);
+        if (us_fd > max_file_fd)
+          max_file_fd = us_fd;
+      }
+    }
+
+    /* Only if we have data to send to the WebSocket client */
+    if (client->status & WS_SENDING) {
+      FD_SET (ws_fd, &fdstate.wfds);
+      if (ws_fd > max_file_fd)
+        max_file_fd = ws_fd;
+    }
+
+    client_node = client_node->next;
+  }
+}
+
+/* Check and handle fds. */
+static void
+check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
+{
+    GSLList *client_node = server->colist;
+    WSClient *ws_client = NULL;
+    USClient *us_client = NULL;
+
+    /* handle new WebSocket connections */
+    if (FD_ISSET (ws_listener, &fdstate.rfds))
+        handle_ws_accept (ws_listener, server);
+    /* handle new UnixSocket connections */
+    else if (FD_ISSET (us_listener, &fdstate.rfds))
+        handle_us_accept (us_listener, server);
+
+    while (client_node) {
+        int ws_fd;
+        int retval = 0;
+
+        ws_client = (WSClient*)(client_node->data);
+        us_client = ws_client->us_buddy;
+        ws_fd = ws_client->listener;
+
+        /* check died buddy */
+        {
+            int free_client = 0;
+            if (ws_client->status_buddy == WS_BUDDY_LAUNCHED
+                    && (time (NULL) - ws_client->launched_time_buddy) > 10) {
+                free_client = 1;
+            }
+            else if (ws_client->status_buddy == WS_BUDDY_EXITED) {
+                free_client = 1;
+            }
+
+            if (free_client) {
+                handle_tcp_close (ws_fd, ws_client, server);
+                printf ("check_rfds_wfds: force to close client #%d\n", ws_fd);
+                if (FD_ISSET (ws_fd, &fdstate.rfds))
+                    FD_CLR (ws_fd, &fdstate.rfds);
+                if (FD_ISSET (ws_fd, &fdstate.wfds))
+                    FD_CLR (ws_fd, &fdstate.wfds);
+            }
+        }
+
+        /* handle reading data from a WebSocket client */
+        if (FD_ISSET (ws_fd, &fdstate.rfds))
+            retval = handle_ws_reads (ws_fd, server);
+        /* handle sending data to a WebSocket client */
+        else if (FD_ISSET (ws_fd, &fdstate.wfds))
+            retval = handle_ws_writes (ws_fd, server);
+
+        if (retval >= 0 && ws_client->status_buddy == WS_BUDDY_CONNECTED) {
+
+            /* handle reading data from a UnixSocket client */
+            if (FD_ISSET (us_client->fd, &fdstate.rfds))
+                handle_us_reads (us_client, ws_client, server);
+            /* handle sending data to a UnixSocket client */
+            else if (FD_ISSET (us_client->fd, &fdstate.wfds))
+                handle_us_writes (us_client, ws_client, server);
+        }
+
+        client_node = client_node->next;
+    }
+}
+
 int
 main (int argc, char **argv)
 {

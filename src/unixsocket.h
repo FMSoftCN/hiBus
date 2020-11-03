@@ -20,8 +20,8 @@
  ** along with this program.  If not, see http://www.gnu.org/licenses/.
  */
 
-#ifndef UNIXSOCKET_H_INCLUDED
-#define UNIXSOCKET_H_INCLUDED
+#ifndef _HIBUS_UNIXSOCKET_H
+#define _HIBUS_UNIXSOCKET_H
 
 #define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
 
@@ -40,4 +40,4 @@ int us_ping_client (const USClient* us_client);
 int us_send_event (const USClient* us_client, const struct _remote_event* event);
 int us_on_client_data (USClient* us_client);
 
-#endif // for #ifndef UNIXSOCKET_H
+#endif // for #ifndef _HIBUS_UNIXSOCKET_H
