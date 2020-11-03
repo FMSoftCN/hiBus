@@ -25,6 +25,17 @@
 
 #define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
 
+typedef enum USOPCODE
+{
+  US_OPCODE_CONTINUATION = 0x00,
+  US_OPCODE_TEXT = 0x01,
+  US_OPCODE_BIN = 0x02,
+  US_OPCODE_END = 0x03,
+  US_OPCODE_PING = 0x09,
+  US_OPCODE_PONG = 0x0A,
+  US_OPCODE_CLOSE = 0x08,
+} USOpcode;
+
 /* A UnixSocket Client */
 typedef struct USClient_
 {
@@ -32,12 +43,21 @@ typedef struct USClient_
     pid_t pid;                      /* client PID */
 } USClient;
 
+typedef struct USFrameHeader_ {
+    int type;
+    size_t payload_len;
+    unsigned char payload[0];
+} USFrameHeader;
+
 int us_listen (const char* name);
 int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr);
-
 int us_on_connected (USClient* us_client);
+int us_client_cleanup (USClient* us_client);
+
+USClient *us_handle_accept (int listener, WSServer * server);
 int us_ping_client (const USClient* us_client);
-int us_send_event (const USClient* us_client, const struct _remote_event* event);
+int us_send_data (const USClient* us_client, USOpcode op, const char *data, int sz);
 int us_on_client_data (USClient* us_client);
 
 #endif // for #ifndef _HIBUS_UNIXSOCKET_H
+

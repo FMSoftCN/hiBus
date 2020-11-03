@@ -49,7 +49,6 @@
 #include "config.h"
 #endif
 
-#include <hibox/gslist.h>
 #include <hibox/utils.h>
 #include <hibox/ulog.h>
 
@@ -2104,8 +2103,8 @@ read_client_data (WSClient * client, WSServer * server)
 }
 
 /* Handle a tcp close connection. */
-static void
-handle_tcp_close (int conn, WSClient * client, WSServer * server)
+void
+ws_handle_tcp_close (int conn, WSClient * client, WSServer * server)
 {
 #ifdef HAVE_LIBSSL
   if (client->ssl)
@@ -2151,7 +2150,7 @@ handle_ws_read_close (int conn, WSClient * client, WSServer * server)
     server->closing = 1;
     return;
   }
-  handle_tcp_close (conn, client, server);
+  ws_handle_tcp_close (conn, client, server);
 }
 
 /* Handle a new socket connection. */
@@ -2220,7 +2219,7 @@ ws_handle_reads (int conn, WSServer * server)
 static void
 handle_write_close (int conn, WSClient * client, WSServer * server)
 {
-  handle_tcp_close (conn, client, server);
+  ws_handle_tcp_close (conn, client, server);
 }
 
 /* Handle a tcp write.

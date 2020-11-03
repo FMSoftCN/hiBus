@@ -23,64 +23,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#include "unixsocket.h"
+#include <hibox/ulog.h>
+
+#include "hibus.h"
 #include "websocket.h"
+#include "unixsocket.h"
 
-/* Start the websocket server and start to monitor multiple file
- * descriptors until we have something to read or write. */
-void ws_start (WSServer * server)
-{
-  int ws_listener = 0, us_listener = 0, retval;
-
-#ifdef HAVE_LIBSSL
-  if (wsconfig.sslcert && wsconfig.sslkey) {
-    LOG (("==Using TLS/SSL==\n"));
-    wsconfig.use_ssl = 1;
-    if (initialize_ssl_ctx (server)) {
-      LOG (("Unable to initialize_ssl_ctx\n"));
-      return;
-    }
-  }
-#endif
-
-  memset (&fdstate, 0, sizeof fdstate);
-  if ((us_listener = us_listen (wsconfig.unixsocket)) < 0)
-    FATAL ("Unable to create Unix socket (%s): %s.",  wsconfig.unixsocket, strerror (errno));
-
-  ws_socket (&ws_listener);
-
-  while (1) {
-    struct timeval timeout = {0, 10000};   /* 10 ms */
-    max_file_fd = MAX (ws_listener, us_listener);
-
-    /* Clear out the fd sets for this iteration. */
-    FD_ZERO (&fdstate.rfds);
-    FD_ZERO (&fdstate.wfds);
-
-    set_rfds_wfds (ws_listener, us_listener, server);
-    max_file_fd += 1;
-
-    /* yep, wait patiently */
-    /* should it be using epoll/kqueue? will see... */
-    retval = select (max_file_fd, &fdstate.rfds, &fdstate.wfds, NULL, &timeout);
-    if (retval == 0) {
-        check_buddy_client (server);
-        check_dirty_pixels (server);
-    }
-    else if (retval > 0) {
-        check_rfds_wfds (ws_listener, us_listener, server);
-    }
-    else {
-      switch (errno) {
-      case EINTR:
-        break;
-      default:
-        FATAL ("Unable to select: %s.", strerror (errno));
-      }
-    }
-  }
-}
+static int max_file_fd = 0;
+static WSEState fdstate;
+static WSConfig wsconfig = { 0 };
 
 static WSServer *server = NULL;
 
@@ -108,7 +67,7 @@ static struct option long_opts[] = {
 static void
 cmd_help (void)
 {
-  printf ("\nWDServer - %s\n\n", WD_VERSION);
+  printf ("\nhibusd - %s\n\n", HIBUS_VERSION);
 
   printf (
   "Usage: "
@@ -157,183 +116,49 @@ handle_signal_action (int sig_number)
     else if (sig_number == SIGPIPE) {
         printf ("SIGPIPE caught!\n");
     }
-    else if (sig_number == SIGCHLD) {
-        int pid;
-        int status;
-
-        while ((pid = waitpid (-1, &status, WNOHANG)) > 0) {
-            if (WIFEXITED (status)) {
-                printf ("Child #%d exited with status: %x (return value: %d)\n", 
-                        pid, status, WEXITSTATUS (status));
-                ws_handle_buddy_exit (server, pid);
-            }
-            else if (WIFSIGNALED(status))
-                printf ("Child #%d signaled by %d\n", pid, WTERMSIG (status));
-        }
-    }
 }
 
 static int
 setup_signals (void)
 {
-  struct sigaction sa;
-  memset (&sa, 0, sizeof (sa));
-  sa.sa_handler = handle_signal_action;
-  if (sigaction (SIGINT, &sa, 0) != 0) {
-    perror ("sigaction()");
-    return -1;
-  }
-  if (sigaction (SIGPIPE, &sa, 0) != 0) {
-    perror ("sigaction()");
-    return -1;
-  }
-  if (sigaction (SIGCHLD, &sa, 0) != 0) {
-    perror ("sigaction()");
-    return -1;
-  }
-  return 0;
-}
-
-static struct _demo_info {
-    char* const demo_name;
-    char* const working_dir;
-    char* const exe_file;
-    char* const def_mode;
-} _demo_list [] = {
-    {"mguxdemo", "/usr/local/bin/", "/usr/local/bin/mguxdemo", "360x480-16bpp"},
-    {"cbplusui", "/srv/devel/build-minigui-4.0/mg-demos/cbplusui/", "/srv/devel/build-minigui-4.0/mg-demos/cbplusui/cbplusui", "240x240-16bpp"},
-};
-
-/* return 0: bad request;
-   return > 0: launched;
-   return < 0: vfork error;
-*/
-static pid_t
-wd_launch_client (const char* demo_name)
-{
-    int i, found = -1;
-    pid_t pid = 0;
-
-    for (i = 0; i < TABLESIZE (_demo_list); i++) {
-        if (strcmp (_demo_list[i].demo_name, demo_name) == 0) {
-            found = i;
-            break;
-        }
-    }
-    
-    if (found < 0) {
-        return 0;
-    }
-
-    if ((pid = vfork ()) > 0) {
-        ACCESS_LOG (("fork child for %s\n", demo_name));
-    }
-    else if (pid == 0) {
-        int retval;
-        char env_mode [32];
-
-        retval = chdir (_demo_list[found].working_dir);
-        if (retval)
-            perror ("chdir");
-
-        retval = wd_set_null_stdio ();
-        if (retval)
-            perror ("wd_set_null_stdio");
-        
-        strcpy (env_mode, "MG_DEFAULTMODE=");
-        strcat (env_mode, _demo_list[found].def_mode);
-        char *const argv[] = {_demo_list[found].demo_name, NULL};
-        char *const envp[] = {"MG_GAL_ENGINE=usvfb", "MG_IAL_ENGINE=usvfb", env_mode, NULL};
-        if (execve (_demo_list[found].exe_file, argv, envp) < 0)
-			fprintf (stderr, "execve error\n");
-
-        perror ("execl");
-        _exit (1);
-    }
-    else {
-        perror ("vfork");
+    struct sigaction sa;
+    memset (&sa, 0, sizeof (sa));
+    sa.sa_handler = handle_signal_action;
+    if (sigaction (SIGINT, &sa, 0) != 0) {
+        perror ("sigaction()");
         return -1;
     }
-
-    return pid;
-}
-
-static pid_t
-onopen (WSClient * client)
-{
-    printf ("INFO: Got a request from client (%d) %s and will launch a child\n", client->listener, client->headers->path);
-    return wd_launch_client (client->headers->path + 1);
-}
-
-static int
-onclose (WSClient * client)
-{
-    return 0;
-}
-
-static int
-onmessage (WSClient * client)
-{
-    WSMessage **msg = &client->message;
-    char* message = (*msg)->payload;
-    struct _remote_event event = { EVENT_NULL };
-
-    if (strncasecmp (message, "MOUSEDOWN ", 10) == 0) {
-        if (sscanf (message + 10, "%d %d", &event.value1, &event.value2) == 2) {
-            event.type = EVENT_LBUTTONDOWN;
-        }
+    if (sigaction (SIGPIPE, &sa, 0) != 0) {
+        perror ("sigaction()");
+        return -1;
     }
-    else if (strncasecmp (message, "MOUSEMOVE ", 10) == 0) {
-        if (sscanf (message + 10, "%d %d", &event.value1, &event.value2) == 2) {
-            event.type = EVENT_MOUSEMOVE;
-        }
+    if (sigaction (SIGCHLD, &sa, 0) != 0) {
+        perror ("sigaction()");
+        return -1;
     }
-    else if (strncasecmp (message, "MOUSEUP ", 8) == 0) {
-        if (sscanf (message + 8, "%d %d", &event.value1, &event.value2) == 2) {
-            event.type = EVENT_LBUTTONUP;
-        }
-    }
-    else if (strncasecmp (message, "KEYDOWN ", 8) == 0) {
-        if (sscanf (message + 8, "%d", &event.value1) == 1) {
-            event.type = EVENT_KEYDOWN;
-        }
-    }
-    else if (strncasecmp (message, "KEYUP ", 6) == 0) {
-        if (sscanf (message + 6, "%d", &event.value1) == 1) {
-            event.type = EVENT_KEYUP;
-        }
-    }
-
-    if (event.type != EVENT_NULL) {
-        us_send_event (client->us_buddy, &event);
-    }
-    else {
-        LOG (("WARNING: got a unknown or bad message from client (%d): %s\n", client->listener, (*msg)->payload));
-    }
-
     return 0;
 }
 
 static void
 parse_long_opt (const char *name, const char *oarg)
 {
-  if (!strcmp ("echo-mode", name))
-    ws_set_config_echomode (1);
-  if (!strcmp ("max-frame-size", name))
-    ws_set_config_frame_size (atoi (oarg));
-  if (!strcmp ("origin", name))
-    ws_set_config_origin (oarg);
-  if (!strcmp ("unixsocket", name))
-    ws_set_config_unixsocket (oarg);
-  else
-    ws_set_config_unixsocket (USS_PATH);
-  if (!strcmp ("access-log", name))
-    ws_set_config_accesslog (oarg);
+    if (!strcmp ("echo-mode", name))
+        ws_set_config_echomode (1);
+    if (!strcmp ("max-frame-size", name))
+        ws_set_config_frame_size (atoi (oarg));
+    if (!strcmp ("origin", name))
+        ws_set_config_origin (oarg);
+    if (!strcmp ("unixsocket", name))
+        ws_set_config_unixsocket (oarg);
+    else
+        ws_set_config_unixsocket (HIBUS_US_PATH);
+    if (!strcmp ("access-log", name))
+        ws_set_config_accesslog (oarg);
 #if HAVE_LIBSSL
-  if (!strcmp ("ssl-cert", name))
-    ws_set_config_sslcert (oarg);
-  if (!strcmp ("ssl-key", name))
-    ws_set_config_sslkey (oarg);
+    if (!strcmp ("ssl-cert", name))
+        ws_set_config_sslcert (oarg);
+    if (!strcmp ("ssl-key", name))
+        ws_set_config_sslkey (oarg);
 #endif
 }
 
@@ -359,7 +184,7 @@ read_option_args (int argc, char **argv)
       exit (EXIT_SUCCESS);
       return -1;
     case 'V':
-      fprintf (stdout, "WDServer %s\n", WD_VERSION);
+      fprintf (stdout, "hibusd %s\n", HIBUS_VERSION);
       exit (EXIT_SUCCESS);
       return -1;
     case 0:
@@ -380,7 +205,8 @@ read_option_args (int argc, char **argv)
   return daemon;
 }
 
-int wd_set_null_stdio (void)
+static int
+wd_set_null_stdio (void)
 {
     int fd = open ("/dev/null", O_RDWR);
     if (fd < 0)
@@ -397,7 +223,8 @@ int wd_set_null_stdio (void)
     return 0;
 }
 
-int wd_daemon (void)
+static int
+wd_daemon (void)
 {
     pid_t pid;
 
@@ -427,12 +254,12 @@ handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
     int retval = us_on_client_data (us_client);
 
     if (retval < 0) {
-        LOG (("handle_us_reads: client #%d exited.\n", us_client->pid));
+        ULOG_NOTE ("handle_us_reads: client #%d exited.\n", us_client->pid);
         /* force to close the connection */
-        handle_tcp_close (ws_client->listener, ws_client, server);
+        ws_handle_tcp_close (ws_client->listener, ws_client, server);
     }
     else if (retval > 0) {
-        LOG (("handle_us_reads: error when handling data from client #d.\n", us_client->pid));
+        ULOG_NOTE ("handle_us_reads: error when handling data from client #%d.\n", us_client->pid);
     }
 }
 
@@ -440,33 +267,7 @@ handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
 static void
 handle_us_writes (USClient *us_client, WSClient* ws_client, WSServer* server)
 {
-    LOG (("handle_us_writes: do nothing for client #%d.\n", us_client->pid));
-}
-
-/* Check Zombie local buddy client */
-static void check_buddy_client (WSServer * server)
-{
-    GSLList *client_node = server->colist;
-    WSClient *ws_client = NULL;
-
-    while (client_node) {
-        int ws_fd;
-
-        ws_client = (WSClient*)(client_node->data);
-        ws_fd = ws_client->listener;
-
-        if (ws_client->status_buddy == WS_BUDDY_LAUNCHED
-                && (time (NULL) - ws_client->launched_time_buddy) > 10) {
-            LOG (("check_rfds_wfds: force to close client #%d because long tiem no connection\n", ws_fd));
-            handle_tcp_close (ws_fd, ws_client, server);
-        }
-        else if (ws_client->status_buddy == WS_BUDDY_EXITED) {
-            LOG (("check_rfds_wfds: force to close client #%d because already exited.\n", ws_fd));
-            handle_tcp_close (ws_fd, ws_client, server);
-        }
-
-        client_node = client_node->next;
-    }
+    ULOG_NOTE ("handle_us_writes: do nothing for client #%d.\n", us_client->pid);
 }
 
 /* Set each client to determine if:
@@ -490,10 +291,6 @@ set_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
 
     client = (WSClient*)(client_node->data);
     ws_fd = client->listener;
-
-    if (client->us_buddy) {
-      us_fd = client->us_buddy->fd;
-    }
 
     /* As long as we are not closing a connection, we assume we always
      * check a client for reading */
@@ -530,19 +327,20 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
 
     /* handle new WebSocket connections */
     if (FD_ISSET (ws_listener, &fdstate.rfds))
-        handle_ws_accept (ws_listener, server);
+        ws_handle_accept (ws_listener, server);
     /* handle new UnixSocket connections */
     else if (FD_ISSET (us_listener, &fdstate.rfds))
-        handle_us_accept (us_listener, server);
+        us_handle_accept (us_listener, server);
 
     while (client_node) {
         int ws_fd;
         int retval = 0;
 
         ws_client = (WSClient*)(client_node->data);
-        us_client = ws_client->us_buddy;
+        us_client = (USClient*)(client_node->data);
         ws_fd = ws_client->listener;
 
+#if 0
         /* check died buddy */
         {
             int free_client = 0;
@@ -555,7 +353,7 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
             }
 
             if (free_client) {
-                handle_tcp_close (ws_fd, ws_client, server);
+                ws_handle_tcp_close (ws_fd, ws_client, server);
                 printf ("check_rfds_wfds: force to close client #%d\n", ws_fd);
                 if (FD_ISSET (ws_fd, &fdstate.rfds))
                     FD_CLR (ws_fd, &fdstate.rfds);
@@ -563,15 +361,16 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
                     FD_CLR (ws_fd, &fdstate.wfds);
             }
         }
+#endif
 
         /* handle reading data from a WebSocket client */
         if (FD_ISSET (ws_fd, &fdstate.rfds))
-            retval = handle_ws_reads (ws_fd, server);
+            retval = ws_handle_reads (ws_fd, server);
         /* handle sending data to a WebSocket client */
         else if (FD_ISSET (ws_fd, &fdstate.wfds))
-            retval = handle_ws_writes (ws_fd, server);
+            retval = ws_handle_writes (ws_fd, server);
 
-        if (retval >= 0 && ws_client->status_buddy == WS_BUDDY_CONNECTED) {
+        if (retval >= 0) {
 
             /* handle reading data from a UnixSocket client */
             if (FD_ISSET (us_client->fd, &fdstate.rfds))
@@ -585,14 +384,77 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
     }
 }
 
+/* Start the websocket server and start to monitor multiple file
+ * descriptors until we have something to read or write. */
+void ws_start (WSServer * server)
+{
+  int ws_listener = 0, us_listener = 0, retval;
+
+#ifdef HAVE_LIBSSL
+  if (wsconfig.sslcert && wsconfig.sslkey) {
+    ULOG_NOTE ("==Using TLS/SSL==\n");
+    wsconfig.use_ssl = 1;
+    if (initialize_ssl_ctx (server)) {
+      ULOG_NOTE ("Unable to initialize_ssl_ctx\n");
+      return;
+    }
+  }
+#endif
+
+  memset (&fdstate, 0, sizeof fdstate);
+  if ((us_listener = us_listen (wsconfig.unixsocket)) < 0) {
+    ULOG_ERR ("Unable to create Unix socket (%s): %s.",  wsconfig.unixsocket, strerror (errno));
+    goto error;
+  }
+
+  if ((ws_listener = ws_socket ()) < 0) {
+    ULOG_ERR ("Unable to create Web socket (%s): %s.",  wsconfig.unixsocket, strerror (errno));
+    goto error;
+  }
+
+  while (1) {
+    struct timeval timeout = {0, 10000};   /* 10 ms */
+    max_file_fd = MAX (ws_listener, us_listener);
+
+    /* Clear out the fd sets for this iteration. */
+    FD_ZERO (&fdstate.rfds);
+    FD_ZERO (&fdstate.wfds);
+
+    set_rfds_wfds (ws_listener, us_listener, server);
+    max_file_fd += 1;
+
+    /* yep, wait patiently */
+    /* should it be using epoll/kqueue? will see... */
+    retval = select (max_file_fd, &fdstate.rfds, &fdstate.wfds, NULL, &timeout);
+    if (retval == 0) {
+        //check_dirty_pixels (server);
+    }
+    else if (retval > 0) {
+        check_rfds_wfds (ws_listener, us_listener, server);
+    }
+    else {
+      switch (errno) {
+      case EINTR:
+        break;
+      default:
+        ULOG_ERR ("Unable to select: %s.", strerror (errno));
+        goto error;
+      }
+    }
+  }
+
+error:
+  return;
+}
+
 int
 main (int argc, char **argv)
 {
     int retval;
 
-    ws_set_config_host ("0.0.0.0");
-    ws_set_config_port ("7788");
-    ws_set_config_unixsocket (USS_PATH);
+    ws_set_config_host ("localhost");
+    ws_set_config_port (HIBUS_WS_PORT);
+    ws_set_config_unixsocket (HIBUS_US_PATH);
 
     retval = read_option_args (argc, argv);
     if (retval >= 0) {
@@ -607,11 +469,6 @@ main (int argc, char **argv)
             perror ("Error during ws_init");
             exit (EXIT_FAILURE);
         }
-
-        /* callbacks */
-        server->onclose = onclose;
-        server->onmessage = onmessage;
-        server->onopen = onopen;
 
         ws_start (server);
         ws_stop (server);

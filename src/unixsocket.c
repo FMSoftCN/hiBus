@@ -33,6 +33,10 @@
 #include <sys/un.h>
 #include <sys/time.h>
 
+#include <hibox/ulog.h>
+
+#include "hibus.h"
+#include "websocket.h"
 #include "unixsocket.h"
 
 /* returns fd if all OK, -1 on error */
@@ -128,57 +132,41 @@ int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
     return (clifd);
 }
 
+/* Handle a new UNIX socket connection. */
+USClient *
+us_handle_accept (int listener, WSServer * server)
+{
+  USClient *usc = NULL;
+  pid_t pid_buddy;
+  int newfd, retval;
+
+  usc = (USClient *)calloc (sizeof (USClient), 1);
+  if (usc == NULL) {
+    ULOG_ERR ("us_handle_accept: failed to callocate memory for US Client\n");
+    return NULL;
+  }
+
+  newfd = us_accept (listener, &pid_buddy, NULL);
+  if (newfd < 0) {
+    ULOG_ERR ("us_handle_accept: failed to accept UNIX socket usc: %d\n", newfd);
+    return NULL;
+  }
+
+  retval = us_on_connected (usc);
+  if (retval) {
+    ULOG_ERR ("us_handle_accept: failed when calling us_on_connected: %d\n", retval);
+  }
+
+  usc->fd = newfd;
+  usc->pid = pid_buddy;
+
+  ULOG_INFO ("Accepted UnixSocket Client: %d\n", pid_buddy);
+  return usc;
+}
+
 int us_on_connected (USClient* us_client)
 {
-    ssize_t n = 0;
-    int retval;
-    struct _frame_header header;
-
-    us_client->shadow_fb = NULL;
-
-    /* read info of virtual frame buffer */
-    n = read (us_client->fd, &header, sizeof (struct _frame_header));
-    if (n < sizeof (struct _frame_header) || header.type != FT_VFBINFO) {
-        retval = 1;
-        goto error;
-    }
-
-    n = read (us_client->fd, &us_client->vfb_info, sizeof (struct _vfb_info));
-    if (n < header.payload_len) {
-        retval = 2;
-        goto error;
-    }
-
-    if (us_client->vfb_info.type == USVFB_TRUE_RGB565) {
-        us_client->bytes_per_pixel = 3;
-        us_client->row_pitch = us_client->vfb_info.width * 3;
-    }
-    else if (us_client->vfb_info.type == USVFB_TRUE_RGB0888) {
-        us_client->bytes_per_pixel = 3;
-        us_client->row_pitch = us_client->vfb_info.width * 3;
-    }
-    else {
-        /* not support pixel type */
-        retval = 3;
-        goto error;
-    }
-
-    /* create shadow frame buffer */
-    us_client->shadow_fb = malloc (us_client->row_pitch * us_client->vfb_info.height);
-    if (us_client->shadow_fb == NULL) {
-        retval = 4;
-        goto error;
-    }
-
-    gettimeofday (&us_client->last_flush_time, NULL);
-    return 0;
-
-error:
-    LOG (("us_on_connected: failed (%d)\n", retval));
-
-    if (us_client->shadow_fb) {
-        free (us_client->shadow_fb);
-    }
+    int retval = 0;
 
     return retval;
 }
@@ -187,12 +175,12 @@ error:
 int us_ping_client (const USClient* us_client)
 {
     ssize_t n = 0;
-    struct _frame_header header;
+    USFrameHeader header;
 
-    header.type = FT_PING;
+    header.type = US_OPCODE_PING;
     header.payload_len = 0;
-    n = write (us_client->fd, &header, sizeof (struct _frame_header));
-    if (n != sizeof (struct _frame_header)) {
+    n = write (us_client->fd, &header, sizeof (USFrameHeader));
+    if (n != sizeof (USFrameHeader)) {
         return 1;
     }
 
@@ -200,17 +188,17 @@ int us_ping_client (const USClient* us_client)
 }
 
 /* return zero on success; none-zero on error */
-int us_send_event (const USClient* us_client, const struct _remote_event* event)
+int us_send_data (const USClient* us_client, USOpcode op, const char* data, int sz)
 {
     ssize_t n = 0;
-    struct _frame_header header;
+    USFrameHeader header;
 
-    header.type = FT_EVENT;
-    header.payload_len = sizeof (struct _remote_event);
-    n = write (us_client->fd, &header, sizeof (struct _frame_header));
-    n += write (us_client->fd, event, sizeof (struct _remote_event));
-    if (n != (sizeof (struct _frame_header) + sizeof (struct _remote_event))) {
-        LOG (("us_send_event: error when wirtting socket: %ld\n", n));
+    header.type = op;
+    header.payload_len = sz;
+    n = write (us_client->fd, &header, sizeof (USFrameHeader));
+    n += write (us_client->fd, data, sz);
+    if (n != (sizeof (USFrameHeader) + sz)) {
+        ULOG_ERR ("us_send_data: error when wirtting socket: %ld\n", n);
         return 1;
     }
 
@@ -219,11 +207,6 @@ int us_send_event (const USClient* us_client, const struct _remote_event* event)
 
 int us_client_cleanup (USClient* us_client)
 {
-    if (us_client->shadow_fb) {
-        free (us_client->shadow_fb);
-        us_client->shadow_fb = NULL;
-    }
-
     if (us_client->fd >= 0)
         close (us_client->fd);
     us_client->fd = -1;

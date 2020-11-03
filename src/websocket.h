@@ -40,6 +40,8 @@
 #include <openssl/ssl.h>
 #endif
 
+#include <hibox/gslist.h>
+
 #if defined(__linux__) || defined(__CYGWIN__)
 #  include <endian.h>
 #if ((__GLIBC__ == 2) && (__GLIBC_MINOR__ < 9))
@@ -298,7 +300,7 @@ size_t pack_uint32 (void *buf, uint32_t val, int convert);
 size_t unpack_uint32 (const void *buf, uint32_t * val, int convert);
 void set_nonblocking (int listener);
 
-int ws_send_data (WSClient * client, WSOpcode opcode, const char *p, int sz);
+int ws_send_data (WSClient * client, WSOpcode op, const char *data, int sz);
 int ws_validate_string (const char *str, int len);
 void ws_set_config_accesslog (const char *accesslog);
 void ws_set_config_echomode (int echomode);
@@ -306,7 +308,7 @@ void ws_set_config_frame_size (int max_frm_size);
 void ws_set_config_host (const char *host);
 void ws_set_config_origin (const char *origin);
 void ws_set_config_unixsocket (const char *unixsocket);
-void ws_set_config_port (const char *port);
+void ws_set_config_port (const char* port);
 void ws_set_config_sslcert (const char *sslcert);
 void ws_set_config_sslkey (const char *sslkey);
 
@@ -314,6 +316,7 @@ WSServer *ws_init (void);
 int ws_socket (void);
 
 void ws_handle_accept (int listener, WSServer * server);
+void ws_handle_tcp_close (int conn, WSClient * client, WSServer * server);
 int ws_handle_reads (int conn, WSServer * server);
 int ws_handle_writes (int conn, WSServer * server);
 
