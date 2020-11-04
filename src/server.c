@@ -38,6 +38,8 @@
 #include "websocket.h"
 #include "unixsocket.h"
 
+BusServer the_server;
+
 static ServerConfig srvcfg = { 0 };
 static WSServer *ws_srv = NULL;
 // static USServer *us_srv = NULL;

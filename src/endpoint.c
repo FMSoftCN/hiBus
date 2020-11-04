@@ -22,8 +22,26 @@
 
 #include "endpoint.h"
 
+extern BusServer the_server;
+
+int new_endpoint (int type, void* client,
+        const char* host_name, const char* app_name, const char* runner_name)
+{
+    return 0;
+}
+
+int del_endpoint (BusEndpoint* endpoint)
+{
+    return 0;
+}
+
+int auth_endpoint (BusEndpoint* endpoint)
+{
+    return HIBUS_SC_OK;
+}
+
 int register_procedure (BusEndpoint* endpoint, const char* method_name,
-        const char* for_host, const char* for_app)
+        const char* for_host, const char* for_app, builtin_method_handler handler)
 {
     return HIBUS_SC_OK;
 }

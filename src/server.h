@@ -26,6 +26,7 @@
 #include <hibox/gslist.h>
 #include <hibox/avl.h>
 #include <hibox/kvlist.h>
+#include <hibox/safe_list.h>
 
 #include "hibus.h"
 
@@ -41,12 +42,22 @@ enum {
     ET_WEB_SOCKET,
 };
 
+/* Endpoint status */
+enum {
+    ES_AUTHING = 0,     // authenticating
+    ES_CLOSING,         // force to close the endpoint due to the failed authentication,
+                        // RPC timeout, or ping-pong timeout.
+    ES_IDLE,            // the endpoint is idle.
+    ES_BUSY,            // the endpoint is busy for a call to procedure.
+};
+
 /* A hiBus Client */
 typedef struct BusEndpoint_
 {
     struct avl_node node;
 
     int     endpoint_type;
+    int     endpoint_status;
 
     union {
         struct WSClient_ *wsc;
@@ -62,6 +73,12 @@ typedef struct BusEndpoint_
 
     /* All bubbles registered by this endpoint */
     struct kvlist bubble_list;
+
+    /* All pending calls sent to this endpoint */
+    struct safe_list pending_calling;
+
+    /* the challenge code for authentication */
+    const char* challenge_code;
 } BusEndpoint;
 
 struct WSServer_;

@@ -29,11 +29,23 @@
 #include "hibus.h"
 #include "server.h"
 
+int new_endpoint (int type, void* client,
+        const char* host_name, const char* app_name, const char* runner_name);
+int del_endpoint (BusEndpoint* endpoint);
+
+int auth_endpoint (BusEndpoint* endpoint);
+
+typedef hibus_json* (*builtin_method_handler)(BusEndpoint* from_endpoint,
+        const char* method_name, const hibus_json* method_param);
+
 /* Method information */
 typedef struct MethodInfo_
 {
-    char* for_host;
-    char* for_app;
+    char*               for_host;
+    char*               for_app;
+
+    /* only not null for built-in methods */
+    builtin_method_handler handler;
 } MethodInfo;
 
 /* Bubble information */
@@ -46,17 +58,27 @@ typedef struct BubbleInfo_
     struct kvlist subscriber_list;
 } BubbleInfo;
 
-int register_procedure (BusEndpoint* endpoint, const char* method_name,
+int register_procedure (BusEndpoint* from_endpoint, const char* method_name,
+        const char* for_host, const char* for_app, builtin_method_handler handler);
+int revoke_procedure (BusEndpoint* from_endpoint, const char* method_name);
+
+int register_event (BusEndpoint* from_endpoint, const char* bubble_name,
         const char* for_host, const char* for_app);
-int revoke_procedure (BusEndpoint* endpoint, const char* method_name);
 
-int register_event (BusEndpoint* endpoint, const char* bubble_name,
-        const char* for_host, const char* for_app);
+int revoke_event (BusEndpoint* from_endpoint, const char* bubble_name);
 
-int revoke_event (BusEndpoint* endpoint, const char* bubble_name);
+int subscribe_event (BusEndpoint* from_endpoint, const char* event_name);
+int unsubscribe_event (BusEndpoint* from_endpoint, const char* event_name);
 
-int subscribe_event (BusEndpoint* endpoint, const char* event_name);
-int unsubscribe_event (BusEndpoint* endpoint, const char* event_name);
+typedef struct PendingCall_ {
+	struct safe_list list;
+
+    BusEndpoint* from_endpoint;
+    const char* method_name;
+    const hibus_json* method_param;
+
+    struct timeval queued_time;
+} PendingCall;
 
 #endif /* !_HIBUS_ENDPOINT_H_ */
 
