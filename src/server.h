@@ -57,10 +57,10 @@ typedef struct BusEndpoint_
     char*   app_name;
     char*   runner_name;
 
-    /* All methods registered by this client */
+    /* All methods registered by this endpoint */
     struct kvlist method_list;
 
-    /* All bubbles registered by this client */
+    /* All bubbles registered by this endpoint */
     struct kvlist bubble_list;
 } BusEndpoint;
 
@@ -73,11 +73,12 @@ typedef struct BusServer_
     struct WSServer_ *ws_srv;
     struct USServer_ *us_srv;
 
-    unsigned int nr_endpoints;  // always > 0
+    unsigned int nr_endpoints;
 
     /* All endpoints indexed by socket file descriptor.
        The builtin endpoint always occupied the first slot (with index = 0).
-       We can find the client according to the file descriptor. */
+       We can quickly find one endpoint with the file descriptor by
+       accessing this array. */
     BusEndpoint* endpoints [MAX_CLIENT_FD + 1];
 
     /* The AVL tree using endpoint as the key, and BusClient* as the value */
