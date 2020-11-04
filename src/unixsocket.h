@@ -47,6 +47,14 @@ typedef struct USClient_
 typedef struct USServer_
 {
     int listener;
+    int nr_clients;
+
+    /* Callbacks */
+    int (*on_conn) (USClient * client);
+    int (*on_data) (USClient * client, const char* payload, size_t payload_sz);
+    int (*on_close) (USClient * client);
+
+    ServerConfig* config;
 } USServer;
 
 typedef struct USFrameHeader_ {

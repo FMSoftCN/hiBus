@@ -171,6 +171,13 @@ int us_on_connected (USClient* us_client)
     return retval;
 }
 
+int us_on_client_data (USClient* us_client)
+{
+    int retval = 0;
+
+    return retval;
+}
+
 /* return zero on success; none-zero on error */
 int us_ping_client (const USClient* us_client)
 {

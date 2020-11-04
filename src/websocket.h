@@ -238,7 +238,7 @@ typedef struct WSEState_
 typedef struct WSClient_
 {
   /* socket data */
-  int listener;                 /* Websocket fd */
+  int fd;                       /* Websocket fd */
   char remote_ip[INET6_ADDRSTRLEN];     /* client IP */
 
   WSQueue *sockqueue;           /* sending buffer */
@@ -262,11 +262,12 @@ typedef struct WSServer_
 {
   /* Server Status */
   int closing;
+  int nr_clients;
 
   /* Callbacks */
-  int (*onclose) (WSClient * client);
-  int (*onmessage) (WSClient * client);
-  pid_t (*onopen) (WSClient * client);
+  int (*on_conn) (WSClient * client);
+  int (*on_data) (WSClient * client, const char* payload, size_t payload_sz);
+  int (*on_close) (WSClient * client);
 
   /* Connected Clients */
   GSLList *colist;

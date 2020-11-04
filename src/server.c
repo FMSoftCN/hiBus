@@ -44,28 +44,28 @@ static WSServer *ws_srv = NULL;
 
 /* Set the origin so the server can force connections to have the
  * given HTTP origin. */
-void
+static inline void
 srv_set_config_origin (const char *origin)
 {
     srvcfg.origin = origin;
 }
 
 /* Set the the maximum websocket frame size. */
-void
+static inline void
 srv_set_config_frame_size (int max_frm_size)
 {
     srvcfg.max_frm_size = max_frm_size;
 }
 
 /* Set specific name for the UNIX socket. */
-void
+static inline void
 srv_set_config_unixsocket (const char *unixsocket)
 {
     srvcfg.unixsocket = unixsocket;
 }
 
 /* Set a path and a file for the access log. */
-void
+static inline void
 srv_set_config_accesslog (const char *accesslog)
 {
     srvcfg.accesslog = accesslog;
@@ -76,36 +76,29 @@ srv_set_config_accesslog (const char *accesslog)
 #endif
 }
 
-/* Set the server into echo mode. */
-void
-srv_set_config_echomode (int echomode)
-{
-    srvcfg.echomode = echomode;
-}
-
 /* Set the server host bind address. */
-void
+static inline void
 srv_set_config_host (const char *host)
 {
     srvcfg.host = host;
 }
 
 /* Set the server port bind address. */
-void
+static inline void
 srv_set_config_port (const char *port)
 {
     srvcfg.port = port;
 }
 
 /* Set specific name for the SSL certificate. */
-void
+static inline void
 srv_set_config_sslcert (const char *sslcert)
 {
     srvcfg.sslcert = sslcert;
 }
 
 /* Set specific name for the SSL key. */
-void
+static inline void
 srv_set_config_sslkey (const char *sslkey)
 {
     srvcfg.sslkey = sslkey;
@@ -116,11 +109,8 @@ static char short_options[] = "dp:Vh";
 static struct option long_opts[] = {
     {"port"           , required_argument , 0 , 'p' } ,
     {"addr"           , required_argument , 0 ,  0  } ,
-    {"echo-mode"      , no_argument       , 0 ,  0  } ,
     {"max-frame-size" , required_argument , 0 ,  0  } ,
     {"origin"         , required_argument , 0 ,  0  } ,
-    {"pipein"         , required_argument , 0 ,  0  } ,
-    {"pipeout"        , required_argument , 0 ,  0  } ,
 #if HAVE_LIBSSL
     {"ssl-cert"       , required_argument , 0 ,  0  } ,
     {"ssl-key"        , required_argument , 0 ,  0  } ,
@@ -148,16 +138,11 @@ cmd_help (void)
             "  -V --version             - Display version information and exit.\n"
             "  --access-log=<path/file> - Specifies the path/file for the access log.\n"
             "  --addr=<addr>            - Specify an IP address to bind to.\n"
-            "  --echo-mode              - Echo all received messages.\n"
             "  --max-frame-size=<bytes> - Maximum size of a websocket frame. This\n"
             "                             includes received frames from the client\n"
             "                             and messages through the named pipe.\n"
             "  --origin=<origin>        - Ensure clients send the specified origin\n"
             "                             header upon the WebSocket handshake.\n"
-            "  --pipein=<path/file>     - Creates a named pipe (FIFO) that reads\n"
-            "                             from on the given path/file.\n"
-            "  --pipeout=<path/file>    - Creates a named pipe (FIFO) that writes\n"
-            "                             to on the given path/file.\n"
             "  --ssl-cert=<cert.crt>    - Path to SSL certificate.\n"
             "  --ssl-key=<priv.key>     - Path to SSL private key.\n"
             "\n"
@@ -210,8 +195,6 @@ setup_signals (void)
 static void
 parse_long_opt (const char *name, const char *oarg)
 {
-    if (!strcmp ("echo-mode", name))
-        srv_set_config_echomode (1);
     if (!strcmp ("max-frame-size", name))
         srv_set_config_frame_size (atoi (oarg));
     if (!strcmp ("origin", name))
@@ -327,7 +310,7 @@ handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
     if (retval < 0) {
         ULOG_NOTE ("handle_us_reads: client #%d exited.\n", us_client->pid);
         /* force to close the connection */
-        ws_handle_tcp_close (ws_client->listener, ws_client, server);
+        ws_handle_tcp_close (ws_client->fd, ws_client, server);
     }
     else if (retval > 0) {
         ULOG_NOTE ("handle_us_reads: error when handling data from client #%d.\n", us_client->pid);
@@ -361,7 +344,7 @@ set_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
         int ws_fd, us_fd = 0;
 
         client = (WSClient*)(client_node->data);
-        ws_fd = client->listener;
+        ws_fd = client->fd;
 
         /* As long as we are not closing a connection, we assume we always
          * check a client for reading */
@@ -409,7 +392,7 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
 
         ws_client = (WSClient*)(client_node->data);
         us_client = (USClient*)(client_node->data);
-        ws_fd = ws_client->listener;
+        ws_fd = ws_client->fd;
 
 #if 0
         /* check died buddy */

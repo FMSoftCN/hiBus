@@ -307,7 +307,7 @@ ws_find_client_sock_in_list (void *data, void *needle)
 {
   WSClient *client = data;
 
-  return client->listener == (*(int *) needle);
+  return client->fd == (*(int *) needle);
 }
 
 /* Find a client given a socket id.
@@ -430,7 +430,7 @@ ws_remove_client_from_list (WSClient * client, WSServer * server)
 {
     GSLList *node = NULL;
 
-    if (!(node = ws_get_list_node_from_list (client->listener, &server->colist)))
+    if (!(node = ws_get_list_node_from_list (client->fd, &server->colist)))
         return;
 
     if (client->headers)
@@ -745,7 +745,7 @@ handle_accept_ssl (WSClient * client, WSServer * server)
       ULOG_NOTE ("SSL: SSL_new, new SSL structure failed.\n");
       return;
     }
-    if (!SSL_set_fd (client->ssl, client->listener)) {
+    if (!SSL_set_fd (client->ssl, client->fd)) {
       ULOG_NOTE ("SSL: unable to set file descriptor\n");
       return;
     }
@@ -753,7 +753,7 @@ handle_accept_ssl (WSClient * client, WSServer * server)
 
   /* attempt to initiate the TLS/SSL handshake */
   if (accept_ssl (client) == 0) {
-    ULOG_NOTE ("SSL Accepted: %d %s\n", client->listener, client->remote_ip);
+    ULOG_NOTE ("SSL Accepted: %d %s\n", client->fd, client->remote_ip);
   }
 }
 
@@ -918,7 +918,7 @@ accept_client (int listener, GSLList ** colist)
 
   /* malloc a new client */
   client = new_wsclient ();
-  client->listener = newfd;
+  client->fd = newfd;
   inet_ntop (raddr.ss_family, src, client->remote_ip, INET6_ADDRSTRLEN);
 
   /* add up our new client to keep track of */
@@ -928,7 +928,7 @@ accept_client (int listener, GSLList ** colist)
     *colist = gslist_insert_prepend (*colist, client);
 
   /* make the socket non-blocking */
-  set_nonblocking (client->listener);
+  set_nonblocking (client->fd);
 
   return newfd;
 }
@@ -1150,7 +1150,7 @@ read_plain_socket (WSClient * client, char *buffer, int size)
 {
   int bytes = 0;
 
-  bytes = recv (client->listener, buffer, size, 0);
+  bytes = recv (client->fd, buffer, size, 0);
 
   if (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
     return ws_set_status (client, WS_READING, bytes);
@@ -1181,7 +1181,7 @@ read_socket (WSClient * client, char *buffer, int size)
 static int
 send_plain_buffer (WSClient * client, const char *buffer, int len)
 {
-  return send (client->listener, buffer, len, 0);
+  return send (client->fd, buffer, len, 0);
 }
 
 static int
@@ -1545,9 +1545,9 @@ ws_get_handshake (WSClient * client, WSServer * server)
   ws_send_handshake_headers (client, client->headers);
 
 #if 0
-  /* upon success, call onopen() callback */
-  if (server->onopen && !server->config->echomode) {
-    pid_t pid_buddy = server->onopen (client);
+  /* upon success, call on_conn() callback */
+  if (server->on_conn && !server->config->echomode) {
+    pid_t pid_buddy = server->on_conn (client);
 
     if (pid_buddy > 0) {
         client->pid_buddy = pid_buddy;
@@ -1820,12 +1820,16 @@ ws_handle_text_bin (WSClient * client, WSServer * server)
     }
   }
 
-  if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->onmessage) {
+  if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->on_data) {
+#if 0
     /* just echo the message to the client */
     if (server->config->echomode)
       ws_send_data (client, (*msg)->opcode, (*msg)->payload, (*msg)->payloadsz);
     else
-      server->onmessage (client);
+      server->on_data (client);
+#else
+    server->on_data (client, (*msg)->payload, (*msg)->payloadsz);
+#endif
   }
   ws_free_message (client);
 }
@@ -2104,9 +2108,14 @@ ws_handle_tcp_close (int conn, WSClient * client, WSServer * server)
 #endif
 
   shutdown (conn, SHUT_RDWR);
-  /* upon close, call onclose() callback */
-  if (server->onclose && !server->config->echomode)
-    (*server->onclose) (client);
+  /* upon close, call on_close() callback */
+#if 0
+  if (server->on_close && !server->config->echomode)
+    (*server->on_close) (client);
+#else
+  if (server->on_close)
+    (*server->on_close) (client);
+#endif
 
   /* do access logging */
   gettimeofday (&client->end_proc, NULL);
@@ -2150,16 +2159,20 @@ void
 ws_handle_accept (int listener, WSServer * server)
 {
   WSClient *client = NULL;
-  int newfd, nr_clients;
+  int newfd;
 
   newfd = accept_client (listener, &server->colist);
   if (newfd == -1)
     return;
 
   client = ws_get_client_from_list (newfd, &server->colist);
-  nr_clients = gslist_count (server->colist);
+  server->nr_clients = gslist_count (server->colist);
 
+#if 0
   if (nr_clients > MAX_WS_CLIENTS || newfd > FD_SETSIZE - 1) {
+#else
+  if (newfd > MAX_CLIENT_FD) {
+#endif
     ULOG_NOTE ("Too busy: %d %s.\n", newfd, client->remote_ip);
 
     http_error (server, client, WS_TOO_BUSY_STR);

@@ -24,46 +24,80 @@
 #define _HIBUS_SERVER_H_
 
 #include <hibox/gslist.h>
+#include <hibox/avl.h>
+#include <hibox/kvlist.h>
 
 #include "hibus.h"
 
-#define MAX_WS_CLIENTS  10
+#define MAX_CLIENT_FD   1024
+
+struct WSClient_;
+struct USClient_;
+
+/* Endpoint types */
+enum {
+    ET_BUILTIN = 0,
+    ET_UNIX_SOCKET,
+    ET_WEB_SOCKET,
+};
 
 /* A hiBus Client */
-typedef struct BusClient_
+typedef struct BusEndpoint_
 {
-    int     socket_type;
-    void*   socket_client;
+    struct avl_node node;
+
+    int     endpoint_type;
+
+    union {
+        struct WSClient_ *wsc;
+        struct USClient_ *usc;
+    };
+
     char*   host_name;
     char*   app_name;
     char*   runner_name;
-} HBClient;
+
+    /* All methods registered by this client */
+    struct kvlist method_list;
+
+    /* All bubbles registered by this client */
+    struct kvlist bubble_list;
+} BusEndpoint;
+
+struct WSServer_;
+struct USServer_;
+
+/* The hiBus Server */
+typedef struct BusServer_
+{
+    struct WSServer_ *ws_srv;
+    struct USServer_ *us_srv;
+
+    unsigned int nr_endpoints;  // always > 0
+
+    /* All endpoints indexed by socket file descriptor.
+       The builtin endpoint always occupied the first slot (with index = 0).
+       We can find the client according to the file descriptor. */
+    BusEndpoint* endpoints [MAX_CLIENT_FD + 1];
+
+    /* The AVL tree using endpoint as the key, and BusClient* as the value */
+    struct avl_tree endpoint_tree;
+} BusServer;
 
 /* Config Options */
 typedef struct ServerConfig_
 {
-  /* Config Options */
-  const char *accesslog;
-  const char *host;
-  const char *origin;
-  const char *unixsocket;
-  const char *port;
-  const char *sslcert;
-  const char *sslkey;
-  int echomode;
-  int max_frm_size;
-  int use_ssl;
+    /* Config Options */
+    const char *accesslog;
+    const char *host;
+    const char *origin;
+    const char *unixsocket;
+    const char *port;
+    const char *sslcert;
+    const char *sslkey;
+    int max_frm_size;
+    int use_ssl;
 } ServerConfig;
-
-void srv_set_config_accesslog (const char *accesslog);
-void srv_set_config_echomode (int echomode);
-void srv_set_config_frame_size (int max_frm_size);
-void srv_set_config_host (const char *host);
-void srv_set_config_origin (const char *origin);
-void srv_set_config_unixsocket (const char *unixsocket);
-void srv_set_config_port (const char* port);
-void srv_set_config_sslcert (const char *sslcert);
-void srv_set_config_sslkey (const char *sslkey);
 
 #endif /* !_HIBUS_SERVER_H_*/
 
