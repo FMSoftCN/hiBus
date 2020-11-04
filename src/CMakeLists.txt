@@ -15,7 +15,7 @@ TARGET_LINK_LIBRARIES(hibus ${libhibox})
 ADD_EXECUTABLE(hibus-cl cmdline.c libhibus.c)
 TARGET_LINK_LIBRARIES(hibus-cl ${libhibox})
 
-ADD_EXECUTABLE(hibusd websocket.c unixsocket.c server.c)
+ADD_EXECUTABLE(hibusd websocket.c unixsocket.c server.c endpoint.c)
 TARGET_LINK_LIBRARIES(hibusd ${libhibox})
 
 INSTALL(TARGETS hibus hibus-cl
