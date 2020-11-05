@@ -41,8 +41,13 @@
 BusServer the_server;
 
 static ServerConfig srvcfg = { 0 };
-static WSServer *ws_srv = NULL;
 // static USServer *us_srv = NULL;
+
+static inline void
+srv_set_config_websocket (int websocket)
+{
+    srvcfg.websocket = websocket;
+}
 
 /* Set the origin so the server can force connections to have the
  * given HTTP origin. */
@@ -59,6 +64,13 @@ srv_set_config_frame_size (int max_frm_size)
     srvcfg.max_frm_size = max_frm_size;
 }
 
+/* Set the the backlog. */
+static inline void
+srv_set_config_backlog (int backlog)
+{
+    srvcfg.backlog = backlog;
+}
+
 /* Set specific name for the UNIX socket. */
 static inline void
 srv_set_config_unixsocket (const char *unixsocket)
@@ -68,14 +80,9 @@ srv_set_config_unixsocket (const char *unixsocket)
 
 /* Set a path and a file for the access log. */
 static inline void
-srv_set_config_accesslog (const char *accesslog)
+srv_set_config_accesslog (int accesslog)
 {
     srvcfg.accesslog = accesslog;
-
-#if 0
-  if (access_log_open (srvcfg.accesslog) == 1)
-    ULOG_ERR ("Unable to open access log: %s.", strerror (errno));
-#endif
 }
 
 /* Set the server host bind address. */
@@ -107,17 +114,19 @@ srv_set_config_sslkey (const char *sslkey)
 }
 
 /* *INDENT-OFF* */
-static char short_options[] = "dp:Vh";
+static char short_options[] = "dwbp:Vh";
 static struct option long_opts[] = {
+    {"without-websocket", no_argument     , 0 , 'w' } ,
     {"port"           , required_argument , 0 , 'p' } ,
     {"addr"           , required_argument , 0 ,  0  } ,
     {"max-frame-size" , required_argument , 0 ,  0  } ,
     {"origin"         , required_argument , 0 ,  0  } ,
+    {"backlog"        , required_argument , 0 , 'b' } ,
 #if HAVE_LIBSSL
     {"ssl-cert"       , required_argument , 0 ,  0  } ,
     {"ssl-key"        , required_argument , 0 ,  0  } ,
 #endif
-    {"access-log"     , required_argument , 0 ,  0  } ,
+    {"with-access-log", no_argument       , 0 , 'a' } ,
     {"version"        , no_argument       , 0 , 'V' } ,
     {"help"           , no_argument       , 0 , 'h' } ,
     {0, 0, 0, 0}
@@ -131,29 +140,26 @@ cmd_help (void)
 
     printf (
             "Usage: "
-            "wdserver [ options ... ] -p [--addr][--origin][...]\n"
+            "hibusd [ options ... ] [--unixsocket] [-p <port>] [--addr] [--origin] ...\n"
             "The following options can also be supplied to the command:\n\n"
             ""
             "  -d                       - Run as a daemon.\n"
-            "  -p --port=<port>         - Specifies the port to bind.\n"
-            "  -h --help                - This help.\n"
-            "  -V --version             - Display version information and exit.\n"
-            "  --access-log=<path/file> - Specifies the path/file for the access log.\n"
-            "  --addr=<addr>            - Specify an IP address to bind to.\n"
-            "  --max-frame-size=<bytes> - Maximum size of a websocket frame. This\n"
-            "                             includes received frames from the client\n"
-            "                             and messages through the named pipe.\n"
+            "  -a --with-access-log     - Logging the verbose socket access info.\n"
+            "  -w --without-websocket   - Disable WebSocket.\n"
+            "  --unixsocket=<path>      - Specify the path of the Unix socket.\n"
             "  --origin=<origin>        - Ensure clients send the specified origin\n"
             "                             header upon the WebSocket handshake.\n"
+            "  --addr=<addr>            - Specify an IP address to bind to.\n"
+            "  -p --port=<port>         - Specify the port to bind.\n"
+            "  -b --backlog=<number>    - The maximum length to which the queue of \n"
+            "                             pending connections.\n"
+            "  --max-frame-size=<bytes> - Maximum size of a socket frame.\n"
             "  --ssl-cert=<cert.crt>    - Path to SSL certificate.\n"
             "  --ssl-key=<priv.key>     - Path to SSL private key.\n"
+            "  -h --help                - This help.\n"
+            "  -V --version             - Display version information and exit.\n"
             "\n"
-            "See the man page for more information `man wdserver`.\n\n"
-            "For more details visit: http://www.minigui.com\n"
-            "wdserver Copyright (C) 2018 by FMSoft\n"
-            "\n"
-            "wdserver is derived from gwsocket\n"
-            "gwsocket Copyright (C) 2016 by Gerardo Orellana"
+            "hibusd Copyright (C) 2020 FMSoft <https://www.fmsoft.cn>\n"
             "\n\n"
             );
 }
@@ -165,7 +171,7 @@ handle_signal_action (int sig_number)
     if (sig_number == SIGINT) {
         printf ("SIGINT caught!\n");
         /* if it fails to write, force stop */
-        ws_stop (ws_srv);
+        ws_stop (the_server.ws_srv);
         _exit (1);
     }
     else if (sig_number == SIGPIPE) {
@@ -199,17 +205,20 @@ parse_long_opt (const char *name, const char *oarg)
 {
     if (!strcmp ("max-frame-size", name))
         srv_set_config_frame_size (atoi (oarg));
+
+    if (!strcmp ("backlog", name))
+        srv_set_config_backlog (atoi (oarg));
+
     if (!strcmp ("origin", name))
         srv_set_config_origin (oarg);
+
     if (!strcmp ("unixsocket", name))
         srv_set_config_unixsocket (oarg);
-    else
-        srv_set_config_unixsocket (HIBUS_US_PATH);
-    if (!strcmp ("access-log", name))
-        srv_set_config_accesslog (oarg);
+
 #if HAVE_LIBSSL
     if (!strcmp ("ssl-cert", name))
         srv_set_config_sslcert (oarg);
+
     if (!strcmp ("ssl-key", name))
         srv_set_config_sslkey (oarg);
 #endif
@@ -219,43 +228,46 @@ parse_long_opt (const char *name, const char *oarg)
 static int
 read_option_args (int argc, char **argv)
 {
-  int daemon = 0;
-  int o, idx = 0;
+    int daemon = 0;
+    int o, idx = 0;
 
-  while ((o = getopt_long (argc, argv, short_options, long_opts, &idx)) >= 0) {
-    if (-1 == o || EOF == o)
-      break;
-    switch (o) {
-    case 'd':
-      daemon = 1;
-      break;
-    case 'p':
-      srv_set_config_port (optarg);
-      break;
-    case 'h':
-      cmd_help ();
-      exit (EXIT_SUCCESS);
-      return -1;
-    case 'V':
-      fprintf (stdout, "hibusd %s\n", HIBUS_VERSION);
-      exit (EXIT_SUCCESS);
-      return -1;
-    case 0:
-      parse_long_opt (long_opts[idx].name, optarg);
-      break;
-    case '?':
-      cmd_help ();
-      exit (EXIT_SUCCESS);
-      return -1;
-    default:
-      return -1;
+    while ((o = getopt_long (argc, argv, short_options, long_opts, &idx)) >= 0) {
+        if (-1 == o || EOF == o)
+            break;
+        switch (o) {
+            case 'd':
+                daemon = 1;
+                break;
+            case 'w':
+                srv_set_config_websocket (0);
+                break;
+            case 'a':
+                srv_set_config_accesslog (1);
+                break;
+            case 'p':
+                srv_set_config_port (optarg);
+                break;
+            case 'h':
+                cmd_help ();
+                return -1;
+            case 'V':
+                fprintf (stdout, "hibusd %s\n", HIBUS_VERSION);
+                return -1;
+            case 0:
+                parse_long_opt (long_opts[idx].name, optarg);
+                break;
+            case '?':
+                cmd_help ();
+                return -1;
+            default:
+                return -1;
+        }
     }
-  }
 
-  for (idx = optind; idx < argc; idx++)
-    cmd_help ();
+    for (idx = optind; idx < argc; idx++)
+        cmd_help ();
 
-  return daemon;
+    return daemon;
 }
 
 static int
@@ -440,32 +452,39 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
     }
 }
 
-/* Start the websocket server and start to monitor multiple file
+/* Start the server and start to monitor the file
  * descriptors until we have something to read or write. */
-static void ws_start (WSServer * server)
+static void server_start (void)
 {
-    int ws_listener = 0, us_listener = 0, retval;
-
-#ifdef HAVE_LIBSSL
-    if (srvcfg.sslcert && srvcfg.sslkey) {
-        ULOG_NOTE ("==Using TLS/SSL==\n");
-        srvcfg.use_ssl = 1;
-        if (initialize_ssl_ctx (server)) {
-            ULOG_NOTE ("Unable to initialize_ssl_ctx\n");
-            return;
-        }
-    }
-#endif
+    int ws_listener = -1, us_listener = -1, retval;
 
     memset (&fdstate, 0, sizeof fdstate);
-    if ((us_listener = us_listen (srvcfg.unixsocket)) < 0) {
-        ULOG_ERR ("Unable to create Unix socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
+
+    // create unix socket
+    if ((us_listener = us_listen (the_server.us_srv)) < 0) {
+        ULOG_ERR ("Unable to create Unix socket (%s, %s): %s.",
+                srvcfg.host, srvcfg.port, strerror (errno));
         goto error;
     }
 
-    if ((ws_listener = ws_socket (server)) < 0) {
-        ULOG_ERR ("Unable to create Web socket (%s): %s.",  srvcfg.unixsocket, strerror (errno));
-        goto error;
+    // create web socket listener if enabled
+    if (the_server.ws_srv) {
+#ifdef HAVE_LIBSSL
+        if (srvcfg.sslcert && srvcfg.sslkey) {
+            ULOG_NOTE ("==Using TLS/SSL==\n");
+            srvcfg.use_ssl = 1;
+            if (initialize_ssl_ctx (server)) {
+                ULOG_NOTE ("Unable to initialize_ssl_ctx\n");
+                return;
+            }
+        }
+#endif
+
+        if ((ws_listener = ws_listen (the_server.ws_srv)) < 0) {
+            ULOG_ERR ("Unable to create Web socket (%s): %s.",
+                    srvcfg.unixsocket, strerror (errno));
+            goto error;
+        }
     }
 
     while (1) {
@@ -476,7 +495,7 @@ static void ws_start (WSServer * server)
         FD_ZERO (&fdstate.rfds);
         FD_ZERO (&fdstate.wfds);
 
-        set_rfds_wfds (ws_listener, us_listener, server);
+        set_rfds_wfds (ws_listener, us_listener, the_server.ws_srv);
         max_file_fd += 1;
 
         /* yep, wait patiently */
@@ -486,7 +505,7 @@ static void ws_start (WSServer * server)
             //check_dirty_pixels (server);
         }
         else if (retval > 0) {
-            check_rfds_wfds (ws_listener, us_listener, server);
+            check_rfds_wfds (ws_listener, us_listener, the_server.ws_srv);
         }
         else {
             switch (errno) {
@@ -503,33 +522,66 @@ error:
     return;
 }
 
+static void
+server_stop (void)
+{
+}
+
 int
 main (int argc, char **argv)
 {
     int retval;
 
+    srv_set_config_websocket (1);
+    srv_set_config_origin ("localhost");
     srv_set_config_host ("localhost");
     srv_set_config_port (HIBUS_WS_PORT);
     srv_set_config_unixsocket (HIBUS_US_PATH);
+    srv_set_config_frame_size (WS_MAX_FRM_SZ);
+    srv_set_config_backlog (SOMAXCONN);
 
     retval = read_option_args (argc, argv);
-    if (retval >= 0) {
-        if (retval && srv_daemon ()) {
-            perror ("Error during srv_daemon");
-            exit (EXIT_FAILURE);
-        }
-
-        setup_signals ();
-
-        if ((ws_srv = ws_init (&srvcfg)) == NULL) {
-            perror ("Error during ws_init");
-            exit (EXIT_FAILURE);
-        }
-
-        ws_start (ws_srv);
-        ws_stop (ws_srv);
+    if (retval < 0) {
+        return EXIT_SUCCESS;
+    }
+    else if (retval && srv_daemon ()) {
+        perror ("Error during srv_daemon");
+        return EXIT_FAILURE;
     }
 
+    ulog_open (-1, -1, "hiBusd: ");
+    if (srvcfg.accesslog) {
+        ulog_threshold (LOG_INFO);
+    }
+    else {
+        ulog_threshold (LOG_NOTICE);
+    }
+
+    setup_signals ();
+
+    if ((the_server.us_srv = us_init (&srvcfg)) == NULL) {
+        ULOG_ERR ("Error during us_init");
+        goto error;
+    }
+
+    if (srvcfg.websocket) {
+        if ((the_server.ws_srv = ws_init (&srvcfg)) == NULL) {
+            ULOG_ERR ("Error during ws_init");
+            goto error;
+        }
+    }
+    else {
+        the_server.ws_srv = NULL;
+        ULOG_NOTE ("Skip web socket");
+    }
+
+    server_start ();
+    server_stop ();
+
     return EXIT_SUCCESS;
+
+error:
+    ulog_close ();
+    return EXIT_FAILURE;
 }
 
