@@ -49,6 +49,7 @@
 #include "config.h"
 #endif
 
+#include <hibox/gslist.h>
 #include <hibox/utils.h>
 #include <hibox/ulog.h>
 
@@ -2297,7 +2298,7 @@ unpack_uint32 (const void *buf, uint32_t * val, int convert)
 /* Creates an endpoint for communication and start listening for
  * connections on a socket */
 int
-ws_socket (WSServer* server)
+ws_listen (WSServer* server)
 {
   int listener = -1, ov = 1;
   struct addrinfo hints, *ai;
