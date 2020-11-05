@@ -106,14 +106,16 @@ typedef struct BusServer_
 typedef struct ServerConfig_
 {
     /* Config Options */
-    const char *accesslog;
     const char *host;
     const char *origin;
     const char *unixsocket;
     const char *port;
     const char *sslcert;
     const char *sslkey;
+    int accesslog;
     int max_frm_size;
+    int backlog;
+    int websocket;
     int use_ssl;
 } ServerConfig;
 
