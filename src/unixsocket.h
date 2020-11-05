@@ -54,7 +54,7 @@ typedef struct USServer_
     int (*on_data) (USClient * client, const char* payload, size_t payload_sz);
     int (*on_close) (USClient * client);
 
-    ServerConfig* config;
+    const ServerConfig* config;
 } USServer;
 
 typedef struct USFrameHeader_ {
@@ -63,7 +63,8 @@ typedef struct USFrameHeader_ {
     unsigned char payload[0];
 } USFrameHeader;
 
-int us_listen (const char* name);
+USServer *us_init (const ServerConfig* config);
+int us_listen (USServer* server);
 int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr);
 int us_on_connected (USClient* us_client);
 int us_client_cleanup (USClient* us_client);

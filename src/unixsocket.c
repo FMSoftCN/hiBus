@@ -26,6 +26,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -39,37 +40,55 @@
 #include "server.h"
 #include "unixsocket.h"
 
+USServer *us_init (const ServerConfig* config)
+{
+    USServer *server = calloc (1, sizeof (USServer));
+
+    server->listener = -1;
+    server->config = config;
+    return server;
+}
+
 /* returns fd if all OK, -1 on error */
-int us_listen (const char *name)
+int us_listen (USServer* server)
 {
     int    fd, len;
     struct sockaddr_un unix_addr;
 
     /* create a Unix domain stream socket */
-    if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0)
+    if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        ULOG_ERR ("Error duing calling `socekt` in us_listen: %s", strerror (errno));
         return (-1);
+    }
 
     fcntl (fd, F_SETFD, FD_CLOEXEC);
 
     /* in case it already exists */
-    unlink (name);
+    unlink (server->config->unixsocket);
 
     /* fill in socket address structure */
     memset (&unix_addr, 0, sizeof(unix_addr));
     unix_addr.sun_family = AF_UNIX;
-    strcpy (unix_addr.sun_path, name);
+    strcpy (unix_addr.sun_path, server->config->unixsocket);
     len = sizeof (unix_addr.sun_family) + strlen (unix_addr.sun_path);
 
     /* bind the name to the descriptor */
-    if (bind (fd, (struct sockaddr *) &unix_addr, len) < 0)
+    if (bind (fd, (struct sockaddr *) &unix_addr, len) < 0) {
+        ULOG_ERR ("Error duing calling `bind` in us_listen: %s", strerror (errno));
         goto error;
-    if (chmod (name, 0666) < 0)
+    }
+    if (chmod (server->config->unixsocket, 0666) < 0) {
+        ULOG_ERR ("Error duing calling `chmod` in us_listen: %s", strerror (errno));
         goto error;
+    }
 
     /* tell kernel we're a server */
-    if (listen (fd, 5) < 0)
+    if (listen (fd, server->config->backlog) < 0) {
+        ULOG_ERR ("Error duing calling `listen` in us_listen: %s", strerror (errno));
         goto error;
+    }
 
+    server->listener = fd;
     return (fd);
 
 error:
