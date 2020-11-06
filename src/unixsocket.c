@@ -155,34 +155,34 @@ static int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
 USClient *
 us_handle_accept (int listener, USServer * server)
 {
-  USClient *usc = NULL;
-  pid_t pid_buddy;
-  int newfd, retval;
+    USClient *usc = NULL;
+    pid_t pid_buddy;
+    int newfd, retval;
 
-  usc = (USClient *)calloc (sizeof (USClient), 1);
-  if (usc == NULL) {
-    ULOG_ERR ("us_handle_accept: failed to callocate memory for US Client\n");
-    return NULL;
-  }
+    usc = (USClient *)calloc (sizeof (USClient), 1);
+    if (usc == NULL) {
+        ULOG_ERR ("us_handle_accept: failed to callocate memory for US Client\n");
+        return NULL;
+    }
 
-  newfd = us_accept (listener, &pid_buddy, NULL);
-  if (newfd < 0) {
-    ULOG_ERR ("us_handle_accept: failed to accept UNIX socket usc: %d\n", newfd);
-    return NULL;
-  }
+    newfd = us_accept (listener, &pid_buddy, NULL);
+    if (newfd < 0) {
+        ULOG_ERR ("us_handle_accept: failed to accept UNIX socket usc: %d\n", newfd);
+        return NULL;
+    }
 
-  retval = us_on_connected (usc);
-  if (retval) {
-    ULOG_ERR ("us_handle_accept: failed when calling us_on_connected: %d\n", retval);
-    // TODO
-  }
+    retval = us_on_connected (usc);
+    if (retval) {
+        ULOG_ERR ("us_handle_accept: failed when calling us_on_connected: %d\n", retval);
+        // TODO
+    }
 
-  usc->type = ET_UNIX_SOCKET;
-  usc->fd = newfd;
-  usc->pid = pid_buddy;
+    usc->type = ET_UNIX_SOCKET;
+    usc->fd = newfd;
+    usc->pid = pid_buddy;
 
-  ULOG_INFO ("Accepted UnixSocket Client: %d\n", pid_buddy);
-  return usc;
+    ULOG_INFO ("Accepted UnixSocket Client: %d\n", pid_buddy);
+    return usc;
 }
 
 int us_on_connected (USClient* us_client)
