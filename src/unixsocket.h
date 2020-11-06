@@ -39,6 +39,7 @@ typedef enum USOPCODE
 /* A UnixSocket Client */
 typedef struct USClient_
 {
+    int type;
     int fd;                         /* UNIX socket FD */
     pid_t pid;                      /* client PID */
 } USClient;
@@ -65,14 +66,14 @@ typedef struct USFrameHeader_ {
 
 USServer *us_init (const ServerConfig* config);
 int us_listen (USServer* server);
-int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr);
-int us_on_connected (USClient* us_client);
+USClient *us_handle_accept (int listener, USServer *server);
+int us_handle_reads (USClient* us_client, USServer *server);
 int us_client_cleanup (USClient* us_client);
 
-USClient *us_handle_accept (int listener, USServer * server);
 int us_ping_client (const USClient* us_client);
 int us_send_data (const USClient* us_client, USOpcode op, const char *data, int sz);
-int us_on_client_data (USClient* us_client);
+
+int us_on_connected (USClient* us_client);
 
 #endif // for #ifndef _HIBUS_UNIXSOCKET_H
 

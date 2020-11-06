@@ -103,7 +103,7 @@ error:
  * that it must bind before calling us.
  */
 /* returns new fd if all OK, < 0 on error */
-int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
+static int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
 {
     int                clifd;
     socklen_t          len;
@@ -174,8 +174,10 @@ us_handle_accept (int listener, USServer * server)
   retval = us_on_connected (usc);
   if (retval) {
     ULOG_ERR ("us_handle_accept: failed when calling us_on_connected: %d\n", retval);
+    // TODO
   }
 
+  usc->type = ET_UNIX_SOCKET;
   usc->fd = newfd;
   usc->pid = pid_buddy;
 
@@ -190,7 +192,7 @@ int us_on_connected (USClient* us_client)
     return retval;
 }
 
-int us_on_client_data (USClient* us_client)
+int us_handle_reads (USClient* usc, USServer* server)
 {
     int retval = 0;
 

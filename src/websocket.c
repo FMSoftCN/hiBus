@@ -82,7 +82,7 @@ static const uint8_t utf8d[] = {
 };
 /* *INDENT-ON* */
 
-static void handle_ws_read_close (int conn, WSClient * client, WSServer * server);
+static void handle_ws_read_close (WSClient * client, WSServer * server);
 #ifdef HAVE_LIBSSL
 static int shutdown_ssl (WSClient * client);
 #endif
@@ -176,6 +176,7 @@ new_wsclient (void)
 
     ws_client = calloc (1, sizeof (WSClient));
 
+    ws_client->type = ET_WEB_SOCKET;
     ws_client->status = WS_OK;
 
     return ws_client;
@@ -526,10 +527,10 @@ ws_stop (WSServer * server)
 }
 
 /* A wrapper to close a socket. */
-static void
-ws_close (int listener)
+static inline void
+ws_close (WSClient* client)
 {
-  close (listener);
+  close (client->fd);
 }
 
 /* Set the connection status for the given client and return the given
@@ -763,7 +764,7 @@ handle_accept_ssl (WSClient * client, WSServer * server)
  * On error or if no SSL pending status, 1 is returned.
  * On success, the TLS/SSL pending action is called and 0 is returned */
 static int
-handle_ssl_pending_rw (int conn, WSServer * server, WSClient * client)
+handle_ssl_pending_rw (WSServer * server, WSClient * client)
 {
   if (!server->config->use_ssl)
     return 1;
@@ -775,18 +776,18 @@ handle_ssl_pending_rw (int conn, WSServer * server, WSClient * client)
   }
   /* trying to read but still waiting for a successful SSL_read */
   if (client->sslstatus & WS_TLS_READING) {
-    ws_handle_reads (conn, server);
+    ws_handle_reads (client, server);
     return 0;
   }
   /* trying to write but still waiting for a successful SSL_write */
   if (client->sslstatus & WS_TLS_WRITING) {
-    ws_handle_writes (conn, server);
+    ws_handle_writes (client, server);
     return 0;
   }
   /* trying to write but still waiting for a successful SSL_shutdown */
   if (client->sslstatus & WS_TLS_SHUTTING) {
     if (shutdown_ssl (client) == 0)
-      handle_ws_read_close (conn, client, server);
+      handle_ws_read_close (client, server);
     return 0;
   }
 
@@ -2101,14 +2102,14 @@ read_client_data (WSClient * client, WSServer * server)
 
 /* Handle a tcp close connection. */
 void
-ws_handle_tcp_close (int conn, WSClient * client, WSServer * server)
+ws_handle_tcp_close (WSClient * client, WSServer * server)
 {
 #ifdef HAVE_LIBSSL
   if (client->ssl)
     shutdown_ssl (client);
 #endif
 
-  shutdown (conn, SHUT_RDWR);
+  shutdown (client->fd, SHUT_RDWR);
   /* upon close, call on_close() callback */
 #if 0
   if (server->on_close && !server->config->echomode)
@@ -2131,7 +2132,7 @@ ws_handle_tcp_close (int conn, WSClient * client, WSServer * server)
   }
 
   server->closing = 0;
-  ws_close (conn);
+  ws_close (client);
 
 #ifdef HAVE_LIBSSL
   if (client->ssl)
@@ -2146,17 +2147,17 @@ ws_handle_tcp_close (int conn, WSClient * client, WSServer * server)
 
 /* Handle a tcp read close connection. */
 static void
-handle_ws_read_close (int conn, WSClient * client, WSServer * server)
+handle_ws_read_close (WSClient * client, WSServer * server)
 {
   if (client->status & WS_SENDING) {
     server->closing = 1;
     return;
   }
-  ws_handle_tcp_close (conn, client, server);
+  ws_handle_tcp_close (client, server);
 }
 
 /* Handle a new socket connection. */
-void
+WSClient*
 ws_handle_accept (int listener, WSServer * server)
 {
   WSClient *client = NULL;
@@ -2164,22 +2165,19 @@ ws_handle_accept (int listener, WSServer * server)
 
   newfd = accept_client (listener, &server->colist);
   if (newfd == -1)
-    return;
+    return NULL;
 
   client = ws_get_client_from_list (newfd, &server->colist);
   server->nr_clients = gslist_count (server->colist);
 
-#if 0
-  if (nr_clients > MAX_WS_CLIENTS || newfd > FD_SETSIZE - 1) {
-#else
-  if (newfd > MAX_CLIENT_FD) {
-#endif
+  if (server->nr_clients > MAX_CLIENTS_EACH) {
     ULOG_NOTE ("Too busy: %d %s.\n", newfd, client->remote_ip);
 
     http_error (server, client, WS_TOO_BUSY_STR);
-    handle_ws_read_close (newfd, client, server);
-    return;
+    handle_ws_read_close (client, server);
+    return NULL;
   }
+
 #ifdef HAVE_LIBSSL
   /* set flag to do TLS handshake */
   if (server->config->use_ssl)
@@ -2187,6 +2185,7 @@ ws_handle_accept (int listener, WSServer * server)
 #endif
 
   ULOG_NOTE ("Accepted: %d %s\n", newfd, client->remote_ip);
+  return client;
 }
 
 /* Handle a tcp read:
@@ -2195,15 +2194,17 @@ ws_handle_accept (int listener, WSServer * server)
   >0: socket other error 
 */
 int
-ws_handle_reads (int conn, WSServer * server)
+ws_handle_reads (WSClient * client, WSServer * server)
 {
+#if 0
   WSClient *client = NULL;
 
   if (!(client = ws_get_client_from_list (conn, &server->colist)))
     return 1;
+#endif
 
 #ifdef HAVE_LIBSSL
-  if (handle_ssl_pending_rw (conn, server, client) == 0)
+  if (handle_ssl_pending_rw (server, client) == 0)
     return 1;
 #endif
 
@@ -2214,7 +2215,7 @@ ws_handle_reads (int conn, WSServer * server)
   read_client_data (client, server);
   /* An error ocurred while reading data or connection closed */
   if ((client->status & WS_CLOSE)) {
-    handle_ws_read_close (conn, client, server);
+    handle_ws_read_close (client, server);
     return -1;
   }
 
@@ -2223,9 +2224,9 @@ ws_handle_reads (int conn, WSServer * server)
 
 /* Handle a tcp write close connection. */
 static void
-handle_write_close (int conn, WSClient * client, WSServer * server)
+handle_write_close (WSClient * client, WSServer * server)
 {
-  ws_handle_tcp_close (conn, client, server);
+  ws_handle_tcp_close (client, server);
 }
 
 /* Handle a tcp write.
@@ -2234,15 +2235,17 @@ handle_write_close (int conn, WSClient * client, WSServer * server)
   >0: socket other error 
 */
 int
-ws_handle_writes (int conn, WSServer * server)
+ws_handle_writes (WSClient * client, WSServer * server)
 {
+#if 0
   WSClient *client = NULL; 
 
   if (!(client = ws_get_client_from_list (conn, &server->colist)))
     return 1;
+#endif
 
 #ifdef HAVE_LIBSSL
-  if (handle_ssl_pending_rw (conn, server, client) == 0)
+  if (handle_ssl_pending_rw (server, client) == 0)
     return 1;
 #endif
 
@@ -2255,7 +2258,7 @@ ws_handle_writes (int conn, WSServer * server)
    * waiting from the last send() from the server to the client.  e.g.,
    * sending status code */
   if ((client->status & WS_CLOSE) && !(client->status & WS_SENDING)) {
-    handle_write_close (conn, client, server);
+    handle_write_close (client, server);
     return -1;
   }
 

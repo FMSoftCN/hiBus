@@ -238,6 +238,7 @@ typedef struct WSEState_
 typedef struct WSClient_
 {
   /* socket data */
+  int type;
   int fd;                       /* Websocket fd */
   char remote_ip[INET6_ADDRSTRLEN];     /* client IP */
 
@@ -289,10 +290,10 @@ int ws_validate_string (const char *str, int len);
 WSServer *ws_init (ServerConfig * config);
 int ws_listen (WSServer *server);
 
-void ws_handle_accept (int listener, WSServer * server);
-void ws_handle_tcp_close (int conn, WSClient * client, WSServer * server);
-int ws_handle_reads (int conn, WSServer * server);
-int ws_handle_writes (int conn, WSServer * server);
+WSClient* ws_handle_accept (int listener, WSServer * server);
+void ws_handle_tcp_close (WSClient * client, WSServer * server);
+int ws_handle_reads (WSClient * client, WSServer * server);
+int ws_handle_writes (WSClient * client, WSServer * server);
 
 void ws_stop (WSServer *server);
 
