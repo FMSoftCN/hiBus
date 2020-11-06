@@ -30,7 +30,8 @@
 
 #include "hibus.h"
 
-#define MAX_CLIENT_FD   1024
+/* max clients for each web socket and unix socket */
+#define MAX_CLIENTS_EACH    512
 
 struct WSClient_;
 struct USClient_;
@@ -91,12 +92,6 @@ typedef struct BusServer_
     struct USServer_ *us_srv;
 
     unsigned int nr_endpoints;
-
-    /* All endpoints indexed by socket file descriptor.
-       The builtin endpoint always occupied the first slot (with index = 0).
-       We can quickly find one endpoint with the file descriptor by
-       accessing this array. */
-    BusEndpoint* endpoints [MAX_CLIENT_FD + 1];
 
     /* The AVL tree using endpoint as the key, and BusClient* as the value */
     struct avl_tree endpoint_tree;

@@ -26,6 +26,7 @@
 #include <getopt.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -312,31 +313,137 @@ srv_daemon (void)
     return 0;
 }
 
+#if 1 // epoll version
+
+/* max events for epoll */
+#define MAX_EVENTS          10
+#define PTR_FOR_US_LISTENER ((void *)1)
+#define PTR_FOR_WS_LISTENER ((void *)2)
+
+static void server_start (void)
+{
+    int us_listener = -1, ws_listener = -1;
+    struct epoll_event ev, events[MAX_EVENTS];
+    int epollfd;
+
+    // create unix socket
+    if ((us_listener = us_listen (the_server.us_srv)) < 0) {
+        ULOG_ERR ("Unable to create Unix socket (%s, %s): %s.",
+                srvcfg.host, srvcfg.port, strerror (errno));
+        goto error;
+    }
+
+    // create web socket listener if enabled
+    if (the_server.ws_srv) {
+#ifdef HAVE_LIBSSL
+        if (srvcfg.sslcert && srvcfg.sslkey) {
+            ULOG_NOTE ("==Using TLS/SSL==\n");
+            srvcfg.use_ssl = 1;
+            if (initialize_ssl_ctx (server)) {
+                ULOG_ERR ("Unable to initialize_ssl_ctx\n");
+                goto error;
+            }
+        }
+#endif
+
+        if ((ws_listener = ws_listen (the_server.ws_srv)) < 0) {
+            ULOG_ERR ("Unable to create Web socket (%s): %s.",
+                    srvcfg.unixsocket, strerror (errno));
+            goto error;
+        }
+    }
+
+    epollfd = epoll_create1 (EPOLL_CLOEXEC);
+    if (epollfd == -1) {
+        ULOG_ERR ("Failed to call epoll_create1: %s.", strerror (errno));
+        goto error;
+    }
+
+    ev.events = EPOLLIN;
+    ev.data.ptr = PTR_FOR_US_LISTENER;
+    if (epoll_ctl (epollfd, EPOLL_CTL_ADD, us_listener, &ev) == -1) {
+        ULOG_ERR ("Failed to call epoll_ctl with us_listener (%d): %s.",
+                us_listener, strerror (errno));
+        goto error;
+    }
+
+    if (ws_listener >= 0) {
+        ev.events = EPOLLIN;
+        ev.data.ptr = PTR_FOR_WS_LISTENER;
+        if (epoll_ctl (epollfd, EPOLL_CTL_ADD, ws_listener, &ev) == -1) {
+            ULOG_ERR ("Failed to call epoll_ctl with ws_listener (%d): %s.",
+                    ws_listener, strerror (errno));
+            goto error;
+        }
+    }
+
+    while (1) {
+        int nfds, n;
+
+        nfds = epoll_wait (epollfd, events, MAX_EVENTS, -1);
+        if (nfds == -1) {
+            ULOG_ERR ("failed epoll_wait: %s.",
+                    strerror (errno));
+            goto error;
+        }
+
+        for (n = 0; n < nfds; ++n) {
+            if (events[n].data.ptr == PTR_FOR_US_LISTENER) {
+                USClient * client = us_handle_accept (us_listener, the_server.us_srv);
+                if (client == NULL) {
+                    ULOG_NOTE ("refused a client");
+                }
+                else {
+                    ev.events = EPOLLIN | EPOLLET;
+                    ev.data.ptr = client;
+                    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client->fd, &ev) == -1) {
+                        ULOG_ERR ("failed epoll_ctl for connected unix socket (%d): %s.",
+                                client->fd, strerror (errno));
+                        goto error;
+                    }
+                }
+            }
+            else if (events[n].data.ptr == PTR_FOR_WS_LISTENER) {
+                WSClient * client = ws_handle_accept (ws_listener, the_server.ws_srv);
+                if (client == NULL) {
+                    ULOG_NOTE ("refuse a client");
+                }
+                else {
+                    ev.events = EPOLLIN | EPOLLET;
+                    ev.data.ptr = client;
+                    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client->fd, &ev) == -1) {
+                        ULOG_ERR ("failed epoll_ctl for connected web socket (%d): %s.",
+                                client->fd, strerror (errno));
+                        goto error;
+                    }
+                }
+            }
+            else {
+                USClient *usc = (USClient *)events[n].data.ptr;
+                if (usc->type == ET_UNIX_SOCKET) {
+                    us_handle_reads (usc, the_server.us_srv);
+                }
+                else if (usc->type == ET_UNIX_SOCKET) {
+                    WSClient *wsc = (WSClient *)events[n].data.ptr;
+                    ws_handle_reads (wsc, the_server.ws_srv);
+                }
+                else {
+                    ULOG_ERR ("bad socket type: (%d) %s.",
+                            usc->type, strerror (errno));
+                    goto error;
+                }
+            }
+        }
+    }
+
+error:
+    return;
+}
+
+#else // select version
+
 static int max_file_fd = 0;
 static WSEState fdstate;
-
-/* Handle a UnixSocket read. */
-static void
-handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
-{
-    int retval = us_on_client_data (us_client);
-
-    if (retval < 0) {
-        ULOG_NOTE ("handle_us_reads: client #%d exited.\n", us_client->pid);
-        /* force to close the connection */
-        ws_handle_tcp_close (ws_client->fd, ws_client, server);
-    }
-    else if (retval > 0) {
-        ULOG_NOTE ("handle_us_reads: error when handling data from client #%d.\n", us_client->pid);
-    }
-}
-
-/* Handle a UnixSocket write. */
-static void
-handle_us_writes (USClient *us_client, WSClient* ws_client, WSServer* server)
-{
-    ULOG_NOTE ("handle_us_writes: do nothing for client #%d.\n", us_client->pid);
-}
 
 /* Set each client to determine if:
  * 1. We want to see if it has data for reading
@@ -407,29 +514,6 @@ check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
         ws_client = (WSClient*)(client_node->data);
         us_client = (USClient*)(client_node->data);
         ws_fd = ws_client->fd;
-
-#if 0
-        /* check died buddy */
-        {
-            int free_client = 0;
-            if (ws_client->status_buddy == WS_BUDDY_LAUNCHED
-                    && (time (NULL) - ws_client->launched_time_buddy) > 10) {
-                free_client = 1;
-            }
-            else if (ws_client->status_buddy == WS_BUDDY_EXITED) {
-                free_client = 1;
-            }
-
-            if (free_client) {
-                ws_handle_tcp_close (ws_fd, ws_client, server);
-                printf ("check_rfds_wfds: force to close client #%d\n", ws_fd);
-                if (FD_ISSET (ws_fd, &fdstate.rfds))
-                    FD_CLR (ws_fd, &fdstate.rfds);
-                if (FD_ISSET (ws_fd, &fdstate.wfds))
-                    FD_CLR (ws_fd, &fdstate.wfds);
-            }
-        }
-#endif
 
         /* handle reading data from a WebSocket client */
         if (FD_ISSET (ws_fd, &fdstate.rfds))
@@ -522,6 +606,8 @@ error:
     return;
 }
 
+#endif // select version
+
 static void
 server_stop (void)
 {
@@ -584,4 +670,31 @@ error:
     ulog_close ();
     return EXIT_FAILURE;
 }
+
+#if 0
+
+/* Handle a UnixSocket read. */
+static void
+handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
+{
+    int retval = us_on_client_data (us_client);
+
+    if (retval < 0) {
+        ULOG_NOTE ("handle_us_reads: client #%d exited.\n", us_client->pid);
+        /* force to close the connection */
+        ws_handle_tcp_close (ws_client->fd, ws_client, server);
+    }
+    else if (retval > 0) {
+        ULOG_NOTE ("handle_us_reads: error when handling data from client #%d.\n", us_client->pid);
+    }
+}
+
+/* Handle a UnixSocket write. */
+static void
+handle_us_writes (USClient *us_client, WSClient* ws_client, WSServer* server)
+{
+    ULOG_NOTE ("handle_us_writes: do nothing for client #%d.\n", us_client->pid);
+}
+
+#endif
 
