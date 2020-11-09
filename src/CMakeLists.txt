@@ -1,22 +1,28 @@
-FIND_LIBRARY(hibox NAMES hibox.a)
+FIND_PACKAGE(OpenSSL REQUIRED)
+
+IF(OpenSSL_FOUND)
+    ADD_DEFINITIONS(-DHAVE_LIBSSL)
+ENDIF(OpenSSL_FOUND)
 
 IF(BUILD_STATIC)
   FIND_LIBRARY(libhibox NAMES hibox.a)
+  FIND_LIBRARY(libcrypto NAMES crypto.a)
 ELSE(BUILD_STATIC)
   FIND_LIBRARY(libhibox NAMES hibox)
+  FIND_LIBRARY(libcrypto NAMES crypto)
 ENDIF(BUILD_STATIC)
 
 FIND_PATH(hibox_inc_dir hibox/utils.h)
 INCLUDE_DIRECTORIES(${hibox_inc_dir})
 
 ADD_LIBRARY(hibus SHARED libhibus.c)
-TARGET_LINK_LIBRARIES(hibus ${libhibox})
+TARGET_LINK_LIBRARIES(hibus ${libhibox} ${OPENSSL_LIBRARIES})
 
 ADD_EXECUTABLE(hibus-cl cmdline.c libhibus.c)
-TARGET_LINK_LIBRARIES(hibus-cl ${libhibox})
+TARGET_LINK_LIBRARIES(hibus-cl ${libhibox} ${OPENSSL_LIBRARIES})
 
 ADD_EXECUTABLE(hibusd websocket.c unixsocket.c server.c endpoint.c)
-TARGET_LINK_LIBRARIES(hibusd ${libhibox})
+TARGET_LINK_LIBRARIES(hibusd ${libhibox} ${OPENSSL_LIBRARIES})
 
 INSTALL(TARGETS hibus hibus-cl
 	LIBRARY DESTINATION lib
