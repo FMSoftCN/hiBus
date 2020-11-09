@@ -284,16 +284,18 @@ size_t pack_uint32 (void *buf, uint32_t val, int convert);
 size_t unpack_uint32 (const void *buf, uint32_t * val, int convert);
 void set_nonblocking (int listener);
 
-int ws_send_data (WSClient * client, WSOpcode op, const char *data, int sz);
+int ws_send_data (WSServer * server, WSClient * client,
+        WSOpcode op, const char *data, int sz);
 int ws_validate_string (const char *str, int len);
 
 WSServer *ws_init (ServerConfig * config);
+int ws_initialize_ssl_ctx (WSServer * server);
 int ws_listen (WSServer *server);
 
-WSClient* ws_handle_accept (int listener, WSServer * server);
-void ws_handle_tcp_close (WSClient * client, WSServer * server);
-int ws_handle_reads (WSClient * client, WSServer * server);
-int ws_handle_writes (WSClient * client, WSServer * server);
+WSClient* ws_handle_accept (WSServer * server, int listener);
+void ws_handle_tcp_close (WSServer * server, WSClient * client);
+int ws_handle_reads (WSServer * server, WSClient * client);
+int ws_handle_writes (WSServer * server, WSClient * client);
 
 void ws_stop (WSServer *server);
 

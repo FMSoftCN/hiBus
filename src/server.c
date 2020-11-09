@@ -339,7 +339,7 @@ static void server_start (void)
         if (srvcfg.sslcert && srvcfg.sslkey) {
             ULOG_NOTE ("==Using TLS/SSL==\n");
             srvcfg.use_ssl = 1;
-            if (initialize_ssl_ctx (server)) {
+            if (ws_initialize_ssl_ctx (the_server.ws_srv)) {
                 ULOG_ERR ("Unable to initialize_ssl_ctx\n");
                 goto error;
             }
@@ -389,7 +389,7 @@ static void server_start (void)
 
         for (n = 0; n < nfds; ++n) {
             if (events[n].data.ptr == PTR_FOR_US_LISTENER) {
-                USClient * client = us_handle_accept (us_listener, the_server.us_srv);
+                USClient * client = us_handle_accept (the_server.us_srv, us_listener);
                 if (client == NULL) {
                     ULOG_NOTE ("refused a client");
                 }
@@ -404,7 +404,7 @@ static void server_start (void)
                 }
             }
             else if (events[n].data.ptr == PTR_FOR_WS_LISTENER) {
-                WSClient * client = ws_handle_accept (ws_listener, the_server.ws_srv);
+                WSClient * client = ws_handle_accept (the_server.ws_srv, ws_listener);
                 if (client == NULL) {
                     ULOG_NOTE ("refuse a client");
                 }
@@ -421,11 +421,11 @@ static void server_start (void)
             else {
                 USClient *usc = (USClient *)events[n].data.ptr;
                 if (usc->type == ET_UNIX_SOCKET) {
-                    us_handle_reads (usc, the_server.us_srv);
+                    us_handle_reads (the_server.us_srv, usc);
                 }
                 else if (usc->type == ET_UNIX_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
-                    ws_handle_reads (wsc, the_server.ws_srv);
+                    ws_handle_reads (the_server.ws_srv, wsc);
                 }
                 else {
                     ULOG_ERR ("bad socket type: (%d) %s.",

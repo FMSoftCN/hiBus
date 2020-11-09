@@ -153,11 +153,11 @@ static int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
 
 /* Handle a new UNIX socket connection. */
 USClient *
-us_handle_accept (int listener, USServer * server)
+us_handle_accept (USServer* server, int listener)
 {
     USClient *usc = NULL;
     pid_t pid_buddy;
-    int newfd, retval;
+    int newfd;
 
     usc = (USClient *)calloc (sizeof (USClient), 1);
     if (usc == NULL) {
@@ -171,10 +171,9 @@ us_handle_accept (int listener, USServer * server)
         return NULL;
     }
 
-    retval = us_on_connected (usc);
-    if (retval) {
-        ULOG_ERR ("us_handle_accept: failed when calling us_on_connected: %d\n", retval);
-        // TODO
+    if (server->on_conn) {
+        /* TODO */
+        server->on_conn (server, usc);
     }
 
     usc->type = ET_UNIX_SOCKET;
@@ -185,14 +184,7 @@ us_handle_accept (int listener, USServer * server)
     return usc;
 }
 
-int us_on_connected (USClient* us_client)
-{
-    int retval = 0;
-
-    return retval;
-}
-
-int us_handle_reads (USClient* usc, USServer* server)
+int us_handle_reads (USServer* server, USClient* usc)
 {
     int retval = 0;
 
@@ -200,7 +192,7 @@ int us_handle_reads (USClient* usc, USServer* server)
 }
 
 /* return zero on success; none-zero on error */
-int us_ping_client (const USClient* us_client)
+int us_ping_client (USServer* server, USClient* us_client)
 {
     ssize_t n = 0;
     USFrameHeader header;
@@ -216,7 +208,8 @@ int us_ping_client (const USClient* us_client)
 }
 
 /* return zero on success; none-zero on error */
-int us_send_data (const USClient* us_client, USOpcode op, const char* data, int sz)
+int us_send_data (USServer* server, USClient* us_client,
+        USOpcode op, const char* data, int sz)
 {
     ssize_t n = 0;
     USFrameHeader header;
@@ -233,7 +226,7 @@ int us_send_data (const USClient* us_client, USOpcode op, const char* data, int 
     return 0;
 }
 
-int us_client_cleanup (USClient* us_client)
+int us_client_cleanup (USServer* server, USClient* us_client)
 {
     if (us_client->fd >= 0)
         close (us_client->fd);

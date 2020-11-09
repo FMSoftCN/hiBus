@@ -51,9 +51,10 @@ typedef struct USServer_
     int nr_clients;
 
     /* Callbacks */
-    int (*on_conn) (USClient * client);
-    int (*on_data) (USClient * client, const char* payload, size_t payload_sz);
-    int (*on_close) (USClient * client);
+    int (*on_conn) (struct USServer_* server, USClient* client);
+    int (*on_data) (struct USServer_* server, USClient* client,
+            const char* payload, size_t payload_sz);
+    int (*on_close) (struct USServer_* server, USClient* client);
 
     const ServerConfig* config;
 } USServer;
@@ -66,14 +67,13 @@ typedef struct USFrameHeader_ {
 
 USServer *us_init (const ServerConfig* config);
 int us_listen (USServer* server);
-USClient *us_handle_accept (int listener, USServer *server);
-int us_handle_reads (USClient* us_client, USServer *server);
-int us_client_cleanup (USClient* us_client);
+USClient *us_handle_accept (USServer *server, int listener);
+int us_handle_reads (USServer *server, USClient* us_client);
+int us_client_cleanup (USServer* server, USClient* us_client);
 
-int us_ping_client (const USClient* us_client);
-int us_send_data (const USClient* us_client, USOpcode op, const char *data, int sz);
-
-int us_on_connected (USClient* us_client);
+int us_ping_client (USServer* server, USClient* us_client);
+int us_send_data (USServer* server, USClient* us_client,
+        USOpcode op, const char *data, int sz);
 
 #endif // for #ifndef _HIBUS_UNIXSOCKET_H
 
