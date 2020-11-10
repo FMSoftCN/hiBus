@@ -52,6 +52,7 @@
 #include <hibox/gslist.h>
 #include <hibox/utils.h>
 #include <hibox/ulog.h>
+#include <hibox/sha1.h>
 
 #include "hibus.h"
 #include "server.h"
@@ -1428,11 +1429,11 @@ http_error (WSServer *server, WSClient *client, const char *buffer)
 static void
 ws_sha1_digest (const char *s, int len, unsigned char *digest)
 {
-  SHA1_CTX sha;
+  Sha1Context sha;
 
   sha1_init (&sha);
   sha1_update (&sha, (uint8_t *) s, len);
-  sha1_finalize (digest, &sha);
+  sha1_finalize (&sha, digest);
 }
 
 /* Set the parsed websocket handshake headers. */
