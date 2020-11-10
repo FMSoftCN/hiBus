@@ -1,4 +1,4 @@
-FIND_PACKAGE(OpenSSL REQUIRED)
+FIND_PACKAGE(OpenSSL)
 
 IF(OpenSSL_FOUND)
     ADD_DEFINITIONS(-DHAVE_LIBSSL)
@@ -6,10 +6,8 @@ ENDIF(OpenSSL_FOUND)
 
 IF(BUILD_STATIC)
   FIND_LIBRARY(libhibox NAMES hibox.a)
-  FIND_LIBRARY(libcrypto NAMES crypto.a)
 ELSE(BUILD_STATIC)
   FIND_LIBRARY(libhibox NAMES hibox)
-  FIND_LIBRARY(libcrypto NAMES crypto)
 ENDIF(BUILD_STATIC)
 
 FIND_PATH(hibox_inc_dir hibox/utils.h)
