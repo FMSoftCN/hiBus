@@ -1283,10 +1283,10 @@ ws_respond (WSServer * server, WSClient * client, const char *buffer, int len)
 {
   int bytes = 0;
 
-  /* attempt to send the whole buffer buffer */
+  /* attempt to send the whole buffer */
   if (client->sockqueue == NULL)
     bytes = ws_respond_data (server, client, buffer, len);
-  /* buffer not empty, just append new data iff we're not throttling the
+  /* buffer not empty, just append new data if we're not throttling the
    * client */
   else if (client->sockqueue != NULL && buffer != NULL &&
            !(client->status & WS_THROTTLING)) {
@@ -2172,7 +2172,7 @@ ws_handle_accept (WSServer * server, int listener)
   server->nr_clients = gslist_count (server->colist);
 
   if (server->nr_clients > MAX_CLIENTS_EACH) {
-    ULOG_NOTE ("Too busy: %d %s.\n", newfd, client->remote_ip);
+    ULOG_WARN ("Too busy: %d %s.\n", newfd, client->remote_ip);
 
     http_error (server, client, WS_TOO_BUSY_STR);
     handle_ws_read_close (server, client);
