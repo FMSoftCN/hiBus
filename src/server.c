@@ -389,7 +389,7 @@ static void server_start (void)
 
         for (n = 0; n < nfds; ++n) {
             if (events[n].data.ptr == PTR_FOR_US_LISTENER) {
-                USClient * client = us_handle_accept (the_server.us_srv, us_listener);
+                USClient * client = us_handle_accept (the_server.us_srv, &the_server);
                 if (client == NULL) {
                     ULOG_NOTE ("refused a client");
                 }

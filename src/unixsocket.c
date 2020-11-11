@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -153,11 +154,11 @@ static int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
 
 /* Handle a new UNIX socket connection. */
 USClient *
-us_handle_accept (USServer* server, int listener)
+us_handle_accept (USServer* server, void* priv_data)
 {
     USClient *usc = NULL;
     pid_t pid_buddy;
-    int newfd;
+    int newfd = -1;
 
     usc = (USClient *)calloc (sizeof (USClient), 1);
     if (usc == NULL) {
@@ -165,23 +166,49 @@ us_handle_accept (USServer* server, int listener)
         return NULL;
     }
 
-    newfd = us_accept (listener, &pid_buddy, NULL);
+    newfd = us_accept (server->listener, &pid_buddy, NULL);
     if (newfd < 0) {
         ULOG_ERR ("us_handle_accept: failed to accept UNIX socket usc: %d\n", newfd);
-        return NULL;
-    }
-
-    if (server->on_conn) {
-        /* TODO */
-        server->on_conn (server, usc);
+        goto failed;
     }
 
     usc->type = ET_UNIX_SOCKET;
     usc->fd = newfd;
     usc->pid = pid_buddy;
+    server->nr_clients++;
 
-    ULOG_INFO ("Accepted UnixSocket Client: %d\n", pid_buddy);
+    if (server->nr_clients > MAX_CLIENTS_EACH) {
+        ULOG_WARN ("too many clients (maximal clients allowed: %d)\n", MAX_CLIENTS_EACH);
+        if (server->on_failed) {
+            server->on_failed (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
+        }
+        goto close;
+    }
+
+    if (server->on_accepted) {
+        int ret_code;
+        ret_code = server->on_accepted (server, usc, priv_data);
+        if (ret_code != HIBUS_SC_OK) {
+            ULOG_WARN ("internal error after accepted this client (%d): %d\n",
+                    newfd, ret_code);
+
+            if (server->on_failed) {
+                server->on_failed (server, usc, ret_code);
+            }
+
+            goto close;
+        }
+    }
+
+    ULOG_NOTE ("Accepted a client via Unix socket: %d\n", pid_buddy);
     return usc;
+
+close:
+    us_client_cleanup (server, usc);
+
+failed:
+    free (usc);
+    return NULL;
 }
 
 int us_handle_reads (USServer* server, USClient* usc)
@@ -232,6 +259,9 @@ int us_client_cleanup (USServer* server, USClient* us_client)
         close (us_client->fd);
     us_client->fd = -1;
 
+    server->nr_clients--;
+
+    assert (server->nr_clients >= 0);
     return 0;
 }
 

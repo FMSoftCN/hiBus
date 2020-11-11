@@ -51,7 +51,8 @@ typedef struct USServer_
     int nr_clients;
 
     /* Callbacks */
-    int (*on_conn) (struct USServer_* server, USClient* client);
+    void (*on_failed) (struct USServer_* server, USClient* client, int ret_code);
+    int (*on_accepted) (struct USServer_* server, USClient* client, void* priv_data);
     int (*on_data) (struct USServer_* server, USClient* client,
             const char* payload, size_t payload_sz);
     int (*on_close) (struct USServer_* server, USClient* client);
@@ -67,7 +68,7 @@ typedef struct USFrameHeader_ {
 
 USServer *us_init (const ServerConfig* config);
 int us_listen (USServer* server);
-USClient *us_handle_accept (USServer *server, int listener);
+USClient *us_handle_accept (USServer *server, void* priv_data);
 int us_handle_reads (USServer *server, USClient* us_client);
 int us_client_cleanup (USServer* server, USClient* us_client);
 
