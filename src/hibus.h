@@ -38,52 +38,21 @@
 
 /* Status Codes and Status Messages */
 #define HIBUS_SC_OK                     200
-#define HIBUS_SM_OK                     "Ok"
-
 #define HIBUS_SC_ACCEPTED               202
-#define HIBUS_SM_ACCEPTED               "Accepted"
-
 #define HIBUS_SC_BAD_REQUEST            400
-#define HIBUS_SM_BAD_REQUEST            "Bad Request"
-
 #define HIBUS_SC_UNAUTHORIZED           401
-#define HIBUS_SM_UNAUTHORIZED           "Unauthorized"
-
 #define HIBUS_SC_FORBIDDEN              403
-#define HIBUS_SM_FORBIDDEN              "Forbidden"
-
 #define HIBUS_SC_NOT_FOUND              404
-#define HIBUS_SM_NOT_FOUND              "Not Found"
-
 #define HIBUS_SC_METHOD_NOT_ALLOWED     405
-#define HIBUS_SM_METHOD_NOT_ALLOWED     "Method Not Allowed"
-
 #define HIBUS_SC_NOT_ACCEPTABLE         406
-#define HIBUS_SM_NOT_ACCEPTABLE         "Not Acceptable"
-
 #define HIBUS_SC_CONFILCT               409
-#define HIBUS_SM_CONFILCT               "Confilct"
-
 #define HIBUS_SC_LOCKED                 423
-#define HIBUS_SM_LOCKED                 "Locked"
-
 #define HIBUS_SC_INTERNAL_SERVER_ERROR  500
-#define HIBUS_SM_INTERNAL_SERVER_ERROR  "Internal Server Error"
-
 #define HIBUS_SC_NOT_IMPLEMENTED        501
-#define HIBUS_SM_NOT_IMPLEMENTED        "Not Implemented"
-
 #define HIBUS_SC_BAD_GATEWAY            502
-#define HIBUS_SM_BAD_GATEWAY            "Bad Gateway"
-
 #define HIBUS_SC_SERVICE_UNAVAILABLE    503
-#define HIBUS_SM_SERVICE_UNAVAILABLE    "Service Unavailable"
-
 #define HIBUS_SC_GATEWAY_TIMEOUT        504
-#define HIBUS_SM_GATEWAY_TIMEOUT        "Gateway Timeout"
-
 #define HIBUS_SC_INSUFFICIENT_STORAGE   507
-#define HIBUS_SM_INSUFFICIENT_STORAGE   "Insufficient Storage"
 
 struct _hibus_conn;
 typedef struct _hibus_conn hibus_conn;
@@ -93,6 +62,8 @@ typedef struct json_object hibus_json;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+const char* hibus_get_error_message (int err_code);
 
 int hibus_connect_via_unix_socket (const char* path_to_socket, const char* runner_name, hibus_conn** conn);
 int hibus_connect_via_web_socket (const char* host_name, int port, const char* runner_name, hibus_conn** conn);
