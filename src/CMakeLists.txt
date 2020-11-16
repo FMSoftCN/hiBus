@@ -13,13 +13,13 @@ ENDIF(BUILD_STATIC)
 FIND_PATH(hibox_inc_dir hibox/utils.h)
 INCLUDE_DIRECTORIES(${hibox_inc_dir})
 
-ADD_LIBRARY(hibus SHARED libhibus.c)
+ADD_LIBRARY(hibus SHARED libhibus.c helpers.c)
 TARGET_LINK_LIBRARIES(hibus ${libhibox} ${OPENSSL_LIBRARIES})
 
-ADD_EXECUTABLE(hibus-cl cmdline.c libhibus.c)
+ADD_EXECUTABLE(hibus-cl cmdline.c libhibus.c helpers.c)
 TARGET_LINK_LIBRARIES(hibus-cl ${libhibox} ${OPENSSL_LIBRARIES})
 
-ADD_EXECUTABLE(hibusd websocket.c unixsocket.c server.c endpoint.c)
+ADD_EXECUTABLE(hibusd websocket.c unixsocket.c server.c endpoint.c helpers.c)
 TARGET_LINK_LIBRARIES(hibusd ${libhibox} ${OPENSSL_LIBRARIES})
 
 INSTALL(TARGETS hibus hibus-cl
