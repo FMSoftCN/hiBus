@@ -25,15 +25,16 @@
 
 #include <hibox/avl.h>
 #include <hibox/kvlist.h>
+#include <hibox/safe_list.h>
 
 #include "hibus.h"
 #include "server.h"
 
-int new_endpoint (int type, void* client,
-        const char* host_name, const char* app_name, const char* runner_name);
-int del_endpoint (BusEndpoint* endpoint);
+BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client);
+int del_endpoint (BusServer* the_server, BusEndpoint* endpoint);
 
-int auth_endpoint (BusEndpoint* endpoint);
+int send_challege_code (BusServer* the_server, BusEndpoint* endpoint);
+int check_auth_info (BusServer* the_server, BusEndpoint* endpoint);
 
 typedef hibus_json* (*builtin_method_handler)(BusEndpoint* from_endpoint,
         const char* method_name, const hibus_json* method_param);
