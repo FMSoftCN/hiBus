@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
 #include <errno.h>
 #include <assert.h>
@@ -154,7 +153,7 @@ static int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
 
 /* Handle a new UNIX socket connection. */
 USClient *
-us_handle_accept (USServer* server, void* priv_data)
+us_handle_accept (USServer* server)
 {
     USClient *usc = NULL;
     pid_t pid_buddy;
@@ -187,7 +186,7 @@ us_handle_accept (USServer* server, void* priv_data)
 
     if (server->on_accepted) {
         int ret_code;
-        ret_code = server->on_accepted (server, usc, priv_data);
+        ret_code = server->on_accepted (server, usc);
         if (ret_code != HIBUS_SC_OK) {
             ULOG_WARN ("Internal error after accepted this client (%d): %d\n",
                     newfd, ret_code);
