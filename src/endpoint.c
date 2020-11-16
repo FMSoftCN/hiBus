@@ -20,22 +20,71 @@
 ** along with this program.  If not, see http://www.gnu.org/licenses/.
 */
 
+#include <string.h>
+#include <assert.h>
+
 #include "endpoint.h"
+#include "unixsocket.h"
+#include "websocket.h"
 
-extern BusServer the_server;
-
-int new_endpoint (int type, void* client,
-        const char* host_name, const char* app_name, const char* runner_name)
+static int get_len_string (struct kvlist *kv, const void *data)
 {
+    return strlen (data);
+}
+
+BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
+{
+    BusEndpoint* endpoint = NULL;
+
+    endpoint = (BusEndpoint *)calloc (sizeof (BusEndpoint), 1);
+    if (endpoint == NULL)
+        return NULL;
+
+    endpoint->type = type;
+    endpoint->status = ES_AUTHING;
+    endpoint->usc = client;
+
+    endpoint->host_name = NULL;
+    endpoint->app_name = NULL;
+    endpoint->runner_name = NULL;
+
+    kvlist_init (&endpoint->method_list, get_len_string);
+    kvlist_init (&endpoint->bubble_list, get_len_string);
+    INIT_SAFE_LIST (&endpoint->pending_calling);
+
+    if (type == ET_UNIX_SOCKET) {
+        USClient* usc = (USClient*)client;
+        usc->priv_data = endpoint;
+    }
+    else if (type == ET_WEB_SOCKET) {
+        WSClient* wsc = (WSClient*)client;
+        wsc->priv_data = endpoint;
+    }
+    else {
+        assert (0);
+    }
+
+    return endpoint;
+}
+
+int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
+{
+    if (endpoint->host_name == NULL)
+        goto free;
+
+    // remove from avl list.
+
+free:
+    free (endpoint);
     return 0;
 }
 
-int del_endpoint (BusEndpoint* endpoint)
+int send_challege_code (BusServer* the_server, BusEndpoint* endpoint)
 {
-    return 0;
+    return HIBUS_SC_OK;
 }
 
-int auth_endpoint (BusEndpoint* endpoint)
+int check_auth_info (BusServer* the_server, BusEndpoint* endpoint)
 {
     return HIBUS_SC_OK;
 }
