@@ -23,6 +23,8 @@
 #ifndef _HIBUS_UNIXSOCKET_H
 #define _HIBUS_UNIXSOCKET_H
 
+#include <unistd.h>
+
 #define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
 
 typedef enum USOPCODE
@@ -39,9 +41,10 @@ typedef enum USOPCODE
 /* A UnixSocket Client */
 typedef struct USClient_
 {
-    int type;
-    int fd;                         /* UNIX socket FD */
-    pid_t pid;                      /* client PID */
+    int     type;
+    int     fd;         /* UNIX socket FD */
+    pid_t   pid;        /* client PID */
+    void*   priv_data;  /* private data */
 } USClient;
 
 /* The UnixSocket Server */
@@ -52,10 +55,10 @@ typedef struct USServer_
 
     /* Callbacks */
     void (*on_failed) (struct USServer_* server, USClient* client, int ret_code);
-    int (*on_accepted) (struct USServer_* server, USClient* client, void* priv_data);
-    int (*on_data) (struct USServer_* server, USClient* client,
+    int (*on_accepted) (struct USServer_* server, USClient* client);
+    int (*on_got_data) (struct USServer_* server, USClient* client,
             const char* payload, size_t payload_sz);
-    int (*on_close) (struct USServer_* server, USClient* client);
+    int (*on_closed) (struct USServer_* server, USClient* client);
 
     const ServerConfig* config;
 } USServer;
@@ -68,7 +71,7 @@ typedef struct USFrameHeader_ {
 
 USServer *us_init (const ServerConfig* config);
 int us_listen (USServer* server);
-USClient *us_handle_accept (USServer *server, void* priv_data);
+USClient *us_handle_accept (USServer *server);
 int us_handle_reads (USServer *server, USClient* us_client);
 int us_client_cleanup (USServer* server, USClient* us_client);
 

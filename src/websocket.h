@@ -256,6 +256,8 @@ typedef struct WSClient_
   SSL *ssl;
   WSStatus sslstatus;           /* ssl connection status */
 #endif
+
+  void*   priv_data;            /* private data */
 } WSClient;
 
 /* A WebSocket Instance */
