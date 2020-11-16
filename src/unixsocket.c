@@ -58,7 +58,7 @@ int us_listen (USServer* server)
 
     /* create a Unix domain stream socket */
     if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        ULOG_ERR ("Error duing calling `socekt` in us_listen: %s", strerror (errno));
+        ULOG_ERR ("Error duing calling `socket` in us_listen: %s\n", strerror (errno));
         return (-1);
     }
 
@@ -75,17 +75,17 @@ int us_listen (USServer* server)
 
     /* bind the name to the descriptor */
     if (bind (fd, (struct sockaddr *) &unix_addr, len) < 0) {
-        ULOG_ERR ("Error duing calling `bind` in us_listen: %s", strerror (errno));
+        ULOG_ERR ("Error duing calling `bind` in us_listen: %s\n", strerror (errno));
         goto error;
     }
     if (chmod (server->config->unixsocket, 0666) < 0) {
-        ULOG_ERR ("Error duing calling `chmod` in us_listen: %s", strerror (errno));
+        ULOG_ERR ("Error duing calling `chmod` in us_listen: %s\n", strerror (errno));
         goto error;
     }
 
     /* tell kernel we're a server */
     if (listen (fd, server->config->backlog) < 0) {
-        ULOG_ERR ("Error duing calling `listen` in us_listen: %s", strerror (errno));
+        ULOG_ERR ("Error duing calling `listen` in us_listen: %s\n", strerror (errno));
         goto error;
     }
 
@@ -162,13 +162,13 @@ us_handle_accept (USServer* server, void* priv_data)
 
     usc = (USClient *)calloc (sizeof (USClient), 1);
     if (usc == NULL) {
-        ULOG_ERR ("us_handle_accept: failed to callocate memory for US Client\n");
+        ULOG_ERR ("Failed to callocate memory for Unix socket client\n");
         return NULL;
     }
 
     newfd = us_accept (server->listener, &pid_buddy, NULL);
     if (newfd < 0) {
-        ULOG_ERR ("us_handle_accept: failed to accept UNIX socket usc: %d\n", newfd);
+        ULOG_ERR ("Failed to accept Unix socket: %d\n", newfd);
         goto failed;
     }
 
@@ -178,7 +178,7 @@ us_handle_accept (USServer* server, void* priv_data)
     server->nr_clients++;
 
     if (server->nr_clients > MAX_CLIENTS_EACH) {
-        ULOG_WARN ("too many clients (maximal clients allowed: %d)\n", MAX_CLIENTS_EACH);
+        ULOG_WARN ("Too many clients (maximal clients allowed: %d)\n", MAX_CLIENTS_EACH);
         if (server->on_failed) {
             server->on_failed (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
         }
@@ -189,7 +189,7 @@ us_handle_accept (USServer* server, void* priv_data)
         int ret_code;
         ret_code = server->on_accepted (server, usc, priv_data);
         if (ret_code != HIBUS_SC_OK) {
-            ULOG_WARN ("internal error after accepted this client (%d): %d\n",
+            ULOG_WARN ("Internal error after accepted this client (%d): %d\n",
                     newfd, ret_code);
 
             if (server->on_failed) {
@@ -246,7 +246,7 @@ int us_send_data (USServer* server, USClient* us_client,
     n = write (us_client->fd, &header, sizeof (USFrameHeader));
     n += write (us_client->fd, data, sz);
     if (n != (sizeof (USFrameHeader) + sz)) {
-        ULOG_ERR ("us_send_data: error when wirtting socket: %ld\n", n);
+        ULOG_ERR ("Error when wirting socket: %ld\n", n);
         return 1;
     }
 

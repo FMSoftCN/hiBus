@@ -328,8 +328,8 @@ static void server_start (void)
 
     // create unix socket
     if ((us_listener = us_listen (the_server.us_srv)) < 0) {
-        ULOG_ERR ("Unable to create Unix socket (%s, %s): %s.",
-                srvcfg.host, srvcfg.port, strerror (errno));
+        ULOG_ERR ("Unable to listen on Unix socket (%s)\n",
+                srvcfg.unixsocket);
         goto error;
     }
 
@@ -347,22 +347,22 @@ static void server_start (void)
 #endif
 
         if ((ws_listener = ws_listen (the_server.ws_srv)) < 0) {
-            ULOG_ERR ("Unable to create Web socket (%s): %s.",
-                    srvcfg.unixsocket, strerror (errno));
+            ULOG_ERR ("Unable to listen on Web socket (%s, %s)\n",
+                    srvcfg.host, srvcfg.port);
             goto error;
         }
     }
 
     epollfd = epoll_create1 (EPOLL_CLOEXEC);
     if (epollfd == -1) {
-        ULOG_ERR ("Failed to call epoll_create1: %s.", strerror (errno));
+        ULOG_ERR ("Failed to call epoll_create1: %s\n", strerror (errno));
         goto error;
     }
 
     ev.events = EPOLLIN;
     ev.data.ptr = PTR_FOR_US_LISTENER;
     if (epoll_ctl (epollfd, EPOLL_CTL_ADD, us_listener, &ev) == -1) {
-        ULOG_ERR ("Failed to call epoll_ctl with us_listener (%d): %s.",
+        ULOG_ERR ("Failed to call epoll_ctl with us_listener (%d): %s\n",
                 us_listener, strerror (errno));
         goto error;
     }
@@ -371,7 +371,7 @@ static void server_start (void)
         ev.events = EPOLLIN;
         ev.data.ptr = PTR_FOR_WS_LISTENER;
         if (epoll_ctl (epollfd, EPOLL_CTL_ADD, ws_listener, &ev) == -1) {
-            ULOG_ERR ("Failed to call epoll_ctl with ws_listener (%d): %s.",
+            ULOG_ERR ("Failed to call epoll_ctl with ws_listener (%d): %s\n",
                     ws_listener, strerror (errno));
             goto error;
         }
@@ -382,7 +382,7 @@ static void server_start (void)
 
         nfds = epoll_wait (epollfd, events, MAX_EVENTS, -1);
         if (nfds == -1) {
-            ULOG_ERR ("failed epoll_wait: %s.",
+            ULOG_ERR ("Failed to call epoll_wait: %s\n",
                     strerror (errno));
             goto error;
         }
@@ -391,13 +391,13 @@ static void server_start (void)
             if (events[n].data.ptr == PTR_FOR_US_LISTENER) {
                 USClient * client = us_handle_accept (the_server.us_srv, &the_server);
                 if (client == NULL) {
-                    ULOG_NOTE ("refused a client");
+                    ULOG_NOTE ("Refused a client\n");
                 }
                 else {
                     ev.events = EPOLLIN | EPOLLET;
                     ev.data.ptr = client;
                     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client->fd, &ev) == -1) {
-                        ULOG_ERR ("failed epoll_ctl for connected unix socket (%d): %s.",
+                        ULOG_ERR ("Failed epoll_ctl for connected unix socket (%d): %s\n",
                                 client->fd, strerror (errno));
                         goto error;
                     }
@@ -406,13 +406,13 @@ static void server_start (void)
             else if (events[n].data.ptr == PTR_FOR_WS_LISTENER) {
                 WSClient * client = ws_handle_accept (the_server.ws_srv, ws_listener);
                 if (client == NULL) {
-                    ULOG_NOTE ("refuse a client");
+                    ULOG_NOTE ("Refused a client\n");
                 }
                 else {
                     ev.events = EPOLLIN | EPOLLET;
                     ev.data.ptr = client;
                     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client->fd, &ev) == -1) {
-                        ULOG_ERR ("failed epoll_ctl for connected web socket (%d): %s.",
+                        ULOG_ERR ("Failed epoll_ctl for connected web socket (%d): %s\n",
                                 client->fd, strerror (errno));
                         goto error;
                     }
@@ -428,7 +428,7 @@ static void server_start (void)
                     ws_handle_reads (the_server.ws_srv, wsc);
                 }
                 else {
-                    ULOG_ERR ("bad socket type: (%d) %s.",
+                    ULOG_ERR ("Bad socket type (%d): %s\n",
                             usc->type, strerror (errno));
                     goto error;
                 }
@@ -546,8 +546,8 @@ static void server_start (void)
 
     // create unix socket
     if ((us_listener = us_listen (the_server.us_srv)) < 0) {
-        ULOG_ERR ("Unable to create Unix socket (%s, %s): %s.",
-                srvcfg.host, srvcfg.port, strerror (errno));
+        ULOG_ERR ("Unable to listen on Unix socket (%s)\n",
+                srvcfg.unixsocket);
         goto error;
     }
 
@@ -565,8 +565,8 @@ static void server_start (void)
 #endif
 
         if ((ws_listener = ws_listen (the_server.ws_srv)) < 0) {
-            ULOG_ERR ("Unable to create Web socket (%s): %s.",
-                    srvcfg.unixsocket, strerror (errno));
+            ULOG_ERR ("Unable to listen on Web socket (%s, %s)\n",
+                    srvcfg.host, srvcfg.port);
             goto error;
         }
     }
@@ -594,9 +594,10 @@ static void server_start (void)
         else {
             switch (errno) {
                 case EINTR:
+                    ULOG_WARN ("select interrupted\n");
                     break;
                 default:
-                    ULOG_ERR ("Unable to select: %s.", strerror (errno));
+                    ULOG_ERR ("Unable to select: %s\n", strerror (errno));
                     goto error;
             }
         }
@@ -635,7 +636,7 @@ main (int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    ulog_open (-1, -1, "hiBusd: ");
+    ulog_open (-1, -1, "hiBusd");
     if (srvcfg.accesslog) {
         ulog_threshold (LOG_INFO);
     }
@@ -646,13 +647,13 @@ main (int argc, char **argv)
     setup_signals ();
 
     if ((the_server.us_srv = us_init (&srvcfg)) == NULL) {
-        ULOG_ERR ("Error during us_init");
+        ULOG_ERR ("Error during us_init\n");
         goto error;
     }
 
     if (srvcfg.websocket) {
         if ((the_server.ws_srv = ws_init (&srvcfg)) == NULL) {
-            ULOG_ERR ("Error during ws_init");
+            ULOG_ERR ("Error during ws_init\n");
             goto error;
         }
     }
