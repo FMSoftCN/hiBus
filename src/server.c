@@ -25,6 +25,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
+#include <assert.h>
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/types.h>
@@ -33,13 +34,16 @@
 #include <fcntl.h>
 
 #include <hibox/ulog.h>
+#include <hibox/kvlist.h>
+#include <hibox/safe_list.h>
 
 #include "hibus.h"
 #include "server.h"
 #include "websocket.h"
 #include "unixsocket.h"
+#include "endpoint.h"
 
-BusServer the_server;
+static BusServer the_server;
 
 static ServerConfig srvcfg = { 0 };
 // static USServer *us_srv = NULL;
@@ -313,6 +317,40 @@ srv_daemon (void)
     return 0;
 }
 
+/* callbacks for Unix socket */
+static void on_failed_us (USServer* us_srv, USClient* client, int ret_code)
+{
+}
+
+// Allocate a BusEndpoint structure for a new client and send `auth` packet.
+static int on_accepted_us (USServer* us_srv, USClient* client)
+{
+    int ret_code;
+    BusEndpoint* endpoint;
+
+    endpoint = new_endpoint (&the_server, ET_UNIX_SOCKET, client);
+    if (endpoint == NULL)
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+
+    // send challenge code
+    ret_code = send_challege_code (&the_server, endpoint);
+    if (ret_code != HIBUS_SC_OK)
+        return ret_code;
+
+    return HIBUS_SC_OK;
+}
+
+static int on_got_data_us (USServer* us_srv, USClient* client,
+            const char* payload, size_t payload_sz)
+{
+    return 0;
+}
+
+static int on_closed_us (USServer* us_srv, USClient* client)
+{
+    return 0;
+}
+
 #if 1 // epoll version
 
 /* max events for epoll */
@@ -332,6 +370,10 @@ static void server_start (void)
                 srvcfg.unixsocket);
         goto error;
     }
+    the_server.us_srv->on_failed = on_failed_us;
+    the_server.us_srv->on_accepted = on_accepted_us;
+    the_server.us_srv->on_got_data = on_got_data_us;
+    the_server.us_srv->on_closed = on_closed_us;
 
     // create web socket listener if enabled
     if (the_server.ws_srv) {
@@ -389,7 +431,7 @@ static void server_start (void)
 
         for (n = 0; n < nfds; ++n) {
             if (events[n].data.ptr == PTR_FOR_US_LISTENER) {
-                USClient * client = us_handle_accept (the_server.us_srv, &the_server);
+                USClient * client = us_handle_accept (the_server.us_srv);
                 if (client == NULL) {
                     ULOG_NOTE ("Refused a client\n");
                 }
