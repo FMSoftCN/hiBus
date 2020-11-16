@@ -57,8 +57,8 @@ typedef struct BusEndpoint_
 {
     struct avl_node node;
 
-    int     endpoint_type;
-    int     endpoint_status;
+    int     type;
+    int     status;
 
     union {
         struct WSClient_ *wsc;
@@ -78,8 +78,8 @@ typedef struct BusEndpoint_
     /* All pending calls sent to this endpoint */
     struct safe_list pending_calling;
 
-    /* the challenge code for authentication */
-    const char* challenge_code;
+    /* the data for current status, e.g., the challenge code for authentication */
+    char* status_data;
 } BusEndpoint;
 
 struct WSServer_;
