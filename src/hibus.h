@@ -54,6 +54,12 @@
 #define HIBUS_SC_GATEWAY_TIMEOUT        504
 #define HIBUS_SC_INSUFFICIENT_STORAGE   507
 
+#define LEN_HOST_NAME       127
+#define LEN_APP_NAME        127
+#define LEN_RUNNER_NAME     64
+#define LEN_METHOD_NAME     64
+#define LEN_BUBBLE_NAME     64
+
 struct _hibus_conn;
 typedef struct _hibus_conn hibus_conn;
 
@@ -63,37 +69,39 @@ typedef struct json_object hibus_json;
 extern "C" {
 #endif
 
+/*
+ * helper functions - implemented in helpers.c
+ */
+
 const char* hibus_get_error_message (int err_code);
 
-int hibus_connect_via_unix_socket (const char* path_to_socket, const char* runner_name, hibus_conn** conn);
-int hibus_connect_via_web_socket (const char* host_name, int port, const char* runner_name, hibus_conn** conn);
-int hibus_disconnect (hibus_conn* conn);
+int hibus_extract_host_name (const char* endpoint, char* buff);
+int hibus_extract_app_name (const char* endpoint, char* buff);
+int hibus_extract_runner_name (const char* endpoint, char* buff);
 
-const char* hibus_conn_host_name (hibus_conn* conn);
-const char* hibus_conn_app_name (hibus_conn* conn);
-const char* hibus_conn_runner_name (hibus_conn* conn);
-int hibus_conn_socket_fd (hibus_conn* conn);
-
-#define LEN_HOST_NAME       127
-#define LEN_APP_NAME        127
-#define LEN_MODULE_NAME     64
-#define LEN_METHOD_NAME     64
-#define LEN_BUBBLE_NAME     64
-
-int hibus_get_host_name (const char* endpoint, char* buff);
-int hibus_get_app_name (const char* endpoint, char* buff);
-int hibus_get_runner_name (const char* endpoint, char* buff);
-
-char* hibus_get_host_name_alloc (const char* endpoint);
-char* hibus_get_app_name_alloc (const char* endpoint);
-char* hibus_get_runner_name_alloc (const char* endpoint);
+char* hibus_extract_host_name_alloc (const char* endpoint);
+char* hibus_extract_app_name_alloc (const char* endpoint);
+char* hibus_extract_runner_name_alloc (const char* endpoint);
 
 int hibus_assembly_endpoint (const char* host_name, const char* app_name,
         const char* runner_name, char* buff);
-
 char* hibus_assembly_endpoint_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
 
+/*
+ * connection functions - implemented in libhibus.c
+ */
+int hibus_connect_via_unix_socket (const char* path_to_socket,
+        const char* app_name, const char* runner_name, hibus_conn** conn);
+int hibus_connect_via_web_socket (const char* host_name, int port,
+        const char* app_name, const char* runner_name, hibus_conn** conn);
+int hibus_disconnect (hibus_conn* conn);
+
+const char* hibus_conn_srv_host_name (hibus_conn* conn);
+const char* hibus_conn_own_host_name (hibus_conn* conn);
+const char* hibus_conn_app_name (hibus_conn* conn);
+const char* hibus_conn_runner_name (hibus_conn* conn);
+int hibus_conn_socket_fd (hibus_conn* conn);
 
 typedef hibus_json* (*hibus_method_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,
@@ -124,11 +132,14 @@ typedef void (*hibus_result_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,
         int ret_code, const hibus_json* ret_value);
 
-int hibus_call_procedure (hibus_conn* conn, const char* endpoint, const char* method_name,
-        const hibus_json* method_praram, time_t ret_time_expected, hibus_result_handler result_handler);
+int hibus_call_procedure (hibus_conn* conn,
+        const char* endpoint, const char* method_name,
+        const hibus_json* method_praram,
+        time_t ret_time_expected, hibus_result_handler result_handler);
 
-int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint, const char* method_name,
-        const hibus_json* method_praram, time_t ret_time_expected, hibus_json** ret_value);
+int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
+        const char* method_name, const hibus_json* method_praram,
+        time_t ret_time_expected, hibus_json** ret_value);
 
 #ifdef __cplusplus
 }
