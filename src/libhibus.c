@@ -1,5 +1,5 @@
 /*
-** hibus.c -- The code for hiBus library.
+** libhibus.c -- The code for hiBus library.
 **
 ** Copyright (c) 2020 FMSoft (http://www.fmsoft.cn)
 **
