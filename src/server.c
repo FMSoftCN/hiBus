@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -333,7 +334,7 @@ static int on_accepted_us (USServer* us_srv, USClient* client)
         return HIBUS_SC_INSUFFICIENT_STORAGE;
 
     // send challenge code
-    ret_code = send_challege_code (&the_server, endpoint);
+    ret_code = send_challenge_code (&the_server, endpoint);
     if (ret_code != HIBUS_SC_OK)
         return ret_code;
 
@@ -685,6 +686,8 @@ main (int argc, char **argv)
     else {
         ulog_threshold (LOG_NOTICE);
     }
+
+    srandom (time (NULL));
 
     setup_signals ();
 

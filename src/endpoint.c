@@ -20,8 +20,13 @@
 ** along with this program.  If not, see http://www.gnu.org/licenses/.
 */
 
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+
+#include <hibox/ulog.h>
+#include <hibox/sha256.h>
+#include <hibox/hmac.h>
 
 #include "endpoint.h"
 #include "unixsocket.h"
@@ -79,8 +84,20 @@ free:
     return 0;
 }
 
-int send_challege_code (BusServer* the_server, BusEndpoint* endpoint)
+int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 {
+    char ch_code[SHA256_DIGEST_SIZE + 1];
+    char key[32];
+
+    snprintf (key, sizeof (key), "hibus-%ld", random ());
+
+    hmac_sha256 ((uint8_t*)ch_code,
+            (uint8_t*)HIBUS_APP_HIBUS, strlen (HIBUS_APP_HIBUS),
+            (uint8_t*)key, strlen (key));
+    ch_code [SHA256_DIGEST_SIZE] = 0;
+
+    ULOG_INFO ("Challenge code for new endpoint: %s\n", ch_code);
+
     return HIBUS_SC_OK;
 }
 

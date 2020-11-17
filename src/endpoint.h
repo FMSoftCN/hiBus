@@ -33,7 +33,7 @@
 BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client);
 int del_endpoint (BusServer* the_server, BusEndpoint* endpoint);
 
-int send_challege_code (BusServer* the_server, BusEndpoint* endpoint);
+int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint);
 int check_auth_info (BusServer* the_server, BusEndpoint* endpoint);
 
 typedef hibus_json* (*builtin_method_handler)(BusEndpoint* from_endpoint,
