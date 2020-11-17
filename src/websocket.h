@@ -138,14 +138,6 @@ typedef enum WSSTATUS
   WS_TLS_SHUTTING = (1 << 8),
 } WSStatus;
 
-typedef enum WSBUDDYSTATUS
-{
-  WS_BUDDY_UNKNOWN      = 0x00,
-  WS_BUDDY_LAUNCHED     = 0x01,
-  WS_BUDDY_CONNECTED    = 0x02,
-  WS_BUDDY_EXITED       = 0x03,
-} WSBuddyStatus;
-
 typedef enum WSOPCODE
 {
   WS_OPCODE_CONTINUATION = 0x00,
