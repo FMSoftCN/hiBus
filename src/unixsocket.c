@@ -113,42 +113,59 @@ static int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
     const char*        pid_str;
 
     len = sizeof (unix_addr);
-    if ( (clifd = accept (listenfd, (struct sockaddr *) &unix_addr, &len)) < 0)
+    if ((clifd = accept (listenfd, (struct sockaddr *) &unix_addr, &len)) < 0)
         return (-1);        /* often errno=EINTR, if signal caught */
 
     fcntl (clifd, F_SETFD, FD_CLOEXEC);
 
     /* obtain the client's uid from its calling address */
-    len -= /* th sizeof(unix_addr.sun_len) - */ sizeof(unix_addr.sun_family);
-                    /* len of pathname */
+    len -= sizeof(unix_addr.sun_family);
+    if (len <= 0) {
+        ULOG_ERR ("Bad peer address in us_accept: %s\n", unix_addr.sun_path);
+        goto error;
+    }
+
     unix_addr.sun_path[len] = 0;            /* null terminate */
-    if (stat(unix_addr.sun_path, &statbuf) < 0)
-        return(-2);
+    if (stat (unix_addr.sun_path, &statbuf) < 0) {
+        ULOG_ERR ("Failed `stat` in us_accept: %s\n", strerror (errno));
+        goto error;
+    }
 #ifdef S_ISSOCK    /* not defined for SVR4 */
-    if (S_ISSOCK(statbuf.st_mode) == 0)
-        return(-3);        /* not a socket */
+    if (S_ISSOCK(statbuf.st_mode) == 0) {
+        ULOG_ERR ("Not a socket: %s\n", unix_addr.sun_path);
+        goto error;
+    }
 #endif
     if ((statbuf.st_mode & (S_IRWXG | S_IRWXO)) ||
-        (statbuf.st_mode & S_IRWXU) != S_IRWXU)
-          return(-4);    /* is not rwx------ */
+            (statbuf.st_mode & S_IRWXU) != S_IRWXU) {
+        ULOG_ERR ("Bad RW mode (rwx------): %s\n", unix_addr.sun_path);
+        goto error;
+    }
 
     staletime = time(NULL) - STALE;
     if (statbuf.st_atime < staletime ||
-        statbuf.st_ctime < staletime ||
-        statbuf.st_mtime < staletime)
-          return(-5);    /* i-node is too old */
+            statbuf.st_ctime < staletime ||
+            statbuf.st_mtime < staletime) {
+        ULOG_ERR ("i-node is too old: %s\n", unix_addr.sun_path);
+        goto error;
+    }
 
     if (uidptr != NULL)
         *uidptr = statbuf.st_uid;    /* return uid of caller */
 
     /* get pid of client from sun_path */
-    pid_str = strrchr (unix_addr.sun_path, 'P');
+    pid_str = strrchr (unix_addr.sun_path, '-');
     pid_str++;
 
     *pidptr = atoi (pid_str);
+    ULOG_INFO ("Got pid from peer address: %d\n", *pidptr);
     
     unlink (unix_addr.sun_path);        /* we're done with pathname now */
     return (clifd);
+
+error:
+    close (clifd);
+    return -1;
 }
 
 /* Handle a new UNIX socket connection. */

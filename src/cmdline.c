@@ -24,12 +24,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <hibox/ulog.h>
+
 #include "hibus.h"
 
-
-int
-main (int argc, char **argv)
+int main (int argc, char **argv)
 {
+    int fd;
+    hibus_conn* conn;
+
+    ulog_open (-1, -1, "hibus cmdline");
+
+    fd = hibus_connect_via_unix_socket (HIBUS_US_PATH,
+            HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE, &conn);
+
+    ULOG_NOTE ("fd (%d)\n", fd);
+
+    ulog_close ();
+
     return 0;
 }
 

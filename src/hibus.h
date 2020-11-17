@@ -35,6 +35,7 @@
 #define HIBUS_APP_SELF                  "self"
 #define HIBUS_APP_HIBUS                 "cn.fmsoft.hybridos.hibus"
 #define HIBUS_RUNNER_BUILITIN           "builtin"
+#define HIBUS_RUNNER_CMDLINE            "cmdline"
 
 /* Status Codes and Status Messages */
 #define HIBUS_SC_OK                     200

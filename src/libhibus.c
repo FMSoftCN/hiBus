@@ -1,5 +1,5 @@
 /*
-** libhibus.c -- The code for hiBus library.
+** libhibus.c -- The code for hiBus client.
 **
 ** Copyright (c) 2020 FMSoft (http://www.fmsoft.cn)
 **
@@ -34,7 +34,9 @@
 #include <sys/fcntl.h>
 #include <sys/un.h>
 #include <sys/time.h>
+
 #include <hibox/ulog.h>
+#include <hibox/md5.h>
 
 #include "hibus.h"
 
@@ -47,16 +49,77 @@ struct _hibus_conn {
     int fd;
 };
 
+#define CLI_PATH    "/var/tmp/"
+#define CLI_PERM    S_IRWXU
+
+/* returns fd if all OK, -1 on error */
 int hibus_connect_via_unix_socket (const char* path_to_socket,
         const char* app_name, const char* runner_name, hibus_conn** conn)
 {
-    return HIBUS_SC_OK;
+    int fd, len;
+    struct sockaddr_un unix_addr;
+    char md5_digest[17];
+
+    /* create a Unix domain stream socket */
+    if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        ULOG_ERR ("Failed to call `socket` in hibus_connect_via_unix_socket: %s\n",
+                strerror (errno));
+        return (-1);
+    }
+
+    {
+        md5_ctx_t ctx;
+
+        md5_begin (&ctx);
+        md5_hash (app_name, strlen (app_name), &ctx);
+        md5_hash (runner_name, strlen (runner_name), &ctx);
+        md5_end (md5_digest, &ctx);
+    }
+
+    /* fill socket address structure w/our address */
+    memset (&unix_addr, 0, sizeof(unix_addr));
+    unix_addr.sun_family = AF_UNIX;
+    /* On Linux sun_path is 108 bytes in size */
+    sprintf (unix_addr.sun_path, "%s%s-%05d", CLI_PATH, md5_digest, getpid());
+    len = sizeof(unix_addr.sun_family) + strlen (unix_addr.sun_path);
+
+    ULOG_INFO("The client addres: %s\n", unix_addr.sun_path);
+
+    unlink (unix_addr.sun_path);        /* in case it already exists */
+    if (bind (fd, (struct sockaddr *) &unix_addr, len) < 0) {
+        ULOG_ERR ("Failed to call `bind` in hibus_connect_via_unix_socket: %s\n",
+                strerror (errno));
+        goto error;
+    }
+    if (chmod (unix_addr.sun_path, CLI_PERM) < 0) {
+        ULOG_ERR ("Failed to call `chmod` in hibus_connect_via_unix_socket: %s\n",
+                strerror (errno));
+        goto error;
+    }
+
+    /* fill socket address structure w/server's addr */
+    memset (&unix_addr, 0, sizeof(unix_addr));
+    unix_addr.sun_family = AF_UNIX;
+    strcpy (unix_addr.sun_path, path_to_socket);
+    len = sizeof(unix_addr.sun_family) + strlen(unix_addr.sun_path);
+
+    if (connect (fd, (struct sockaddr *) &unix_addr, len) < 0) {
+        ULOG_ERR ("Failed to call `connect` in hibus_connect_via_unix_socket: %s\n",
+                strerror (errno));
+        goto error;
+    }
+
+    return (fd);
+
+error:
+    close (fd);
+    return (-1);
 }
 
 int hibus_connect_via_web_socket (const char* host_name, int port,
         const char* app_name, const char* runner_name, hibus_conn** conn)
 {
-    return HIBUS_SC_OK;
+    return -HIBUS_SC_NOT_IMPLEMENTED;
 }
 
 int hibus_disconnect (hibus_conn* conn)
