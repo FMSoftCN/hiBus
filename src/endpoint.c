@@ -86,8 +86,10 @@ free:
 
 int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 {
-    char ch_code[SHA256_DIGEST_SIZE + 1];
+    int size;
     char key[32];
+    char ch_code[SHA256_DIGEST_SIZE + 1];
+    char buff[1024];
 
     snprintf (key, sizeof (key), "hibus-%ld", random ());
 
@@ -97,6 +99,29 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
     ch_code [SHA256_DIGEST_SIZE] = 0;
 
     ULOG_INFO ("Challenge code for new endpoint: %s\n", ch_code);
+
+    size = snprintf (buff, 1024, 
+            "{"
+            "   \"packageType\": \"auth\","
+            "   \"protocolName\": \"%s\","
+            "   \"protocolVersion\": %d,"
+            "   \"challengeCode\": \"%s\""
+            "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
+            ch_code);
+
+    if (size >= sizeof (buff)) {
+        // should never reach here
+        assert (0);
+    }
+    else if (endpoint->type == ET_UNIX_SOCKET) {
+        us_send_data (the_server->us_srv, endpoint->usc,
+                US_OPCODE_TEXT, buff, strlen (buff));
+    }
+    else if (endpoint->type == ET_WEB_SOCKET) {
+        ws_send_data (the_server->ws_srv, endpoint->wsc,
+                WS_OPCODE_TEXT, buff, strlen (buff));
+    }
 
     return HIBUS_SC_OK;
 }

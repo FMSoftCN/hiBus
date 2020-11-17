@@ -321,6 +321,26 @@ srv_daemon (void)
 /* callbacks for Unix socket */
 static void on_failed_us (USServer* us_srv, USClient* client, int ret_code)
 {
+    int size;
+    char buff [1024];
+
+    size = snprintf (buff, 1024, 
+            "{"
+            "   \"packageType\": \"error\","
+            "   \"protocolName\": \"%s\","
+            "   \"protocolVersion\": %d,"
+            "   \"retCode\": %d,"
+            "   \"retMsg\": \"%s\""
+            "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
+            ret_code, hibus_get_error_message (ret_code));
+
+    if (size >= sizeof (buff)) {
+        // should never reach here
+        assert (0);
+    }
+
+    us_send_data (us_srv, client, US_OPCODE_TEXT, buff, strlen (buff));
 }
 
 // Allocate a BusEndpoint structure for a new client and send `auth` packet.
