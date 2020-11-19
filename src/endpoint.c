@@ -86,7 +86,7 @@ free:
 
 int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 {
-    int size;
+    int retv;
     char key [32];
     unsigned char ch_code_bin [SHA256_DIGEST_SIZE];
     char ch_code [SHA256_DIGEST_SIZE * 2 + 1];
@@ -102,28 +102,31 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 
     ULOG_INFO ("Challenge code for new endpoint: %s\n", ch_code);
 
-    size = snprintf (buff, 1024, 
+    retv = snprintf (buff, 1024, 
             "{"
-            "   \"packageType\": \"auth\","
-            "   \"protocolName\": \"%s\","
-            "   \"protocolVersion\": %d,"
-            "   \"challengeCode\": \"%s\""
-            "}",
+            " \"packageType\": \"auth\","
+            " \"protocolName\": \"%s\","
+            " \"protocolVersion\": %d,"
+            " \"challengeCode\": \"%s\""
+            " }",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             ch_code);
 
-    if (size >= sizeof (buff)) {
+    if (retv >= sizeof (buff)) {
         // should never reach here
         assert (0);
     }
     else if (endpoint->type == ET_UNIX_SOCKET) {
-        us_send_data (the_server->us_srv, endpoint->usc,
+        retv = us_send_data (the_server->us_srv, endpoint->usc,
                 US_OPCODE_TEXT, buff, strlen (buff));
     }
     else if (endpoint->type == ET_WEB_SOCKET) {
-        ws_send_data (the_server->ws_srv, endpoint->wsc,
+        retv = ws_send_data (the_server->ws_srv, endpoint->wsc,
                 WS_OPCODE_TEXT, buff, strlen (buff));
     }
+
+    if (retv)
+        return HIBUS_SC_IOERR;
 
     return HIBUS_SC_OK;
 }
