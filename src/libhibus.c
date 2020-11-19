@@ -38,6 +38,7 @@
 #include <hibox/utils.h>
 #include <hibox/ulog.h>
 #include <hibox/md5.h>
+#include <hibox/json.h>
 
 #include "hibus.h"
 
@@ -49,6 +50,104 @@ struct _hibus_conn {
 
     int fd;
 };
+
+/* return NULL for error */
+static char* read_text_payload_from_us (int fd, int* len)
+{
+    ssize_t n = 0;
+    USFrameHeader header;
+    char *payload = NULL;
+
+    n = read (fd, &header, sizeof (USFrameHeader));
+    if (n > 0) {
+        if (header.type == US_OPCODE_TEXT &&
+                header.payload_len > 0) {
+            payload = malloc (header.payload_len + 1);
+        }
+        else {
+            ULOG_WARN ("Bad payload type (%d) and length (%d)\n",
+                    header.type, header.payload_len);
+            return NULL;  /* must not the challenge code */
+        }
+    }
+
+    if (payload == NULL) {
+        ULOG_ERR ("Failed to allocate memory for payload.\n");
+        return NULL;
+    }
+    else {
+        n = read (fd, payload, header.payload_len);
+        if (n != header.payload_len) {
+            ULOG_ERR ("Failed to read payload.\n");
+            goto failed;
+        }
+
+        payload [header.payload_len] = 0;
+        if (len)
+            *len = header.payload_len;
+    }
+
+    ULOG_INFO ("Got payload: \n%s\n", payload);
+
+    return payload;
+
+failed:
+    free (payload);
+    return NULL;
+}
+
+/* return zero for success */
+static int check_the_first_packet (int fd)
+{
+    char* payload;
+    int len;
+    hibus_json *jo = NULL, *jo_tmp;
+
+    payload = read_text_payload_from_us (fd, &len);
+    if (payload == NULL) {
+        goto failed;
+    }
+
+    jo = json_object_from_string (payload, len, 2);
+    if (jo == NULL) {
+        goto failed;
+    }
+
+    free (payload);
+    payload = NULL;
+
+    if (json_object_object_get_ex (jo, "packageType", &jo_tmp)) {
+        const char *pack_type;
+        pack_type = json_object_get_string (jo_tmp);
+        ULOG_INFO ("packageType: %s\n", pack_type);
+
+        if (strcasecmp (pack_type, "error") == 0) {
+            ULOG_WARN ("Refued by server\n");
+            goto failed;
+        }
+        else if (strcasecmp (pack_type, "auth") == 0) {
+            if (json_object_object_get_ex (jo, "challengeCode", &jo_tmp)) {
+                const char *ch_code;
+                ch_code = json_object_get_string (jo_tmp);
+                ULOG_INFO ("challengeCode: %s\n", ch_code);
+            }
+        }
+    }
+    else {
+        ULOG_WARN ("No packageType field\n");
+    }
+
+    json_object_put (jo);
+    return 0;
+
+failed:
+    if (jo)
+        json_object_put (jo);
+    if (payload)
+        free (payload);
+
+    return -1;
+}
 
 #define CLI_PATH    "/var/tmp/"
 #define CLI_PERM    S_IRWXU
@@ -112,6 +211,10 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
                 strerror (errno));
         goto error;
     }
+
+    /* try to read challenge code */
+    if (check_the_first_packet (fd))
+        goto error;
 
     return (fd);
 
