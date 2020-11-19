@@ -49,6 +49,12 @@ USServer *us_init (const ServerConfig* config)
     return server;
 }
 
+void us_stop (USServer * server)
+{
+    close (server->listener);
+    free (server);
+}
+
 /* returns fd if all OK, -1 on error */
 int us_listen (USServer* server)
 {
@@ -174,7 +180,8 @@ USClient *
 us_handle_accept (USServer* server)
 {
     USClient *usc = NULL;
-    pid_t pid_buddy;
+    pid_t pid;
+    uid_t uid;
     int newfd = -1;
 
     usc = (USClient *)calloc (sizeof (USClient), 1);
@@ -183,7 +190,7 @@ us_handle_accept (USServer* server)
         return NULL;
     }
 
-    newfd = us_accept (server->listener, &pid_buddy, NULL);
+    newfd = us_accept (server->listener, &pid, &uid);
     if (newfd < 0) {
         ULOG_ERR ("Failed to accept Unix socket: %d\n", newfd);
         goto failed;
@@ -191,7 +198,8 @@ us_handle_accept (USServer* server)
 
     usc->type = ET_UNIX_SOCKET;
     usc->fd = newfd;
-    usc->pid = pid_buddy;
+    usc->pid = pid;
+    usc->uid = uid;
     server->nr_clients++;
 
     if (server->nr_clients > MAX_CLIENTS_EACH) {
@@ -209,7 +217,7 @@ us_handle_accept (USServer* server)
             ULOG_WARN ("Internal error after accepted this client (%d): %d\n",
                     newfd, ret_code);
 
-            if (server->on_failed) {
+            if (ret_code != HIBUS_SC_IOERR && server->on_failed) {
                 server->on_failed (server, usc, ret_code);
             }
 
@@ -217,7 +225,8 @@ us_handle_accept (USServer* server)
         }
     }
 
-    ULOG_NOTE ("Accepted a client via Unix socket: %d\n", pid_buddy);
+    ULOG_NOTE ("Accepted a client via Unix socket: fd (%d), pid (%d), uid (%d)\n",
+            newfd, pid, uid);
     return usc;
 
 close:

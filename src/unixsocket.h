@@ -25,25 +25,13 @@
 
 #include <unistd.h>
 
-#define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
-
-typedef enum USOPCODE
-{
-  US_OPCODE_CONTINUATION = 0x00,
-  US_OPCODE_TEXT = 0x01,
-  US_OPCODE_BIN = 0x02,
-  US_OPCODE_END = 0x03,
-  US_OPCODE_PING = 0x09,
-  US_OPCODE_PONG = 0x0A,
-  US_OPCODE_CLOSE = 0x08,
-} USOpcode;
-
 /* A UnixSocket Client */
 typedef struct USClient_
 {
     int     type;
     int     fd;         /* UNIX socket FD */
     pid_t   pid;        /* client PID */
+    uid_t   uid;        /* client UID */
     void*   priv_data;  /* private data */
 } USClient;
 
@@ -63,13 +51,9 @@ typedef struct USServer_
     const ServerConfig* config;
 } USServer;
 
-typedef struct USFrameHeader_ {
-    int type;
-    size_t payload_len;
-    unsigned char payload[0];
-} USFrameHeader;
-
 USServer *us_init (const ServerConfig* config);
+void us_stop (USServer *server);
+
 int us_listen (USServer* server);
 USClient *us_handle_accept (USServer *server);
 int us_handle_reads (USServer *server, USClient* us_client);

@@ -175,13 +175,15 @@ static void
 handle_signal_action (int sig_number)
 {
     if (sig_number == SIGINT) {
-        printf ("SIGINT caught!\n");
+        ULOG_WARN ("SIGINT caught!\n");
         /* if it fails to write, force stop */
-        ws_stop (the_server.ws_srv);
+        us_stop (the_server.us_srv);
+        if (the_server.ws_srv)
+            ws_stop (the_server.ws_srv);
         _exit (1);
     }
     else if (sig_number == SIGPIPE) {
-        printf ("SIGPIPE caught!\n");
+        ULOG_WARN ("SIGPIPE caught!\n");
     }
 }
 
