@@ -33,7 +33,7 @@ int main (int argc, char **argv)
     int fd;
     hibus_conn* conn;
 
-    ulog_open (-1, -1, "hibus cmdline");
+    ulog_open (-1, -1, "hiBusCL");
 
     fd = hibus_connect_via_unix_socket (HIBUS_US_PATH,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE, &conn);

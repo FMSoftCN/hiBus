@@ -30,7 +30,7 @@
 #define HIBUS_PROTOCOL_NAME             "HIBUS"
 #define HIBUS_PROTOCOL_VERSION          90
 
-#define HIBUS_US_PATH                   "/var/run/hibus.sock"
+#define HIBUS_US_PATH                   "/var/tmp/hibus.sock"
 #define HIBUS_WS_PORT                   "7700"
 #define HIBUS_WS_PORT_RESERVED          "7701"
 

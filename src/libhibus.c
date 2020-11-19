@@ -35,6 +35,7 @@
 #include <sys/un.h>
 #include <sys/time.h>
 
+#include <hibox/utils.h>
 #include <hibox/ulog.h>
 #include <hibox/md5.h>
 
@@ -58,7 +59,7 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
 {
     int fd, len;
     struct sockaddr_un unix_addr;
-    char md5_digest[17];
+    char peer_name [33];
 
     /* create a Unix domain stream socket */
     if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
@@ -69,21 +70,24 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
 
     {
         md5_ctx_t ctx;
+        unsigned char md5_digest[16];
 
         md5_begin (&ctx);
         md5_hash (app_name, strlen (app_name), &ctx);
+        md5_hash ("/", 1, &ctx);
         md5_hash (runner_name, strlen (runner_name), &ctx);
         md5_end (md5_digest, &ctx);
+        bin2hex (md5_digest, 16, peer_name);
     }
 
     /* fill socket address structure w/our address */
     memset (&unix_addr, 0, sizeof(unix_addr));
     unix_addr.sun_family = AF_UNIX;
     /* On Linux sun_path is 108 bytes in size */
-    sprintf (unix_addr.sun_path, "%s%s-%05d", CLI_PATH, md5_digest, getpid());
-    len = sizeof(unix_addr.sun_family) + strlen (unix_addr.sun_path);
+    sprintf (unix_addr.sun_path, "%s%s-%05d", CLI_PATH, peer_name, getpid());
+    len = sizeof (unix_addr.sun_family) + strlen (unix_addr.sun_path);
 
-    ULOG_INFO("The client addres: %s\n", unix_addr.sun_path);
+    ULOG_INFO ("The client addres: %s\n", unix_addr.sun_path);
 
     unlink (unix_addr.sun_path);        /* in case it already exists */
     if (bind (fd, (struct sockaddr *) &unix_addr, len) < 0) {
@@ -101,7 +105,7 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     memset (&unix_addr, 0, sizeof(unix_addr));
     unix_addr.sun_family = AF_UNIX;
     strcpy (unix_addr.sun_path, path_to_socket);
-    len = sizeof(unix_addr.sun_family) + strlen(unix_addr.sun_path);
+    len = sizeof (unix_addr.sun_family) + strlen (unix_addr.sun_path);
 
     if (connect (fd, (struct sockaddr *) &unix_addr, len) < 0) {
         ULOG_ERR ("Failed to call `connect` in hibus_connect_via_unix_socket: %s\n",

@@ -87,16 +87,18 @@ free:
 int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 {
     int size;
-    char key[32];
-    char ch_code[SHA256_DIGEST_SIZE + 1];
-    char buff[1024];
+    char key [32];
+    unsigned char ch_code_bin [SHA256_DIGEST_SIZE];
+    char ch_code [SHA256_DIGEST_SIZE * 2 + 1];
+    char buff [1024];
 
     snprintf (key, sizeof (key), "hibus-%ld", random ());
 
-    hmac_sha256 ((uint8_t*)ch_code,
+    hmac_sha256 (ch_code_bin,
             (uint8_t*)HIBUS_APP_HIBUS, strlen (HIBUS_APP_HIBUS),
             (uint8_t*)key, strlen (key));
-    ch_code [SHA256_DIGEST_SIZE] = 0;
+    bin2hex (ch_code_bin, SHA256_DIGEST_SIZE, ch_code);
+    ch_code [SHA256_DIGEST_SIZE * 2] = 0;
 
     ULOG_INFO ("Challenge code for new endpoint: %s\n", ch_code);
 

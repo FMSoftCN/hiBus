@@ -120,7 +120,7 @@ srv_set_config_sslkey (const char *sslkey)
 }
 
 /* *INDENT-OFF* */
-static char short_options[] = "dwbp:Vh";
+static char short_options[] = "adwbp:Vh";
 static struct option long_opts[] = {
     {"without-websocket", no_argument     , 0 , 'w' } ,
     {"port"           , required_argument , 0 , 'p' } ,
@@ -391,6 +391,8 @@ static void server_start (void)
                 srvcfg.unixsocket);
         goto error;
     }
+    ULOG_NOTE ("Listening on Unix Socket (%s)...\n", srvcfg.unixsocket);
+
     the_server.us_srv->on_failed = on_failed_us;
     the_server.us_srv->on_accepted = on_accepted_us;
     the_server.us_srv->on_got_data = on_got_data_us;
@@ -407,6 +409,8 @@ static void server_start (void)
                 goto error;
             }
         }
+#else
+        srvcfg.sslcert = srvcfg.sslkey = NULL;
 #endif
 
         if ((ws_listener = ws_listen (the_server.ws_srv)) < 0) {
@@ -415,6 +419,8 @@ static void server_start (void)
             goto error;
         }
     }
+    ULOG_NOTE ("Listening on Web Socket (%s, %s) %s SSL...\n",
+            srvcfg.host, srvcfg.port, srvcfg.sslcert ? "with" : "without");
 
     epollfd = epoll_create1 (EPOLL_CLOEXEC);
     if (epollfd == -1) {
@@ -699,7 +705,7 @@ main (int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    ulog_open (-1, -1, "hiBusd");
+    ulog_open (-1, -1, "hiBusD");
     if (srvcfg.accesslog) {
         ulog_threshold (LOG_INFO);
     }
