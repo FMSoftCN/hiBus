@@ -41,6 +41,7 @@
 #define HIBUS_RUNNER_CMDLINE            "cmdline"
 
 /* Status Codes and Status Messages */
+#define HIBUS_SC_IOERR                  1
 #define HIBUS_SC_OK                     200
 #define HIBUS_SC_ACCEPTED               202
 #define HIBUS_SC_BAD_REQUEST            400
@@ -63,6 +64,23 @@
 #define LEN_RUNNER_NAME     64
 #define LEN_METHOD_NAME     64
 #define LEN_BUBBLE_NAME     64
+
+typedef enum USOPCODE
+{
+    US_OPCODE_CONTINUATION = 0x00,
+    US_OPCODE_TEXT = 0x01,
+    US_OPCODE_BIN = 0x02,
+    US_OPCODE_END = 0x03,
+    US_OPCODE_PING = 0x09,
+    US_OPCODE_PONG = 0x0A,
+    US_OPCODE_CLOSE = 0x08,
+} USOpcode;
+
+typedef struct USFrameHeader_ {
+    int type;
+    int payload_len;
+    unsigned char payload[0];
+} USFrameHeader;
 
 struct _hibus_conn;
 typedef struct _hibus_conn hibus_conn;
@@ -91,6 +109,8 @@ int hibus_assembly_endpoint (const char* host_name, const char* app_name,
         const char* runner_name, char* buff);
 char* hibus_assembly_endpoint_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
+
+hibus_json *json_object_from_string (const char* json, int len, int in_depth);
 
 /*
  * connection functions - implemented in libhibus.c

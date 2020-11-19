@@ -20,6 +20,8 @@
 ** along with this program.  If not, see http://www.gnu.org/licenses/.
 */
 
+#include <hibox/ulog.h>
+
 #include "hibus.h"
 
 /* Error Codes and Error Messages */
@@ -29,6 +31,8 @@ static struct  {
     int err_code;
     const char* err_msg;
 } err_code_2_messages[] = {
+    { HIBUS_SC_IOERR,               /* 1 */
+        "I/O Error" },
     { HIBUS_SC_OK,                  /* 200 */
         "Ok" },
     { HIBUS_SC_ACCEPTED,            /* 202 */
@@ -88,5 +92,40 @@ const char* hibus_get_error_message (int err_code)
     } while (lower <= upper);
 
     return UNKNOWN_ERR_CODE;
+}
+
+hibus_json *json_object_from_string (const char* json, int len, int in_depth)
+{
+	struct printbuf *pb;
+	struct json_object *obj = NULL;
+	json_tokener *tok;
+
+	if (!(pb = printbuf_new())) {
+        ULOG_ERR ("Failed to allocate buffer for parse JSON.\n");
+		return NULL;
+	}
+
+	if (in_depth < 0)
+        in_depth = JSON_TOKENER_DEFAULT_DEPTH;
+
+	tok = json_tokener_new_ex (in_depth);
+	if (!tok) {
+        ULOG_ERR ("Failed to create a new JSON tokener.\n");
+		printbuf_free (pb);
+		goto error;
+	}
+
+	printbuf_memappend (pb, json, len);
+	obj = json_tokener_parse_ex (tok, pb->buf, printbuf_length (pb));
+	if (obj == NULL) {
+        ULOG_ERR ("Failed to parse JSON: %s\n",
+                json_tokener_error_desc (json_tokener_get_error (tok)));
+    }
+
+	json_tokener_free(tok);
+
+error:
+	printbuf_free(pb);
+	return obj;
 }
 
