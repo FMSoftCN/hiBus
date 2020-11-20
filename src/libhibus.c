@@ -97,13 +97,14 @@ failed:
 }
 
 /* return zero for success */
-static int check_the_first_packet (int fd)
+static char *get_challenge_code (hibus_conn *conn)
 {
     char* payload;
     int len;
     hibus_json *jo = NULL, *jo_tmp;
+    const char *ch_code = NULL;
 
-    payload = read_text_payload_from_us (fd, &len);
+    payload = read_text_payload_from_us (conn->fd, &len);
     if (payload == NULL) {
         goto failed;
     }
@@ -122,23 +123,71 @@ static int check_the_first_packet (int fd)
         ULOG_INFO ("packageType: %s\n", pack_type);
 
         if (strcasecmp (pack_type, "error") == 0) {
-            ULOG_WARN ("Refued by server\n");
+            const char* prot_name = HIBUS_NOT_AVAILABLE;
+            int prot_ver = 0, ret_code;
+            const char *ret_msg = HIBUS_NOT_AVAILABLE, *extra_msg = HIBUS_NOT_AVAILABLE;
+
+            ULOG_WARN ("Refued by server:\n");
+            if (json_object_object_get_ex (jo, "protocolName", &jo_tmp)) {
+                prot_name = json_object_get_string (jo_tmp);
+            }
+
+            if (json_object_object_get_ex (jo, "protocolVersion", &jo_tmp)) {
+                prot_ver = json_object_get_int (jo_tmp);
+            }
+            ULOG_WARN ("  Protocol: %s/%d\n", prot_name, prot_ver);
+
+            if (json_object_object_get_ex (jo, "retCode", &jo_tmp)) {
+                ret_code = json_object_get_int (jo_tmp);
+            }
+            if (json_object_object_get_ex (jo, "retMsg", &jo_tmp)) {
+                ret_msg = json_object_get_string (jo_tmp);
+            }
+            if (json_object_object_get_ex (jo, "extraMsg", &jo_tmp)) {
+                extra_msg = json_object_get_string (jo_tmp);
+            }
+            ULOG_WARN ("  Error Info: %d (%s): %s\n", ret_code, ret_msg, extra_msg);
+
             goto failed;
         }
         else if (strcasecmp (pack_type, "auth") == 0) {
+            const char *prot_name = HIBUS_NOT_AVAILABLE;
+            int prot_ver = 0;
+
             if (json_object_object_get_ex (jo, "challengeCode", &jo_tmp)) {
-                const char *ch_code;
                 ch_code = json_object_get_string (jo_tmp);
                 ULOG_INFO ("challengeCode: %s\n", ch_code);
             }
+
+            if (json_object_object_get_ex (jo, "protocolName", &jo_tmp)) {
+                prot_name = json_object_get_string (jo_tmp);
+            }
+            if (json_object_object_get_ex (jo, "protocolVersion", &jo_tmp)) {
+                prot_ver = json_object_get_int (jo_tmp);
+            }
+
+            ULOG_INFO ("Protocol :%s/%d\n", prot_name, prot_ver);
+
+            if (ch_code == NULL) {
+                ULOG_WARN ("Null challenge code\n");
+                goto failed;
+            }
+            else if (strcasecmp (prot_name, HIBUS_PROTOCOL_NAME) ||
+                    prot_ver < HIBUS_PROTOCOL_VERSION) {
+                ULOG_WARN ("Protocol not matched: %s/%d\n", prot_name, prot_ver);
+                goto failed;
+            }
+
         }
     }
     else {
         ULOG_WARN ("No packageType field\n");
+        goto failed;
     }
 
+    assert (ch_code);
     json_object_put (jo);
-    return 0;
+    return strdup (ch_code);
 
 failed:
     if (jo)
@@ -146,7 +195,12 @@ failed:
     if (payload)
         free (payload);
 
-    return -1;
+    return NULL;
+}
+
+static int send_auth_info (hibus_conn *conn, const char* ch_code)
+{
+    return 0;
 }
 
 #define CLI_PATH    "/var/tmp/"
@@ -159,12 +213,19 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     int fd, len;
     struct sockaddr_un unix_addr;
     char peer_name [33];
+    char *ch_code = NULL;
+
+    if ((*conn = calloc (1, sizeof (hibus_conn))) == NULL) {
+        ULOG_ERR ("Failed to callocate space for connection: %s\n",
+                strerror (errno));
+        return -1;
+    }
 
     /* create a Unix domain stream socket */
     if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
         ULOG_ERR ("Failed to call `socket` in hibus_connect_via_unix_socket: %s\n",
                 strerror (errno));
-        return (-1);
+        return -1;
     }
 
     {
@@ -212,15 +273,38 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
         goto error;
     }
 
+    (*conn)->fd = fd;
+    (*conn)->srv_host_name = NULL;
+    (*conn)->own_host_name = strdup (HIBUS_LOCALHOST);
+    (*conn)->app_name = strdup (app_name);
+    (*conn)->runner_name = strdup (runner_name);
+
     /* try to read challenge code */
-    if (check_the_first_packet (fd))
+    if ((ch_code = get_challenge_code (*conn)) == NULL)
         goto error;
 
-    return (fd);
+    if (send_auth_info (*conn, ch_code)) {
+        goto error;
+    }
+
+    free (ch_code);
+    return fd;
 
 error:
     close (fd);
-    return (-1);
+
+    if (ch_code)
+        free (ch_code);
+    if ((*conn)->own_host_name)
+       free ((*conn)->own_host_name);
+    if ((*conn)->app_name)
+       free ((*conn)->app_name);
+    if ((*conn)->runner_name)
+       free ((*conn)->runner_name);
+    free (*conn);
+    *conn = NULL;
+
+    return -1;
 }
 
 int hibus_connect_via_web_socket (const char* host_name, int port,
