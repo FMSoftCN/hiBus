@@ -23,6 +23,8 @@
 #ifndef _HIBUS_H_
 #define _HIBUS_H_
 
+#include <ctype.h>
+
 #include <hibox/json.h>
 
 /* Contants */
@@ -95,8 +97,14 @@ extern "C" {
 /*
  * helper functions - implemented in helpers.c
  */
-
 const char* hibus_get_error_message (int err_code);
+
+hibus_json *json_object_from_string (const char* json, int len, int in_depth);
+
+int hibus_is_valid_token (const char* token, int max_len);
+
+int hibus_is_valid_host_name (const char* host_name);
+int hibus_is_valid_app_name (const char* app_name);
 
 int hibus_extract_host_name (const char* endpoint, char* buff);
 int hibus_extract_app_name (const char* endpoint, char* buff);
@@ -110,8 +118,6 @@ int hibus_assembly_endpoint (const char* host_name, const char* app_name,
         const char* runner_name, char* buff);
 char* hibus_assembly_endpoint_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
-
-hibus_json *json_object_from_string (const char* json, int len, int in_depth);
 
 /*
  * connection functions - implemented in libhibus.c
@@ -169,6 +175,45 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
 #ifdef __cplusplus
 }
 #endif
+
+static inline int hibus_is_valid_runner_name (const char* runner_name)
+{
+    return hibus_is_valid_token (runner_name, LEN_RUNNER_NAME);
+}
+
+static inline int hibus_is_valid_method_name (const char* method_name)
+{
+    return hibus_is_valid_token (method_name, LEN_METHOD_NAME);
+}
+
+static inline int hibus_is_valid_bubble_name (const char* bubble_name)
+{
+    return hibus_is_valid_token (bubble_name, LEN_BUBBLE_NAME);
+}
+
+static inline int hibus_name_tolower (char* name)
+{
+    int i = 0;
+
+    while (name [i]) {
+        name [i] = tolower (name[i]);
+        i++;
+    }
+
+    return i;
+}
+
+static inline int hibus_name_toupper (char* name)
+{
+    int i = 0;
+
+    while (name [i]) {
+        name [i] = toupper (name[i]);
+        i++;
+    }
+
+    return i;
+}
 
 #endif /* !_HIBUS_H_ */
 

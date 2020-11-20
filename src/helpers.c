@@ -20,6 +20,8 @@
 ** along with this program.  If not, see http://www.gnu.org/licenses/.
 */
 
+#include <string.h>
+
 #include <hibox/ulog.h>
 
 #include "hibus.h"
@@ -127,5 +129,235 @@ hibus_json *json_object_from_string (const char* json, int len, int in_depth)
 error:
 	printbuf_free(pb);
 	return obj;
+}
+
+int hibus_is_valid_token (const char* token, int max_len)
+{
+    int i;
+
+    if (!isalpha (token [0]))
+        return 0;
+
+    i = 1;
+    while (token [i]) {
+
+        if (i > max_len)
+            return 0;
+
+        if (!isalnum (token [i]) && token [i] != '_')
+            return 0;
+
+        i++;
+    }
+
+    return 1;
+}
+
+/* @<host_name>/<app_name>/<runner_name> */
+int hibus_extract_host_name (const char* endpoint, char* host_name)
+{
+    int len;
+    char* slash;
+
+    if (endpoint [0] != '@' || (slash = strchr (endpoint, '/')) == NULL)
+        return 0;
+
+    endpoint++;
+    len = (uintptr_t)slash - (uintptr_t)endpoint;
+    if (len <= 0 || len > LEN_APP_NAME)
+        return 0;
+
+    strncpy (host_name, endpoint, len);
+    ULOG_INFO ("Extracted host name: %s\n", host_name);
+
+    return len;
+}
+
+char* hibus_extract_host_name_alloc (const char* endpoint)
+{
+    char* host_name;
+    if ((host_name = malloc (LEN_HOST_NAME + 1)) == NULL)
+        return NULL;
+
+    if (hibus_extract_host_name (endpoint, host_name) > 0)
+        return host_name;
+
+    free (host_name);
+    return NULL;
+}
+
+/* @<host_name>/<app_name>/<runner_name> */
+int hibus_extract_app_name (const char* endpoint, char* app_name)
+{
+    int len;
+    char *first_slash, *second_slash;
+
+    if (endpoint [0] != '@' || (first_slash = strchr (endpoint, '/')) == 0 ||
+            (second_slash = strrchr (endpoint, '/')) == 0 ||
+            first_slash == second_slash)
+        return 0;
+
+    first_slash++;
+    len = (uintptr_t)second_slash - (uintptr_t)first_slash;
+    if (len <= 0 || len > LEN_APP_NAME)
+        return 0;
+
+    strncpy (app_name, first_slash, len);
+    ULOG_INFO ("Extracted app name: %s\n", app_name);
+
+    return len;
+}
+
+char* hibus_extract_app_name_alloc (const char* endpoint)
+{
+    char* app_name;
+
+    if ((app_name = malloc (LEN_APP_NAME + 1)) == NULL)
+        return NULL;
+
+    if (hibus_extract_app_name (endpoint, app_name) > 0)
+        return app_name;
+
+    free (app_name);
+    return NULL;
+}
+
+int hibus_extract_runner_name (const char* endpoint, char* runner_name)
+{
+    int len;
+    char *second_slash;
+
+    if (endpoint [0] != '@' ||
+            (second_slash = strrchr (endpoint, '/')) == 0)
+        return 0;
+
+    second_slash++;
+    len = strlen (second_slash);
+    if (len > LEN_RUNNER_NAME)
+        return 0;
+
+    strcpy (runner_name, second_slash);
+    ULOG_INFO ("Extracted runner name: %s\n", runner_name);
+
+    return len;
+}
+
+char* hibus_extract_runner_name_alloc (const char* endpoint)
+{
+    char* runner_name;
+
+    if ((runner_name = malloc (LEN_RUNNER_NAME + 1)) == NULL)
+        return NULL;
+
+    if (hibus_extract_runner_name (endpoint, runner_name) > 0)
+        return runner_name;
+
+    free (runner_name);
+    return NULL;
+}
+
+int hibus_assembly_endpoint (const char* host_name, const char* app_name,
+        const char* runner_name, char* buff)
+{
+    int host_len, app_len, runner_len;
+
+    if ((host_len = strlen (host_name)) > LEN_HOST_NAME)
+        return 0;
+
+    if ((app_len = strlen (app_name)) > LEN_APP_NAME)
+        return 0;
+
+    if ((runner_len = strlen (runner_name)) > LEN_RUNNER_NAME)
+        return 0;
+
+    buff [0] = '@';
+    buff [1] = '\0';
+    strcat (buff, host_name);
+    buff [host_len + 1] = '/';
+
+    strcat (buff, app_name);
+    buff [host_len + app_len + 2] = '/';
+
+    strcat (buff, runner_name);
+    ULOG_INFO ("Assemblied endpoint: %s\n", buff);
+
+    return host_len + app_len + runner_len + 3;
+}
+
+char* hibus_assembly_endpoint_alloc (const char* host_name, const char* app_name,
+        const char* runner_name)
+{
+    char* endpoint;
+    int host_len, app_len, runner_len;
+
+    if ((host_len = strlen (host_name)) > LEN_HOST_NAME)
+        return NULL;
+
+    if ((app_len = strlen (app_name)) > LEN_APP_NAME)
+        return NULL;
+
+    if ((runner_len = strlen (runner_name)) > LEN_RUNNER_NAME)
+        return NULL;
+
+    if ((endpoint = malloc (host_len + app_len + runner_len + 4)) == NULL)
+        return NULL;
+
+    endpoint [0] = '@';
+    endpoint [1] = '\0';
+    strcat (endpoint, host_name);
+    endpoint [host_len + 1] = '/';
+
+    strcat (endpoint, app_name);
+    endpoint [host_len + app_len + 2] = '/';
+
+    strcat (endpoint, runner_name);
+    ULOG_INFO ("Assemblied endpoint: %s\n", endpoint);
+
+    return endpoint;
+}
+
+int hibus_is_valid_host_name (const char* host_name)
+{
+    return 1;
+}
+
+/* cn.fmsoft.hybridos.aaa */
+int hibus_is_valid_app_name (const char* app_name)
+{
+    int len, max_len = LEN_APP_NAME;
+    const char *start;
+    char *end;
+
+    start = app_name;
+    while (*start) {
+        char saved;
+        end = strchr (start, '.');
+        if (end == NULL) {
+            saved = 0;
+            end += strlen (start);
+        }
+        else {
+            saved = '.';
+            *end = 0;
+        }
+
+        if (end == start)
+            return 0;
+
+        if ((len = hibus_is_valid_token (start, max_len)) <= 0)
+            return 0;
+
+        max_len -= len;
+        if (saved) {
+            start = end + 1;
+            *end = saved;
+            max_len--;
+        }
+        else {
+            break;
+        }
+    }
+
+    return 1;
 }
 
