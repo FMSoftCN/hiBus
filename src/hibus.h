@@ -26,7 +26,6 @@
 #include <hibox/json.h>
 
 /* Contants */
-
 #define HIBUS_PROTOCOL_NAME             "HIBUS"
 #define HIBUS_PROTOCOL_VERSION          90
 
@@ -39,6 +38,8 @@
 #define HIBUS_APP_HIBUS                 "cn.fmsoft.hybridos.hibus"
 #define HIBUS_RUNNER_BUILITIN           "builtin"
 #define HIBUS_RUNNER_CMDLINE            "cmdline"
+
+#define HIBUS_NOT_AVAILABLE             "<N/A>"
 
 /* Status Codes and Status Messages */
 #define HIBUS_SC_IOERR                  1
