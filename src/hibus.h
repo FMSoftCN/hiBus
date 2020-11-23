@@ -46,7 +46,11 @@
 /* Status Codes and Status Messages */
 #define HIBUS_SC_IOERR                  1
 #define HIBUS_SC_OK                     200
+#define HIBUS_SC_CREATED                201
 #define HIBUS_SC_ACCEPTED               202
+#define HIBUS_SC_NO_CONTENT             204 
+#define HIBUS_SC_RESET_CONTENT          205
+#define HIBUS_SC_PARTIAL_CONTENT        206
 #define HIBUS_SC_BAD_REQUEST            400
 #define HIBUS_SC_UNAUTHORIZED           401
 #define HIBUS_SC_FORBIDDEN              403
@@ -54,7 +58,17 @@
 #define HIBUS_SC_METHOD_NOT_ALLOWED     405
 #define HIBUS_SC_NOT_ACCEPTABLE         406
 #define HIBUS_SC_CONFILCT               409
+#define HIBUS_SC_GONE                   410
+#define HIBUS_SC_PRECONDITION_FAILED    412
+#define HIBUS_SC_EXPECTATION_FAILED     417
+#define HIBUS_SC_IM_A_TEAPOT            418 
+#define HIBUS_SC_UNPROCESSABLE_ENTITY   422
 #define HIBUS_SC_LOCKED                 423
+#define HIBUS_SC_FAILED_DEPENDENCY      424
+#define HIBUS_SC_TOO_EARLY              425
+#define HIBUS_SC_UPGRADE_REQUIRED       426
+#define HIBUS_SC_RETRY_WITH             449
+#define HIBUS_SC_UNAVAILABLE_FOR_LEGAL_REASONS             451
 #define HIBUS_SC_INTERNAL_SERVER_ERROR  500
 #define HIBUS_SC_NOT_IMPLEMENTED        501
 #define HIBUS_SC_BAD_GATEWAY            502

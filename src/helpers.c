@@ -37,8 +37,16 @@ static struct  {
         "I/O Error" },
     { HIBUS_SC_OK,                  /* 200 */
         "Ok" },
+    { HIBUS_SC_CREATED,             /* 201 */
+        "Created" },
     { HIBUS_SC_ACCEPTED,            /* 202 */
         "Accepted" },
+    { HIBUS_SC_NO_CONTENT,          /* 204 */
+        "No Content" },
+    { HIBUS_SC_RESET_CONTENT,       /* 205 */
+        "Reset Content" },
+    { HIBUS_SC_PARTIAL_CONTENT,     /* 206 */
+        "Partial Content" },
     { HIBUS_SC_BAD_REQUEST,         /* 400 */
         "Bad Request" },
     { HIBUS_SC_UNAUTHORIZED,        /* 401 */
@@ -53,8 +61,28 @@ static struct  {
         "Not Acceptable" },
     { HIBUS_SC_CONFILCT,            /* 409 */
         "Confilct" },
+    { HIBUS_SC_GONE,                /* 410 */
+        "Gone" },
+    { HIBUS_SC_PRECONDITION_FAILED, /* 412 */
+        "Precondition Failed" },
+    { HIBUS_SC_EXPECTATION_FAILED,  /* 417 */
+        "Expectation Failed" },
+    { HIBUS_SC_IM_A_TEAPOT,         /* 418 */
+        "I'm a teapot" },
+    { HIBUS_SC_UNPROCESSABLE_ENTITY,    /* 422 */
+        "Unprocessable Entity" },
     { HIBUS_SC_LOCKED,              /* 423 */
         "Locked" },
+    { HIBUS_SC_FAILED_DEPENDENCY,   /* 424 */
+        "Failed Dependency" },
+    { HIBUS_SC_FAILED_DEPENDENCY,   /* 425 */
+        "Failed Dependency" },
+    { HIBUS_SC_UPGRADE_REQUIRED,    /* 426 */
+        "Upgrade Required" },
+    { HIBUS_SC_RETRY_WITH,          /* 449 */
+        "Retry With" },
+    { HIBUS_SC_UNAVAILABLE_FOR_LEGAL_REASONS,   /* 451 */
+        "Unavailable For Legal Reasons" },
     { HIBUS_SC_INTERNAL_SERVER_ERROR,   /* 500 */
         "Internal Server Error" },
     { HIBUS_SC_NOT_IMPLEMENTED,     /* 501 */
