@@ -43,6 +43,11 @@
 
 #define HIBUS_NOT_AVAILABLE             "<N/A>"
 
+#define HIBUS_PUBLIC_PEM_KEY_FILE       "/etc/public-keys/public-%s.pem"
+#define HIBUS_PRIVATE_PEM_KEY_FILE      "/app/%s/private-%s.pem"
+#define HIBUS_PRIVATE_HMAC_KEY_FILE     "/app/%s/hmac-%s.key"
+#define HIBUS_LEN_PRIVATE_HMAC_KEY      64
+
 /* Status Codes and Status Messages */
 #define HIBUS_SC_IOERR                  1
 #define HIBUS_SC_OK                     200
@@ -147,6 +152,11 @@ const char* hibus_conn_own_host_name (hibus_conn* conn);
 const char* hibus_conn_app_name (hibus_conn* conn);
 const char* hibus_conn_runner_name (hibus_conn* conn);
 int hibus_conn_socket_fd (hibus_conn* conn);
+
+unsigned char *hibus_sign_challenge_code (const char *app_name, const char* ch_code,
+        unsigned int *sig_len);
+int hibus_verify_signature (const char* app_name, const char* ch_code,
+        const unsigned char* sig, unsigned int sig_len);
 
 typedef hibus_json* (*hibus_method_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,
