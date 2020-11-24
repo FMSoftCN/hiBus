@@ -328,11 +328,11 @@ static void on_failed_us (USServer* us_srv, USClient* client, int ret_code)
 
     size = snprintf (buff, 1024, 
             "{"
-            "   \"packageType\": \"error\","
-            "   \"protocolName\": \"%s\","
-            "   \"protocolVersion\": %d,"
-            "   \"retCode\": %d,"
-            "   \"retMsg\": \"%s\""
+            "\"packageType\": \"error\","
+            "\"protocolName\": \"%s\","
+            "\"protocolVersion\": %d,"
+            "\"retCode\": %d,"
+            "\"retMsg\": \"%s\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             ret_code, hibus_get_error_message (ret_code));

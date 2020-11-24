@@ -104,11 +104,11 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 
     retv = snprintf (buff, 1024, 
             "{"
-            " \"packageType\": \"auth\","
-            " \"protocolName\": \"%s\","
-            " \"protocolVersion\": %d,"
-            " \"challengeCode\": \"%s\""
-            " }",
+            "\"packageType\": \"auth\","
+            "\"protocolName\": \"%s\","
+            "\"protocolVersion\": %d,"
+            "\"challengeCode\": \"%s\""
+            "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             ch_code);
 
