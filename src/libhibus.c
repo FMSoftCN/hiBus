@@ -43,12 +43,13 @@
 #include "hibus.h"
 
 struct _hibus_conn {
+    int type;
+    int fd;
+
     char* srv_host_name;
     char* own_host_name;
     char* app_name;
     char* runner_name;
-
-    int fd;
 };
 
 /* return NULL for error */
@@ -60,13 +61,13 @@ static char* read_text_payload_from_us (int fd, int* len)
 
     n = read (fd, &header, sizeof (USFrameHeader));
     if (n > 0) {
-        if (header.type == US_OPCODE_TEXT &&
-                header.payload_len > 0) {
-            payload = malloc (header.payload_len + 1);
+        if (header.op == US_OPCODE_TEXT &&
+                header.sz_payload > 0) {
+            payload = malloc (header.sz_payload + 1);
         }
         else {
             ULOG_WARN ("Bad payload type (%d) and length (%d)\n",
-                    header.type, header.payload_len);
+                    header.op, header.sz_payload);
             return NULL;  /* must not the challenge code */
         }
     }
@@ -76,15 +77,15 @@ static char* read_text_payload_from_us (int fd, int* len)
         return NULL;
     }
     else {
-        n = read (fd, payload, header.payload_len);
-        if (n != header.payload_len) {
+        n = read (fd, payload, header.sz_payload);
+        if (n != header.sz_payload) {
             ULOG_ERR ("Failed to read payload.\n");
             goto failed;
         }
 
-        payload [header.payload_len] = 0;
+        payload [header.sz_payload] = 0;
         if (len)
-            *len = header.payload_len;
+            *len = header.sz_payload;
     }
 
     ULOG_INFO ("Got payload: \n%s\n", payload);
@@ -200,7 +201,63 @@ failed:
 
 static int send_auth_info (hibus_conn *conn, const char* ch_code)
 {
+    int retv;
+    unsigned char* sig;
+    unsigned int sig_len;
+    char* enc_sig = NULL;
+    unsigned int enc_sig_len;
+    char buff [1024];
+
+    sig = hibus_sign_data (conn->app_name,
+            (const unsigned char *)ch_code, strlen (ch_code), &sig_len);
+    if (sig == NULL || sig_len <= 0) {
+        return -1;
+    }
+
+    enc_sig_len = B64_ENCODE_LEN (sig_len);
+    enc_sig = malloc (enc_sig_len);
+    if (enc_sig == NULL) {
+        goto failed;
+    }
+
+    b64_encode (sig, sig_len, enc_sig, enc_sig_len);
+
+    free (sig);
+    sig = NULL;
+
+    retv = snprintf (buff, 1024, 
+            "{"
+            "\"packageType\": \"auth\","
+            "\"protocolName\": \"%s\","
+            "\"protocolVersion\": %d,"
+            "\"hostName\": \"%s\","
+            "\"appName\": \"%s\","
+            "\"runnerName\": \"%s\","
+            "\"signature\": \"%s\","
+            "\"sigEncoding\": \"base64\""
+            "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
+            conn->own_host_name, conn->app_name, conn->runner_name, enc_sig);
+
+    if (retv >= sizeof (buff)) {
+        ULOG_ERR ("Too small buffer for signature (%s) in send_auth_info.\n", enc_sig);
+        goto failed;
+    }
+
+    if (hibus_send_text (conn, buff, retv)) {
+        ULOG_ERR ("Failed to send text packet to hiBus server in send_auth_info.\n");
+        goto failed;
+    }
+
+    free (enc_sig);
     return 0;
+
+failed:
+    if (sig)
+        free (sig);
+    if (enc_sig)
+        free (enc_sig);
+    return -1;
 }
 
 #define CLI_PATH    "/var/tmp/"
@@ -273,6 +330,7 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
         goto error;
     }
 
+    (*conn)->type = CT_UNIX_SOCKET;
     (*conn)->fd = fd;
     (*conn)->srv_host_name = NULL;
     (*conn)->own_host_name = strdup (HIBUS_LOCALHOST);
@@ -350,5 +408,232 @@ const char* hibus_conn_runner_name (hibus_conn* conn)
 int hibus_conn_socket_fd (hibus_conn* conn)
 {
     return conn->fd;
+}
+
+int hibus_conn_socket_type (hibus_conn* conn)
+{
+    return conn->type;
+}
+
+int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data_len)
+{
+    unsigned int offset;
+    if (conn->type == CT_UNIX_SOCKET) {
+        while (1) {
+            ssize_t n = 0;
+            USFrameHeader header;
+
+            n = read (conn->fd, &header, sizeof (USFrameHeader));
+            if (n <= sizeof (USFrameHeader)) {
+                ULOG_ERR ("Failed to read frame header from Unix socket\n");
+                return -1;
+            }
+
+            if (header.op == US_OPCODE_PING) {
+                header.op = US_OPCODE_PONG;
+                header.sz_payload = 0;
+                n = write (conn->fd, &header, sizeof (USFrameHeader));
+                continue;
+            }
+            else if (header.op == US_OPCODE_CLOSE) {
+                ULOG_WARN ("Peer closed\n");
+                return -1;
+            }
+            else if (header.op == US_OPCODE_TEXT ||
+                    header.op == US_OPCODE_BIN) {
+
+                int is_text;
+                if (header.op == US_OPCODE_TEXT) {
+                    is_text = 1;
+                }
+                else {
+                    is_text = 0;
+                }
+
+                if (read (conn->fd, data_buf, header.sz_payload)
+                        < header.sz_payload) {
+                    ULOG_ERR ("Failed to read packet from Unix socket\n");
+                    return -1;
+                }
+
+                offset = header.sz_payload;
+                while (header.fragmented) {
+                    n = read (conn->fd, &header, sizeof (USFrameHeader));
+                    if (n <= sizeof (USFrameHeader)) {
+                        ULOG_ERR ("Failed to read frame header from Unix socket\n");
+                        return -1;
+                    }
+
+                    if (header.op == US_OPCODE_END) {
+                        break;
+                    }
+                    else if (header.op != US_OPCODE_CONTINUATION ) {
+                        ULOG_ERR ("Not a continuation frame\n");
+                        return -1;
+                    }
+
+                    if (read (conn->fd, data_buf + offset, header.sz_payload)
+                            < header.sz_payload) {
+                        ULOG_ERR ("Failed to read packet from Unix socket\n");
+                        return -1;
+                    }
+
+                    offset += header.sz_payload;
+                }
+
+                if (is_text)
+                    ((char *)data_buf) [offset] = '\0';
+
+                *data_len = offset;
+                return 0;
+            }
+            else {
+                ULOG_ERR ("Bad packet op code: %d\n", header.op);
+                return -1;
+            }
+        }
+    }
+    else if (conn->type == CT_WEB_SOCKET) {
+        /* TODO */
+        return -2;
+    }
+    else
+        return -3;
+
+    return 0;
+}
+
+void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len)
+{
+    void* data_buf = NULL;
+    unsigned int offset;
+
+    if (conn->type == CT_UNIX_SOCKET) {
+
+        while (1) {
+            ssize_t n = 0;
+            USFrameHeader header;
+
+            n = read (conn->fd, &header, sizeof (USFrameHeader));
+            if (n <= sizeof (USFrameHeader)) {
+                ULOG_ERR ("Failed to read frame header from Unix socket\n");
+                break;
+            }
+
+            if (header.op != US_OPCODE_PING) {
+                header.op = US_OPCODE_PONG;
+                header.sz_payload = 0;
+                n = write (conn->fd, &header, sizeof (USFrameHeader));
+                continue;
+            }
+            else if (header.op == US_OPCODE_CLOSE) {
+                ULOG_WARN ("Peer closed\n");
+                return NULL;
+            }
+            else if (header.op == US_OPCODE_TEXT ||
+                    header.op == US_OPCODE_BIN) {
+
+                int is_text;
+                if (header.op == US_OPCODE_TEXT) {
+                    is_text = 1;
+                }
+                else {
+                    is_text = 0;
+                }
+
+                if ((data_buf = malloc (header.sz_payload + 1)) == NULL) {
+                    return NULL;
+                }
+
+                if (read (conn->fd, data_buf, header.sz_payload)
+                        < header.sz_payload) {
+                    ULOG_ERR ("Failed to read packet from Unix socket\n");
+                    free (data_buf);
+                    return NULL;
+                }
+
+                offset = header.sz_payload;
+                while (header.fragmented) {
+                    n = read (conn->fd, &header, sizeof (USFrameHeader));
+                    if (n <= sizeof (USFrameHeader)) {
+                        ULOG_ERR ("Failed to read frame header from Unix socket\n");
+                        free (data_buf);
+                        return NULL;
+                    }
+
+                    if (header.op == US_OPCODE_END) {
+                        break;
+                    }
+                    else if (header.op != US_OPCODE_CONTINUATION ) {
+                        ULOG_ERR ("Not a continuation frame\n");
+                        free (data_buf);
+                        return NULL;
+                    }
+
+                    if ((data_buf = realloc (data_buf, offset + header.sz_payload + 1))
+                            == NULL) {
+                        // free?
+                        return NULL;
+                    }
+
+                    if (read (conn->fd, data_buf + offset, header.sz_payload)
+                            < header.sz_payload) {
+                        ULOG_ERR ("Failed to read packet from Unix socket\n");
+                        free (data_buf);
+                        return NULL;
+                    }
+
+                    offset += header.sz_payload;
+                }
+
+                if (is_text)
+                    ((char *)data_buf) [offset] = '\0';
+
+                *data_len = offset;
+                return data_buf;
+            }
+            else {
+                ULOG_ERR ("Bad packet op code: %d\n", header.op);
+                return NULL;
+            }
+        }
+    }
+    else if (conn->type == CT_WEB_SOCKET) {
+        /* TODO */
+        return NULL;
+    }
+    else {
+        assert (0);
+        return NULL;
+    }
+
+    return data_buf;
+}
+
+/* TODO: fragment if the text is too long */
+int hibus_send_text (hibus_conn* conn, const char* text, unsigned int len)
+{
+    if (conn->type == CT_UNIX_SOCKET) {
+        ssize_t n = 0;
+        USFrameHeader header;
+
+        header.op = US_OPCODE_TEXT;
+        header.fragmented = 0;
+        header.sz_payload = len;
+        n = write (conn->fd, &header, sizeof (USFrameHeader));
+        n += write (conn->fd, text, len);
+        if (n != (sizeof (USFrameHeader) + len)) {
+            ULOG_ERR ("Error when wirting to Unix Socket: %s\n", strerror (errno));
+            return -1;
+        }
+    }
+    else if (conn->type == CT_WEB_SOCKET) {
+        /* TODO */
+        return -2;
+    }
+    else
+        return -3;
+
+    return 0;
 }
 
