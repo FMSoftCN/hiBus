@@ -24,6 +24,7 @@
 #define _HIBUS_H_
 
 #include <ctype.h>
+#include <stdint.h>
 
 #include <hibox/json.h>
 
@@ -87,22 +88,31 @@
 #define LEN_METHOD_NAME     64
 #define LEN_BUBBLE_NAME     64
 
+#define MAX_LEN_PAYLOAD     4096
+
 typedef enum USOPCODE
 {
     US_OPCODE_CONTINUATION = 0x00,
     US_OPCODE_TEXT = 0x01,
     US_OPCODE_BIN = 0x02,
     US_OPCODE_END = 0x03,
+    US_OPCODE_CLOSE = 0x08,
     US_OPCODE_PING = 0x09,
     US_OPCODE_PONG = 0x0A,
-    US_OPCODE_CLOSE = 0x08,
 } USOpcode;
 
 typedef struct USFrameHeader_ {
-    int type;
-    int payload_len;
+    int op;
+    unsigned int fragmented;
+    unsigned int sz_payload;
     unsigned char payload[0];
 } USFrameHeader;
+
+/* connection types */
+enum {
+    CT_UNIX_SOCKET = 1,
+    CT_WEB_SOCKET,
+};
 
 struct _hibus_conn;
 typedef struct _hibus_conn hibus_conn;
@@ -152,11 +162,19 @@ const char* hibus_conn_own_host_name (hibus_conn* conn);
 const char* hibus_conn_app_name (hibus_conn* conn);
 const char* hibus_conn_runner_name (hibus_conn* conn);
 int hibus_conn_socket_fd (hibus_conn* conn);
+int hibus_conn_socket_type (hibus_conn* conn);
 
-unsigned char *hibus_sign_challenge_code (const char *app_name, const char* ch_code,
+unsigned char *hibus_sign_data (const char *app_name,
+        const unsigned char* data, unsigned int data_len,
         unsigned int *sig_len);
-int hibus_verify_signature (const char* app_name, const char* ch_code,
+int hibus_verify_signature (const char* app_name,
+        const unsigned char* ch_code, unsigned int data_len,
         const unsigned char* sig, unsigned int sig_len);
+
+int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data_len);
+void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len);
+
+int hibus_send_text (hibus_conn* conn, const char* text, unsigned int txt_len);
 
 typedef hibus_json* (*hibus_method_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,
