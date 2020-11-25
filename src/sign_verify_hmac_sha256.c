@@ -33,7 +33,8 @@
 
 #include "hibus.h"
 
-static int read_private_key_for_app (const char* app_name, unsigned char* key, unsigned int key_len)
+static int read_private_key_for_app (const char* app_name,
+        unsigned char* key, unsigned int key_len)
 {
     int size;
     char buff [512];
@@ -61,7 +62,8 @@ static int read_private_key_for_app (const char* app_name, unsigned char* key, u
     return 0;
 }
 
-unsigned char *hibus_sign_challenge_code (const char *app_name, const char* ch_code,
+unsigned char *hibus_sign_data (const char *app_name,
+        const unsigned char* data, unsigned int data_len,
         unsigned int *sig_len)
 {
     unsigned char key [HIBUS_LEN_PRIVATE_HMAC_KEY];
@@ -79,14 +81,13 @@ unsigned char *hibus_sign_challenge_code (const char *app_name, const char* ch_c
     }
 
     *sig_len = SHA256_DIGEST_SIZE;
-    hmac_sha256 (sig,
-            (uint8_t*)ch_code, strlen (ch_code),
-            (uint8_t*)key, HIBUS_LEN_PRIVATE_HMAC_KEY);
+    hmac_sha256 (sig, data, data_len, key, HIBUS_LEN_PRIVATE_HMAC_KEY);
 
     return sig;
 }
 
-int hibus_verify_signature (const char* app_name, const char* ch_code,
+int hibus_verify_signature (const char* app_name,
+        const unsigned char* data, unsigned int data_len,
         const unsigned char* sig, unsigned int sig_len)
 {
     unsigned char key [HIBUS_LEN_PRIVATE_HMAC_KEY];
@@ -99,9 +100,7 @@ int hibus_verify_signature (const char* app_name, const char* ch_code,
         return 0;
     }
 
-    hmac_sha256 (my_sig,
-            (uint8_t*)ch_code, strlen (ch_code),
-            (uint8_t*)key, HIBUS_LEN_PRIVATE_HMAC_KEY);
+    hmac_sha256 (my_sig, data, data_len, key, HIBUS_LEN_PRIVATE_HMAC_KEY);
 
     if (memcmp (my_sig, sig, sig_len) == 0)
         return 1;
