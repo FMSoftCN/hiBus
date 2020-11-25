@@ -250,8 +250,9 @@ int us_ping_client (USServer* server, USClient* us_client)
     ssize_t n = 0;
     USFrameHeader header;
 
-    header.type = US_OPCODE_PING;
-    header.payload_len = 0;
+    header.op = US_OPCODE_PING;
+    header.fragmented = 0;
+    header.sz_payload = 0;
     n = write (us_client->fd, &header, sizeof (USFrameHeader));
     if (n != sizeof (USFrameHeader)) {
         return 1;
@@ -267,8 +268,9 @@ int us_send_data (USServer* server, USClient* us_client,
     ssize_t n = 0;
     USFrameHeader header;
 
-    header.type = op;
-    header.payload_len = sz;
+    header.op = op;
+    header.fragmented = 0;
+    header.sz_payload = sz;
     n = write (us_client->fd, &header, sizeof (USFrameHeader));
     n += write (us_client->fd, data, sz);
     if (n != (sizeof (USFrameHeader) + sz)) {
