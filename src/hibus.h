@@ -49,7 +49,7 @@
 #define HIBUS_PRIVATE_HMAC_KEY_FILE     "/app/%s/hmac-%s.key"
 #define HIBUS_LEN_PRIVATE_HMAC_KEY      64
 
-/* Status Codes and Status Messages */
+/* Status Codes */
 #define HIBUS_SC_IOERR                  1
 #define HIBUS_SC_OK                     200
 #define HIBUS_SC_CREATED                201
@@ -90,8 +90,7 @@
 
 #define MAX_LEN_PAYLOAD     4096
 
-typedef enum USOPCODE
-{
+typedef enum USOpcode_ {
     US_OPCODE_CONTINUATION = 0x00,
     US_OPCODE_TEXT = 0x01,
     US_OPCODE_BIN = 0x02,
