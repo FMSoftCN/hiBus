@@ -104,7 +104,7 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 
     retv = snprintf (buff, 1024, 
             "{"
-            "\"packageType\": \"auth\","
+            "\"packetType\": \"auth\","
             "\"protocolName\": \"%s\","
             "\"protocolVersion\": %d,"
             "\"challengeCode\": \"%s\""

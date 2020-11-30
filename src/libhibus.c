@@ -118,10 +118,10 @@ static char *get_challenge_code (hibus_conn *conn)
     free (payload);
     payload = NULL;
 
-    if (json_object_object_get_ex (jo, "packageType", &jo_tmp)) {
+    if (json_object_object_get_ex (jo, "packetType", &jo_tmp)) {
         const char *pack_type;
         pack_type = json_object_get_string (jo_tmp);
-        ULOG_INFO ("packageType: %s\n", pack_type);
+        ULOG_INFO ("packetType: %s\n", pack_type);
 
         if (strcasecmp (pack_type, "error") == 0) {
             const char* prot_name = HIBUS_NOT_AVAILABLE;
@@ -182,7 +182,7 @@ static char *get_challenge_code (hibus_conn *conn)
         }
     }
     else {
-        ULOG_WARN ("No packageType field\n");
+        ULOG_WARN ("No packetType field\n");
         goto failed;
     }
 
@@ -227,7 +227,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
 
     retv = snprintf (buff, 1024, 
             "{"
-            "\"packageType\": \"auth\","
+            "\"packetType\": \"auth\","
             "\"protocolName\": \"%s\","
             "\"protocolVersion\": %d,"
             "\"hostName\": \"%s\","

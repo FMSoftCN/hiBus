@@ -328,7 +328,7 @@ static void on_failed_us (USServer* us_srv, USClient* client, int ret_code)
 
     size = snprintf (buff, 1024, 
             "{"
-            "\"packageType\": \"error\","
+            "\"packetType\": \"error\","
             "\"protocolName\": \"%s\","
             "\"protocolVersion\": %d,"
             "\"retCode\": %d,"
