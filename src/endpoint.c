@@ -87,6 +87,21 @@ int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
     return 0;
 }
 
+inline static int send_packet_to_endpoint (BusServer* the_server,
+        BusEndpoint* endpoint, const char* body)
+{
+    if (endpoint->type == ET_UNIX_SOCKET) {
+        return us_send_data (the_server->us_srv, endpoint->usc,
+                US_OPCODE_TEXT, body, strlen (body));
+    }
+    else if (endpoint->type == ET_WEB_SOCKET) {
+        return ws_send_data (the_server->ws_srv, endpoint->wsc,
+                WS_OPCODE_TEXT, body, strlen (body));
+    }
+
+    return -1;
+}
+
 int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 {
     int retv;
@@ -110,7 +125,7 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 
     ULOG_INFO ("Challenge code for new endpoint: %s\n", ch_code);
 
-    retv = snprintf (buff, 1024, 
+    retv = snprintf (buff, sizeof (buff), 
             "{"
             "\"packetType\": \"auth\","
             "\"protocolName\": \"%s\","
@@ -124,14 +139,8 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
         // should never reach here
         assert (0);
     }
-    else if (endpoint->type == ET_UNIX_SOCKET) {
-        retv = us_send_data (the_server->us_srv, endpoint->usc,
-                US_OPCODE_TEXT, buff, strlen (buff));
-    }
-    else if (endpoint->type == ET_WEB_SOCKET) {
-        retv = ws_send_data (the_server->ws_srv, endpoint->wsc,
-                WS_OPCODE_TEXT, buff, strlen (buff));
-    }
+    else
+        retv = send_packet_to_endpoint (the_server, endpoint, buff);
 
     if (retv) {
         endpoint->status = ES_CLOSING;
@@ -279,9 +288,36 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
 
         if (strcasecmp (pack_type, "auth") == 0) {
             if (endpoint->status == ES_AUTHING) {
+                char buff [512];
+                int n;
+
                 if ((retv = authenticate_endpoint (the_server, endpoint, jo)) != HIBUS_SC_OK) {
+
+                    /* send authFailed packet */
+                    n = snprintf (buff, sizeof (buff), 
+                            "{"
+                            "\"packetType\": \"authFailed\","
+                            "\"retCode\": %d,"
+                            "\"retMsg\": \"%s\","
+                            "}",
+                            retv, hibus_get_error_message (retv));
+
+                    if (n < sizeof (buff))
+                        send_packet_to_endpoint (the_server, endpoint, buff);
                     goto failed;
                 }
+
+                /* send authPassed packet */
+                n = snprintf (buff, sizeof (buff), 
+                        "{"
+                        "\"packetType\": \"authPassed\","
+                        "\"serverHostName\": \"%s\","
+                        "\"reassignedHostName\": \"%s\","
+                        "}",
+                        the_server->server_name, endpoint->host_name);
+
+                if (n < sizeof (buff))
+                    send_packet_to_endpoint (the_server, endpoint, buff);
             }
             else {
                 retv = HIBUS_SC_PRECONDITION_FAILED;

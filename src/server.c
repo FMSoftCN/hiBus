@@ -743,6 +743,8 @@ main (int argc, char **argv)
 
     setup_signals ();
 
+    /* TODO for host name */
+    the_server.server_name = strdup (HIBUS_LOCALHOST);
     kvlist_init (&the_server.endpoint_list, endpoint_get_len);
 
     if ((the_server.us_srv = us_init (&srvcfg)) == NULL) {
@@ -764,6 +766,8 @@ main (int argc, char **argv)
     server_start ();
     server_stop ();
 
+    free (the_server.server_name);
+    kvlist_free (&the_server.endpoint_list);
     return EXIT_SUCCESS;
 
 error:

@@ -86,6 +86,8 @@ struct USServer_;
 /* The hiBus Server */
 typedef struct BusServer_
 {
+    char* server_name;
+
     struct WSServer_ *ws_srv;
     struct USServer_ *us_srv;
 
