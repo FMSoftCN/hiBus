@@ -23,6 +23,7 @@
 #ifndef _HIBUS_UNIXSOCKET_H
 #define _HIBUS_UNIXSOCKET_H
 
+#include <stdint.h>
 #include <unistd.h>
 
 /* A UnixSocket Client */
@@ -32,7 +33,12 @@ typedef struct USClient_
     int         fd;         /* UNIX socket FD */
     pid_t       pid;        /* client PID */
     uid_t       uid;        /* client UID */
-    uint8_t*    packet;     /* packet data */
+
+    /* fields for current packet */
+    uint32_t    sz_packet;  /* total size of current packet */
+    uint32_t    sz_read;    /* read size of current packet */
+    char*       packet;     /* packet data */
+
     void*       priv_data;  /* private data, used by the higher level */
 } USClient;
 
