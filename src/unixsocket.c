@@ -239,9 +239,118 @@ failed:
 
 int us_handle_reads (USServer* server, USClient* usc)
 {
-    int retval = 0;
+    int retv = 0, ret_code;
+    ssize_t n = 0;
+    USFrameHeader header;
 
-    return retval;
+    n = read (usc->fd, &header, sizeof (USFrameHeader));
+    if (n <= sizeof (USFrameHeader)) {
+        ULOG_ERR ("Failed to read frame header from Unix socket: %s\n",
+                strerror (errno));
+        return -1;
+    }
+
+    switch (header.op) {
+    case US_OPCODE_PING:
+        header.op = US_OPCODE_PONG;
+        header.fragmented = 0;
+        header.sz_payload = 0;
+        n = write (usc->fd, &header, sizeof (USFrameHeader));
+        if (n != (sizeof (USFrameHeader))) {
+            ULOG_ERR ("Error when wirting socket: %s\n", strerror (errno));
+            retv = HIBUS_EC_IO;
+        }
+        break;
+
+    case US_OPCODE_CLOSE:
+        ULOG_WARN ("Peer closed\n");
+        retv = HIBUS_EC_CLOSED;
+        break;
+
+    case US_OPCODE_TEXT:
+    case US_OPCODE_BIN: {
+        if (header.fragmented > 0 && header.fragmented > header.sz_payload) {
+            usc->sz_packet = header.fragmented;
+        }
+        else {
+            usc->sz_packet = header.sz_payload;
+        }
+
+        /* always reserve a space for null character */
+        usc->packet = malloc (usc->sz_packet + 1);
+        if (usc->packet == NULL) {
+            ULOG_ERR ("Failed to allocate memory for packet: %u\n", usc->sz_packet);
+            retv = HIBUS_EC_NOMEM;
+            break;
+        }
+
+        if ((n = read (usc->fd, usc->packet, header.sz_payload))
+                < header.sz_payload) {
+            ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
+                    strerror (errno));
+            retv = HIBUS_EC_IO;
+            break;
+        }
+        usc->sz_read = header.sz_payload;
+
+        if (header.fragmented == 0) {
+            goto got_packet;
+        }
+
+        break;
+    }
+
+    case US_OPCODE_CONTINUATION:
+    case US_OPCODE_END:
+        if (usc->packet == NULL || usc->sz_read + header.sz_payload > usc->sz_packet) {
+            retv = HIBUS_EC_PROTOCOL;
+            break;
+        }
+
+        if ((n = read (usc->fd, usc->packet + usc->sz_read, header.sz_payload))
+                < header.sz_payload) {
+            ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
+                    strerror (errno));
+            retv = HIBUS_EC_IO;
+            break;
+        }
+
+        usc->sz_read += header.sz_payload;
+        if (header.op == US_OPCODE_END) {
+            goto got_packet;
+        }
+
+        break;
+
+    default:
+        ULOG_ERR ("Unknown frame opcode: %d\n", header.op);
+        retv = HIBUS_EC_PROTOCOL;
+        break;
+    }
+
+    return retv;
+
+got_packet:
+
+    usc->packet [usc->sz_read] = '\0';
+    ret_code = server->on_packet (server, usc, usc->packet, usc->sz_read);
+    free (usc->packet);
+    usc->packet = NULL;
+    usc->sz_packet = 0;
+    usc->sz_read = 0;
+
+    if (ret_code != HIBUS_SC_OK) {
+        ULOG_WARN ("Internal error after got a packet: %d\n",
+                ret_code);
+
+        if (server->on_failed) {
+            server->on_failed (server, usc, ret_code);
+        }
+
+        retv = HIBUS_EC_UPPER;
+    }
+
+    return retv;
 }
 
 /* return zero on success; none-zero on error */
@@ -261,7 +370,8 @@ int us_ping_client (USServer* server, USClient* us_client)
     return 0;
 }
 
-/* return zero on success; none-zero on error */
+/* return zero on success; none-zero on error
+ * TODO: handle fragments */
 int us_send_data (USServer* server, USClient* us_client,
         USOpcode op, const char* data, int sz)
 {
