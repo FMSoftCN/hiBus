@@ -27,7 +27,9 @@
 #include <hibox/ulog.h>
 #include <hibox/sha256.h>
 #include <hibox/hmac.h>
+#include <hibox/json.h>
 
+#include "hibus.h"
 #include "endpoint.h"
 #include "unixsocket.h"
 #include "websocket.h"
@@ -74,12 +76,13 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
 
 int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
 {
-    if (endpoint->host_name == NULL)
-        goto free;
+    // TODO: remove from avl list.
 
-    // remove from avl list.
+    if (endpoint->sta_data) free (endpoint->sta_data);
+    if (endpoint->host_name) free (endpoint->host_name);
+    if (endpoint->app_name) free (endpoint->app_name);
+    if (endpoint->runner_name) free (endpoint->runner_name);
 
-free:
     free (endpoint);
     return 0;
 }
@@ -89,8 +92,13 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
     int retv;
     char key [32];
     unsigned char ch_code_bin [SHA256_DIGEST_SIZE];
-    char ch_code [SHA256_DIGEST_SIZE * 2 + 1];
+    char *ch_code;
     char buff [1024];
+
+    if ((endpoint->sta_data = malloc (SHA256_DIGEST_SIZE * 2 + 1)) == NULL) {
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+    }
+    ch_code = endpoint->sta_data;
 
     snprintf (key, sizeof (key), "hibus-%ld", random ());
 
@@ -125,15 +133,174 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
                 WS_OPCODE_TEXT, buff, strlen (buff));
     }
 
-    if (retv)
+    if (retv) {
+        endpoint->status = ES_CLOSING;
+        free (endpoint->sta_data);
+        endpoint->sta_data = NULL;
         return HIBUS_SC_IOERR;
+    }
 
     return HIBUS_SC_OK;
 }
 
-int check_auth_info (BusServer* the_server, BusEndpoint* endpoint)
+static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
+        const hibus_json *jo)
 {
+    hibus_json *jo_tmp;
+    const char* prot_name = NULL;
+    const char *host_name = NULL, *app_name = NULL, *runner_name = NULL;
+    const char *encoded_sig = NULL, *encoding = NULL;
+    unsigned char *sig;
+    unsigned int sig_len = 0;
+    int prot_ver = 0;
+    char* endpoint_name;
+
+    if (json_object_object_get_ex (jo, "protocolName", &jo_tmp)) {
+        prot_name = json_object_get_string (jo_tmp);
+    }
+
+    if (json_object_object_get_ex (jo, "protocolVersion", &jo_tmp)) {
+        prot_ver = json_object_get_int (jo_tmp);
+    }
+
+    if (json_object_object_get_ex (jo, "hostName", &jo_tmp)) {
+        host_name = json_object_get_string (jo_tmp);
+    }
+    if (json_object_object_get_ex (jo, "appName", &jo_tmp)) {
+        app_name = json_object_get_string (jo_tmp);
+    }
+    if (json_object_object_get_ex (jo, "runnerName", &jo_tmp)) {
+        runner_name = json_object_get_string (jo_tmp);
+    }
+    if (json_object_object_get_ex (jo, "signature", &jo_tmp)) {
+        encoded_sig = json_object_get_string (jo_tmp);
+    }
+    if (json_object_object_get_ex (jo, "encodedIn", &jo_tmp)) {
+        encoding = json_object_get_string (jo_tmp);
+    }
+
+    if (prot_name == NULL || prot_ver > HIBUS_PROTOCOL_VERSION ||
+            host_name == NULL || app_name == NULL || runner_name == NULL ||
+            encoded_sig == NULL || encoding == NULL ||
+            strcasecmp (prot_name, HIBUS_PROTOCOL_NAME)) {
+        ULOG_WARN ("Bad packet data for authentication\n");
+        return HIBUS_SC_BAD_REQUEST;
+    }
+
+    if (prot_ver < HIBUS_MINIMAL_PROTOCOL_VERSION)
+        return HIBUS_SC_UPGRADE_REQUIRED;
+
+    if (!hibus_is_valid_host_name (host_name) ||
+            hibus_is_valid_app_name (app_name) ||
+            hibus_is_valid_token (runner_name, LEN_RUNNER_NAME)) {
+        ULOG_WARN ("Bad endpoint name: @%s/%s/%s\n", host_name, app_name, runner_name);
+        return HIBUS_SC_NOT_ACCEPTABLE;
+    }
+
+    assert (endpoint->sta_data);
+
+    if (strcasecmp (encoding, "base64") == 0) {
+        sig = malloc (B64_DECODE_LEN (strlen (encoded_sig)));
+        sig_len = b64_decode (encoded_sig, sig, sig_len);
+    }
+    else if (strcasecmp (encoding, "hex") == 0) {
+        sig = malloc (strlen (encoded_sig) / 2 + 1);
+        sig_len = hex2bin (encoded_sig, sig);
+    }
+    else {
+        return HIBUS_SC_BAD_REQUEST;
+    }
+
+    if (sig_len <= 0) {
+        free (sig);
+        return HIBUS_SC_BAD_REQUEST;
+    }
+
+    if (hibus_verify_signature (app_name,
+            endpoint->sta_data, strlen (endpoint->sta_data),
+            sig, sig_len - 1)) {
+        free (sig);
+        return HIBUS_SC_UNAUTHORIZED;
+    }
+    free (sig);
+
+    /* make endpoint ready here */
+    if (endpoint->type == CT_UNIX_SOCKET) {
+        /* override the host name */
+        host_name = HIBUS_LOCALHOST;
+    }
+    else {
+        /* TODO: handle hostname for web socket connections here */
+        host_name = HIBUS_LOCALHOST;
+    }
+    
+    if ((endpoint_name = hibus_assembly_endpoint_alloc (host_name,
+                    app_name, runner_name)) == NULL)
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+
+    ULOG_INFO ("New endpoint: %s\n", endpoint_name);
+
+    if (kvlist_get (&the_server->endpoint_list, endpoint_name)) {
+        ULOG_WARN ("Duplicated endpoint: %s\n", endpoint_name);
+        return HIBUS_SC_CONFILCT;
+    }
+
+    if (!kvlist_set (&the_server->endpoint_list, endpoint_name, endpoint)) {
+        ULOG_ERR ("Failed to store the endpoint: %s\n", endpoint_name);
+        free (endpoint_name);
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+    }
+
+    endpoint->host_name = strdup (host_name);
+    endpoint->app_name = strdup (app_name);
+    endpoint->runner_name = strdup (runner_name);
+    endpoint->status = ES_READY;
+
     return HIBUS_SC_OK;
+}
+
+int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
+        const char* json, unsigned int len)
+{
+    int retv = HIBUS_SC_OK;
+    hibus_json *jo = NULL, *jo_tmp;
+
+    ULOG_INFO ("Handling packet: \n%s\n", json);
+
+    jo = json_object_from_string (json, len, 2);
+    if (jo == NULL) {
+        retv = HIBUS_SC_UNPROCESSABLE_PACKET;
+        goto failed;
+    }
+
+    if (json_object_object_get_ex (jo, "packetType", &jo_tmp)) {
+        const char *pack_type;
+        pack_type = json_object_get_string (jo_tmp);
+
+        if (strcasecmp (pack_type, "auth") == 0) {
+            if (endpoint->status == ES_AUTHING) {
+                if ((retv = authenticate_endpoint (the_server, endpoint, jo)) != HIBUS_SC_OK) {
+                    goto failed;
+                }
+            }
+            else {
+                retv = HIBUS_SC_PRECONDITION_FAILED;
+                goto failed;
+            }
+        }
+    }
+    else {
+        retv = HIBUS_SC_BAD_REQUEST;
+        goto failed;
+    }
+
+    return retv;
+
+failed:
+    if (jo)
+        json_object_put (jo);
+
+    return retv;
 }
 
 int register_procedure (BusEndpoint* endpoint, const char* method_name,

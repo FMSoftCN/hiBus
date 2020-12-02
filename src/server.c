@@ -364,13 +364,32 @@ static int on_accepted_us (USServer* us_srv, USClient* client)
 }
 
 static int on_packet_us (USServer* us_srv, USClient* client,
-            const char* payload, size_t payload_sz)
+            const char* body, unsigned int sz_body, int type)
 {
-    return 0;
+    assert (client->priv_data);
+
+    if (type == PT_TEXT) {
+
+        assert (sz_body == strlen (body));
+
+        handle_json_packet (&the_server, client->priv_data, body, sz_body);
+    }
+    else {
+        /* discard all packet in binary */
+        return HIBUS_SC_NOT_ACCEPTABLE;
+    }
+
+    return HIBUS_SC_OK;
 }
 
-static int on_closed_us (USServer* us_srv, USClient* client)
+static int on_cleanup_us (USServer* us_srv, USClient* client)
 {
+    if (client->priv_data) {
+        BusEndpoint *endpoint = (BusEndpoint *)client->priv_data;
+        del_endpoint (&the_server, endpoint);
+        client->priv_data = NULL;
+    }
+
     return 0;
 }
 
@@ -398,7 +417,7 @@ static void server_start (void)
     the_server.us_srv->on_failed = on_failed_us;
     the_server.us_srv->on_accepted = on_accepted_us;
     the_server.us_srv->on_packet = on_packet_us;
-    the_server.us_srv->on_closed = on_closed_us;
+    the_server.us_srv->on_cleanup = on_cleanup_us;
 
     // create web socket listener if enabled
     if (the_server.ws_srv) {
@@ -685,6 +704,11 @@ server_stop (void)
 {
 }
 
+static int endpoint_get_len (struct kvlist *kv, const void *data)
+{
+    return sizeof (BusEndpoint);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -718,6 +742,8 @@ main (int argc, char **argv)
     srandom (time (NULL));
 
     setup_signals ();
+
+    kvlist_init (&the_server.endpoint_list, endpoint_get_len);
 
     if ((the_server.us_srv = us_init (&srvcfg)) == NULL) {
         ULOG_ERR ("Error during us_init\n");

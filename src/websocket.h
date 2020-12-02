@@ -261,7 +261,8 @@ typedef struct WSServer_
 
   /* Callbacks */
   int (*on_conn) (WSClient * client);
-  int (*on_packet) (WSClient * client, const char* payload, size_t payload_sz);
+  int (*on_packet) (WSClient * client,
+          const char* body, unsigned int sz_body, int type);
   int (*on_close) (WSClient * client);
 
   /* Connected Clients */
@@ -276,7 +277,6 @@ typedef struct WSServer_
 
 size_t pack_uint32 (void *buf, uint32_t val, int convert);
 size_t unpack_uint32 (const void *buf, uint32_t * val, int convert);
-void set_nonblocking (int listener);
 
 int ws_send_data (WSServer * server, WSClient * client,
         WSOpcode op, const char *data, int sz);

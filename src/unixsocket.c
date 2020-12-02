@@ -175,6 +175,19 @@ error:
     return -1;
 }
 
+/* Set the given file descriptor as NON BLOCKING. */
+inline static int
+set_nonblocking (int sock)
+{
+    if (fcntl (sock, F_SETFL, fcntl (sock, F_GETFL, 0) | O_NONBLOCK) == -1) {
+        ULOG_ERR ("Unable to set socket as non-blocking: %s.",
+                strerror (errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 /* Handle a new UNIX socket connection. */
 USClient *
 us_handle_accept (USServer* server)
@@ -196,6 +209,10 @@ us_handle_accept (USServer* server)
         goto failed;
     }
 
+    if (set_nonblocking (newfd)) {
+        goto cleanup;
+    }
+
     usc->type = ET_UNIX_SOCKET;
     usc->fd = newfd;
     usc->pid = pid;
@@ -204,10 +221,8 @@ us_handle_accept (USServer* server)
 
     if (server->nr_clients > MAX_CLIENTS_EACH) {
         ULOG_WARN ("Too many clients (maximal clients allowed: %d)\n", MAX_CLIENTS_EACH);
-        if (server->on_failed) {
-            server->on_failed (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
-        }
-        goto close;
+        server->on_failed (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
+        goto cleanup;
     }
 
     if (server->on_accepted) {
@@ -217,11 +232,8 @@ us_handle_accept (USServer* server)
             ULOG_WARN ("Internal error after accepted this client (%d): %d\n",
                     newfd, ret_code);
 
-            if (ret_code != HIBUS_SC_IOERR && server->on_failed) {
-                server->on_failed (server, usc, ret_code);
-            }
-
-            goto close;
+            server->on_failed (server, usc, ret_code);
+            goto cleanup;
         }
     }
 
@@ -229,8 +241,9 @@ us_handle_accept (USServer* server)
             newfd, pid, uid);
     return usc;
 
-close:
+cleanup:
     us_client_cleanup (server, usc);
+    return NULL;
 
 failed:
     free (usc);
@@ -239,15 +252,17 @@ failed:
 
 int us_handle_reads (USServer* server, USClient* usc)
 {
-    int retv = 0, ret_code;
+    int err_code = 0, sta_code = 0;
     ssize_t n = 0;
     USFrameHeader header;
 
     n = read (usc->fd, &header, sizeof (USFrameHeader));
-    if (n <= sizeof (USFrameHeader)) {
+    if (n < sizeof (USFrameHeader)) {
         ULOG_ERR ("Failed to read frame header from Unix socket: %s\n",
                 strerror (errno));
-        return -1;
+        err_code = HIBUS_EC_IO;
+        sta_code = HIBUS_SC_EXPECTATION_FAILED;
+        goto done;
     }
 
     switch (header.op) {
@@ -258,13 +273,15 @@ int us_handle_reads (USServer* server, USClient* usc)
         n = write (usc->fd, &header, sizeof (USFrameHeader));
         if (n != (sizeof (USFrameHeader))) {
             ULOG_ERR ("Error when wirting socket: %s\n", strerror (errno));
-            retv = HIBUS_EC_IO;
+            err_code = HIBUS_EC_IO;
+            sta_code = HIBUS_SC_IOERR;
         }
         break;
 
     case US_OPCODE_CLOSE:
         ULOG_WARN ("Peer closed\n");
-        retv = HIBUS_EC_CLOSED;
+        err_code = HIBUS_EC_CLOSED;
+        sta_code = 0;
         break;
 
     case US_OPCODE_TEXT:
@@ -276,11 +293,23 @@ int us_handle_reads (USServer* server, USClient* usc)
             usc->sz_packet = header.sz_payload;
         }
 
+        if (usc->sz_packet > MAX_SIZE_INMEM_PACKET) {
+            err_code = HIBUS_EC_PROTOCOL;
+            sta_code = HIBUS_SC_PACKET_TOO_LARGE;
+            break;
+        }
+
+        if (header.op == US_OPCODE_TEXT)
+            usc->t_packet = PT_TEXT;
+        else
+            usc->t_packet = PT_BINARY;
+
         /* always reserve a space for null character */
         usc->packet = malloc (usc->sz_packet + 1);
         if (usc->packet == NULL) {
-            ULOG_ERR ("Failed to allocate memory for packet: %u\n", usc->sz_packet);
-            retv = HIBUS_EC_NOMEM;
+            ULOG_ERR ("Failed to allocate memory for packet (size: %u)\n", usc->sz_packet);
+            err_code = HIBUS_EC_NOMEM;
+            sta_code = HIBUS_SC_INSUFFICIENT_STORAGE;
             break;
         }
 
@@ -288,7 +317,8 @@ int us_handle_reads (USServer* server, USClient* usc)
                 < header.sz_payload) {
             ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
                     strerror (errno));
-            retv = HIBUS_EC_IO;
+            err_code = HIBUS_EC_IO;
+            sta_code = HIBUS_SC_EXPECTATION_FAILED;
             break;
         }
         usc->sz_read = header.sz_payload;
@@ -302,8 +332,10 @@ int us_handle_reads (USServer* server, USClient* usc)
 
     case US_OPCODE_CONTINUATION:
     case US_OPCODE_END:
-        if (usc->packet == NULL || usc->sz_read + header.sz_payload > usc->sz_packet) {
-            retv = HIBUS_EC_PROTOCOL;
+        if (usc->packet == NULL ||
+                (usc->sz_read + header.sz_payload) > usc->sz_packet) {
+            err_code = HIBUS_EC_PROTOCOL;
+            sta_code = HIBUS_SC_EXPECTATION_FAILED;
             break;
         }
 
@@ -311,7 +343,8 @@ int us_handle_reads (USServer* server, USClient* usc)
                 < header.sz_payload) {
             ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
                     strerror (errno));
-            retv = HIBUS_EC_IO;
+            err_code = HIBUS_EC_IO;
+            sta_code = HIBUS_SC_EXPECTATION_FAILED;
             break;
         }
 
@@ -324,33 +357,47 @@ int us_handle_reads (USServer* server, USClient* usc)
 
     default:
         ULOG_ERR ("Unknown frame opcode: %d\n", header.op);
-        retv = HIBUS_EC_PROTOCOL;
+        err_code = HIBUS_EC_PROTOCOL;
+        sta_code = HIBUS_SC_EXPECTATION_FAILED;
         break;
     }
 
-    return retv;
+done:
+    if (err_code) {
+        /* read and discard all payload
+        char buff [1024];
+        while (read (usc->fd, buff, sizeof (buff)) == sizeof (buff));
+        */
+
+        if (sta_code) {
+            server->on_failed (server, usc, sta_code);
+        }
+
+        us_client_cleanup (server, usc);
+    }
+
+    return err_code;
 
 got_packet:
-
     usc->packet [usc->sz_read] = '\0';
-    ret_code = server->on_packet (server, usc, usc->packet, usc->sz_read);
+    sta_code = server->on_packet (server, usc, usc->packet,
+            (usc->t_packet == PT_TEXT) ? (usc->sz_read + 1) : usc->sz_read,
+            usc->t_packet);
     free (usc->packet);
     usc->packet = NULL;
     usc->sz_packet = 0;
     usc->sz_read = 0;
 
-    if (ret_code != HIBUS_SC_OK) {
-        ULOG_WARN ("Internal error after got a packet: %d\n",
-                ret_code);
+    if (sta_code != HIBUS_SC_OK) {
+        ULOG_WARN ("Internal error after got a packet: %d\n", sta_code);
 
-        if (server->on_failed) {
-            server->on_failed (server, usc, ret_code);
-        }
+        server->on_failed (server, usc, sta_code);
+        err_code = HIBUS_EC_UPPER;
 
-        retv = HIBUS_EC_UPPER;
+        us_client_cleanup (server, usc);
     }
 
-    return retv;
+    return err_code;
 }
 
 /* return zero on success; none-zero on error */
@@ -393,6 +440,8 @@ int us_send_data (USServer* server, USClient* us_client,
 
 int us_client_cleanup (USServer* server, USClient* us_client)
 {
+    server->on_cleanup (server, us_client);
+
     if (us_client->fd >= 0)
         close (us_client->fd);
     us_client->fd = -1;
@@ -400,6 +449,8 @@ int us_client_cleanup (USServer* server, USClient* us_client)
     server->nr_clients--;
 
     assert (server->nr_clients >= 0);
+    free (us_client);
+
     return 0;
 }
 

@@ -31,6 +31,7 @@
 /* Contants */
 #define HIBUS_PROTOCOL_NAME             "HIBUS"
 #define HIBUS_PROTOCOL_VERSION          90
+#define HIBUS_MINIMAL_PROTOCOL_VERSION  90
 
 #define HIBUS_US_PATH                   "/var/tmp/hibus.sock"
 #define HIBUS_WS_PORT                   "7700"
@@ -66,9 +67,10 @@
 #define HIBUS_SC_CONFILCT               409
 #define HIBUS_SC_GONE                   410
 #define HIBUS_SC_PRECONDITION_FAILED    412
+#define HIBUS_SC_PACKET_TOO_LARGE       413
 #define HIBUS_SC_EXPECTATION_FAILED     417
 #define HIBUS_SC_IM_A_TEAPOT            418 
-#define HIBUS_SC_UNPROCESSABLE_ENTITY   422
+#define HIBUS_SC_UNPROCESSABLE_PACKET   422
 #define HIBUS_SC_LOCKED                 423
 #define HIBUS_SC_FAILED_DEPENDENCY      424
 #define HIBUS_SC_TOO_EARLY              425
@@ -85,8 +87,9 @@
 #define HIBUS_EC_IO         (-1)
 #define HIBUS_EC_CLOSED     (-2)
 #define HIBUS_EC_NOMEM      (-3)
-#define HIBUS_EC_PROTOCOL   (-4)
-#define HIBUS_EC_UPPER      (-5)
+#define HIBUS_EC_TOO_LARGE  (-4)
+#define HIBUS_EC_PROTOCOL   (-5)
+#define HIBUS_EC_UPPER      (-6)
 
 #define LEN_HOST_NAME       127
 #define LEN_APP_NAME        127
@@ -121,6 +124,12 @@ typedef struct USFrameHeader_ {
 enum {
     CT_UNIX_SOCKET = 1,
     CT_WEB_SOCKET,
+};
+
+/* packet body types */
+enum {
+    PT_TEXT = 0,
+    PT_BINARY,
 };
 
 struct _hibus_conn;
@@ -177,7 +186,7 @@ unsigned char *hibus_sign_data (const char *app_name,
         const unsigned char* data, unsigned int data_len,
         unsigned int *sig_len);
 int hibus_verify_signature (const char* app_name,
-        const unsigned char* ch_code, unsigned int data_len,
+        const unsigned char* data, unsigned int data_len,
         const unsigned char* sig, unsigned int sig_len);
 
 int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data_len);

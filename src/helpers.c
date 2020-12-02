@@ -65,12 +65,14 @@ static struct  {
         "Gone" },
     { HIBUS_SC_PRECONDITION_FAILED, /* 412 */
         "Precondition Failed" },
+    { HIBUS_SC_PACKET_TOO_LARGE,    /* 413 */
+        "Packet Too Large" },
     { HIBUS_SC_EXPECTATION_FAILED,  /* 417 */
         "Expectation Failed" },
     { HIBUS_SC_IM_A_TEAPOT,         /* 418 */
         "I'm a teapot" },
-    { HIBUS_SC_UNPROCESSABLE_ENTITY,    /* 422 */
-        "Unprocessable Entity" },
+    { HIBUS_SC_UNPROCESSABLE_PACKET,    /* 422 */
+        "Unprocessable Packet" },
     { HIBUS_SC_LOCKED,              /* 423 */
         "Locked" },
     { HIBUS_SC_FAILED_DEPENDENCY,   /* 424 */

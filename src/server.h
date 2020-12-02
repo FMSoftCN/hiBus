@@ -48,15 +48,13 @@ enum {
     ES_AUTHING = 0,     // authenticating
     ES_CLOSING,         // force to close the endpoint due to the failed authentication,
                         // RPC timeout, or ping-pong timeout.
-    ES_IDLE,            // the endpoint is idle.
+    ES_READY,           // the endpoint is ready.
     ES_BUSY,            // the endpoint is busy for a call to procedure.
 };
 
 /* A hiBus Client */
 typedef struct BusEndpoint_
 {
-    struct avl_node node;
-
     int     type;
     int     status;
 
@@ -79,7 +77,7 @@ typedef struct BusEndpoint_
     struct safe_list pending_calling;
 
     /* the data for current status, e.g., the challenge code for authentication */
-    char* status_data;
+    void* sta_data;
 } BusEndpoint;
 
 struct WSServer_;
@@ -94,7 +92,7 @@ typedef struct BusServer_
     unsigned int nr_endpoints;
 
     /* The AVL tree using endpoint as the key, and BusClient* as the value */
-    struct avl_tree endpoint_tree;
+    struct kvlist endpoint_list;
 } BusServer;
 
 /* Config Options */

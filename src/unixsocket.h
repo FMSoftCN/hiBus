@@ -29,12 +29,14 @@
 /* A UnixSocket Client */
 typedef struct USClient_
 {
-    int         type;       /* the type of the clinet */
+    int         type;       /* the type of the client */
     int         fd;         /* UNIX socket FD */
     pid_t       pid;        /* client PID */
     uid_t       uid;        /* client UID */
 
     /* fields for current packet */
+    int         t_packet;   /* type of packet */
+    int         padding_;
     uint32_t    sz_packet;  /* total size of current packet */
     uint32_t    sz_read;    /* read size of current packet */
     char*       packet;     /* packet data */
@@ -52,8 +54,8 @@ typedef struct USServer_
     void (*on_failed) (struct USServer_* server, USClient* client, int ret_code);
     int (*on_accepted) (struct USServer_* server, USClient* client);
     int (*on_packet) (struct USServer_* server, USClient* client,
-            const char* payload, size_t payload_sz);
-    int (*on_closed) (struct USServer_* server, USClient* client);
+            const char* body, unsigned int sz_body, int type);
+    int (*on_cleanup) (struct USServer_* server, USClient* client);
 
     const ServerConfig* config;
 } USServer;

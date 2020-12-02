@@ -887,7 +887,7 @@ ws_get_raddr (struct sockaddr *sa)
 }
 
 /* Set the given file descriptor as NON BLOCKING. */
-void
+inline static void
 set_nonblocking (int sock)
 {
   if (fcntl (sock, F_SETFL, fcntl (sock, F_GETFL, 0) | O_NONBLOCK) == -1)
@@ -1831,7 +1831,8 @@ ws_handle_text_bin (WSServer * server, WSClient * client)
     else
       server->on_packet (client);
 #else
-    server->on_packet (client, (*msg)->payload, (*msg)->payloadsz);
+    server->on_packet (client, (*msg)->payload, (*msg)->payloadsz,
+            (client->message->opcode == WS_OPCODE_TEXT) ? PT_TEXT : PT_BINARY);
 #endif
   }
   ws_free_message (client);
@@ -2013,6 +2014,7 @@ ws_realloc_frm_payload (WSFrame * frm, WSMessage * msg)
   char *tmp = NULL;
   uint64_t newlen = 0;
 
+  /* TODO: should check the maximal size of the message body here. */
   newlen = msg->payloadsz + frm->payloadlen;
   tmp = realloc (msg->payload, newlen);
   if (tmp == NULL && newlen > 0) {
