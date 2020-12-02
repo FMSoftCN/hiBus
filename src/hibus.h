@@ -82,6 +82,12 @@
 #define HIBUS_SC_GATEWAY_TIMEOUT        504
 #define HIBUS_SC_INSUFFICIENT_STORAGE   507
 
+#define HIBUS_EC_IO         (-1)
+#define HIBUS_EC_CLOSED     (-2)
+#define HIBUS_EC_NOMEM      (-3)
+#define HIBUS_EC_PROTOCOL   (-4)
+#define HIBUS_EC_UPPER      (-5)
+
 #define LEN_HOST_NAME       127
 #define LEN_APP_NAME        127
 #define LEN_RUNNER_NAME     64
