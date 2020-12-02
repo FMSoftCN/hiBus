@@ -45,8 +45,8 @@
 #define HIBUS_NOT_AVAILABLE             "<N/A>"
 
 #define HIBUS_PUBLIC_PEM_KEY_FILE       "/etc/public-keys/public-%s.pem"
-#define HIBUS_PRIVATE_PEM_KEY_FILE      "/app/%s/private-%s.pem"
-#define HIBUS_PRIVATE_HMAC_KEY_FILE     "/app/%s/hmac-%s.key"
+#define HIBUS_PRIVATE_PEM_KEY_FILE      "/app/%s/private/private-%s.pem"
+#define HIBUS_PRIVATE_HMAC_KEY_FILE     "/app/%s/private/hmac-%s.key"
 #define HIBUS_LEN_PRIVATE_HMAC_KEY      64
 
 /* Status Codes */

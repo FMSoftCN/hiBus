@@ -56,8 +56,8 @@ static RSA* read_private_key_for_app (const char* app_name)
     }
 
     if ((fp = fopen (buff, "r")) == NULL) {
-        ULOG_ERR ("Failed to open the private key file for app (%s): %s\n",
-                app_name, strerror (errno));
+        ULOG_ERR ("Failed to open the private key file (%s) for app (%s): %s\n",
+                buff, app_name, strerror (errno));
         return NULL;
     }
 

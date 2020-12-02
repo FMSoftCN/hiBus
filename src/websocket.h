@@ -261,7 +261,7 @@ typedef struct WSServer_
 
   /* Callbacks */
   int (*on_conn) (WSClient * client);
-  int (*on_data) (WSClient * client, const char* payload, size_t payload_sz);
+  int (*on_packet) (WSClient * client, const char* payload, size_t payload_sz);
   int (*on_close) (WSClient * client);
 
   /* Connected Clients */

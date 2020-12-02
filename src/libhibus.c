@@ -220,6 +220,8 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
         goto failed;
     }
 
+    // When encode the signature in base64 or exadecimal notation,
+    // there will be no any '"' and '\' charecters.
     b64_encode (sig, sig_len, enc_sig, enc_sig_len);
 
     free (sig);
@@ -234,7 +236,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
             "\"appName\": \"%s\","
             "\"runnerName\": \"%s\","
             "\"signature\": \"%s\","
-            "\"sigEncoding\": \"base64\""
+            "\"encodedIn\": \"base64\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             conn->own_host_name, conn->app_name, conn->runner_name, enc_sig);
@@ -244,6 +246,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
         goto failed;
     }
 
+    ULOG_INFO ("auth packate: \n%s\n", buff);
     if (hibus_send_text (conn, buff, retv)) {
         ULOG_ERR ("Failed to send text packet to hiBus server in send_auth_info.\n");
         goto failed;

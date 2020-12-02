@@ -1823,15 +1823,15 @@ ws_handle_text_bin (WSServer * server, WSClient * client)
     }
   }
 
-  if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->on_data) {
+  if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->on_packet) {
 #if 0
     /* just echo the message to the client */
     if (server->config->echomode)
       ws_send_data (server, client, (*msg)->opcode, (*msg)->payload, (*msg)->payloadsz);
     else
-      server->on_data (client);
+      server->on_packet (client);
 #else
-    server->on_data (client, (*msg)->payload, (*msg)->payloadsz);
+    server->on_packet (client, (*msg)->payload, (*msg)->payloadsz);
 #endif
   }
   ws_free_message (client);
