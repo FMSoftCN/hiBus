@@ -88,7 +88,11 @@
 #define LEN_METHOD_NAME     64
 #define LEN_BUBBLE_NAME     64
 
-#define MAX_LEN_PAYLOAD     4096
+/* the maximal size of a payload in a frame */
+#define MAX_SIZE_PAYLOAD        4096
+
+/* the maximal size of a packet which will be held in memory */
+#define MAX_SIZE_INMEM_PACKET   40960
 
 typedef enum USOpcode_ {
     US_OPCODE_CONTINUATION = 0x00,

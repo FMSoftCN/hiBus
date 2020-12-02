@@ -28,11 +28,12 @@
 /* A UnixSocket Client */
 typedef struct USClient_
 {
-    int     type;
-    int     fd;         /* UNIX socket FD */
-    pid_t   pid;        /* client PID */
-    uid_t   uid;        /* client UID */
-    void*   priv_data;  /* private data */
+    int         type;       /* the type of the clinet */
+    int         fd;         /* UNIX socket FD */
+    pid_t       pid;        /* client PID */
+    uid_t       uid;        /* client UID */
+    uint8_t*    packet;     /* packet data */
+    void*       priv_data;  /* private data, used by the higher level */
 } USClient;
 
 /* The UnixSocket Server */
@@ -44,7 +45,7 @@ typedef struct USServer_
     /* Callbacks */
     void (*on_failed) (struct USServer_* server, USClient* client, int ret_code);
     int (*on_accepted) (struct USServer_* server, USClient* client);
-    int (*on_got_data) (struct USServer_* server, USClient* client,
+    int (*on_packet) (struct USServer_* server, USClient* client,
             const char* payload, size_t payload_sz);
     int (*on_closed) (struct USServer_* server, USClient* client);
 

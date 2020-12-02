@@ -363,7 +363,7 @@ static int on_accepted_us (USServer* us_srv, USClient* client)
     return HIBUS_SC_OK;
 }
 
-static int on_got_data_us (USServer* us_srv, USClient* client,
+static int on_packet_us (USServer* us_srv, USClient* client,
             const char* payload, size_t payload_sz)
 {
     return 0;
@@ -397,7 +397,7 @@ static void server_start (void)
 
     the_server.us_srv->on_failed = on_failed_us;
     the_server.us_srv->on_accepted = on_accepted_us;
-    the_server.us_srv->on_got_data = on_got_data_us;
+    the_server.us_srv->on_packet = on_packet_us;
     the_server.us_srv->on_closed = on_closed_us;
 
     // create web socket listener if enabled
