@@ -24,6 +24,7 @@
 
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 
 #ifndef HAVE_LIBSSL
 
@@ -93,11 +94,8 @@ int hibus_verify_signature (const char* app_name,
     unsigned char key [HIBUS_LEN_PRIVATE_HMAC_KEY];
     unsigned char my_sig [SHA256_DIGEST_SIZE];
 
-    if (sig_len != SHA256_DIGEST_SIZE)
-        return 0;
-
     if (read_private_key_for_app (app_name, key, HIBUS_LEN_PRIVATE_HMAC_KEY)) {
-        return 0;
+        return -1;
     }
 
     hmac_sha256 (my_sig, data, data_len, key, HIBUS_LEN_PRIVATE_HMAC_KEY);

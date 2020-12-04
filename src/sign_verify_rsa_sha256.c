@@ -145,14 +145,14 @@ int hibus_verify_signature (const char* app_name,
 
     pub_key = read_public_key_for_app (app_name);  
     if (!pub_key) {
-        return 0;
+        return -1;
     }
 
     SHA256 (data, data_len, md);
 
     retv = RSA_verify (NID_sha256, md, SHA256_DIGEST_LENGTH, sig, sig_len, pub_key);
     RSA_free (pub_key);
-    return retv;
+    return retv ? 1 : 0;
 }
 
 #endif /* HAVE_LIBSSL */

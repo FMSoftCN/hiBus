@@ -370,8 +370,6 @@ static int on_packet_us (USServer* us_srv, USClient* client,
 
     if (type == PT_TEXT) {
 
-        assert (sz_body == strlen (body));
-
         handle_json_packet (&the_server, client->priv_data, body, sz_body);
     }
     else {
@@ -709,6 +707,30 @@ static int endpoint_get_len (struct kvlist *kv, const void *data)
     return sizeof (BusEndpoint);
 }
 
+static int
+init_bus_server (void)
+{
+    /* TODO for host name */
+    the_server.server_name = strdup (HIBUS_LOCALHOST);
+    kvlist_init (&the_server.endpoint_list, endpoint_get_len);
+
+    return 0;
+}
+
+static void cleanup_bus_server (void)
+{
+    const char* name;
+    BusEndpoint* endpoint;
+
+    free (the_server.server_name);
+
+    kvlist_for_each (&the_server.endpoint_list, name, endpoint) {
+        del_endpoint (&the_server, endpoint);
+    }
+
+    kvlist_free (&the_server.endpoint_list);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -743,9 +765,10 @@ main (int argc, char **argv)
 
     setup_signals ();
 
-    /* TODO for host name */
-    the_server.server_name = strdup (HIBUS_LOCALHOST);
-    kvlist_init (&the_server.endpoint_list, endpoint_get_len);
+    if (init_bus_server ()) {
+        ULOG_ERR ("Error during init_bus_server\n");
+        goto error;
+    }
 
     if ((the_server.us_srv = us_init (&srvcfg)) == NULL) {
         ULOG_ERR ("Error during us_init\n");
@@ -766,8 +789,7 @@ main (int argc, char **argv)
     server_start ();
     server_stop ();
 
-    free (the_server.server_name);
-    kvlist_free (&the_server.endpoint_list);
+    cleanup_bus_server ();
     return EXIT_SUCCESS;
 
 error:

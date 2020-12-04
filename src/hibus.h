@@ -23,8 +23,10 @@
 #ifndef _HIBUS_H_
 #define _HIBUS_H_
 
-#include <ctype.h>
+#include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <ctype.h>
 
 #include <hibox/json.h>
 
@@ -93,9 +95,10 @@
 
 #define LEN_HOST_NAME       127
 #define LEN_APP_NAME        127
-#define LEN_RUNNER_NAME     64
-#define LEN_METHOD_NAME     64
-#define LEN_BUBBLE_NAME     64
+#define LEN_RUNNER_NAME     63
+#define LEN_METHOD_NAME     63
+#define LEN_BUBBLE_NAME     63
+#define LEN_ENDPOINT_NAME   (LEN_HOST_NAME + LEN_APP_NAME + LEN_RUNNER_NAME + 3)
 
 /* the maximal size of a payload in a frame */
 #define MAX_SIZE_PAYLOAD        4096
@@ -148,10 +151,9 @@ const char* hibus_get_error_message (int err_code);
 
 hibus_json *json_object_from_string (const char* json, int len, int in_depth);
 
-int hibus_is_valid_token (const char* token, int max_len);
-
-int hibus_is_valid_host_name (const char* host_name);
-int hibus_is_valid_app_name (const char* app_name);
+bool hibus_is_valid_token (const char* token, int max_len);
+bool hibus_is_valid_host_name (const char* host_name);
+bool hibus_is_valid_app_name (const char* app_name);
 
 int hibus_extract_host_name (const char* endpoint, char* buff);
 int hibus_extract_app_name (const char* endpoint, char* buff);
@@ -161,9 +163,10 @@ char* hibus_extract_host_name_alloc (const char* endpoint);
 char* hibus_extract_app_name_alloc (const char* endpoint);
 char* hibus_extract_runner_name_alloc (const char* endpoint);
 
-int hibus_assembly_endpoint (const char* host_name, const char* app_name,
+/* return the length of the endpoint name if success, <= 0 otherwise */
+int hibus_assemble_endpoint (const char* host_name, const char* app_name,
         const char* runner_name, char* buff);
-char* hibus_assembly_endpoint_alloc (const char* host_name, const char* app_name,
+char* hibus_assemble_endpoint_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
 
 /*
@@ -185,6 +188,8 @@ int hibus_conn_socket_type (hibus_conn* conn);
 unsigned char *hibus_sign_data (const char *app_name,
         const unsigned char* data, unsigned int data_len,
         unsigned int *sig_len);
+
+/* return > 0 if verified, = 0 if failes, < 0 when no such app. */
 int hibus_verify_signature (const char* app_name,
         const unsigned char* data, unsigned int data_len,
         const unsigned char* sig, unsigned int sig_len);

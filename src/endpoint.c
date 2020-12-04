@@ -161,8 +161,8 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
     const char *encoded_sig = NULL, *encoding = NULL;
     unsigned char *sig;
     unsigned int sig_len = 0;
-    int prot_ver = 0;
-    char* endpoint_name;
+    int prot_ver = 0, retv;
+    char endpoint_name [LEN_ENDPOINT_NAME + 1];
 
     if (json_object_object_get_ex (jo, "protocolName", &jo_tmp)) {
         prot_name = json_object_get_string (jo_tmp);
@@ -200,8 +200,8 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
         return HIBUS_SC_UPGRADE_REQUIRED;
 
     if (!hibus_is_valid_host_name (host_name) ||
-            hibus_is_valid_app_name (app_name) ||
-            hibus_is_valid_token (runner_name, LEN_RUNNER_NAME)) {
+            !hibus_is_valid_app_name (app_name) ||
+            !hibus_is_valid_token (runner_name, LEN_RUNNER_NAME)) {
         ULOG_WARN ("Bad endpoint name: @%s/%s/%s\n", host_name, app_name, runner_name);
         return HIBUS_SC_NOT_ACCEPTABLE;
     }
@@ -209,7 +209,8 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
     assert (endpoint->sta_data);
 
     if (strcasecmp (encoding, "base64") == 0) {
-        sig = malloc (B64_DECODE_LEN (strlen (encoded_sig)));
+        sig_len = B64_DECODE_LEN (strlen (encoded_sig));
+        sig = malloc (sig_len);
         sig_len = b64_decode (encoded_sig, sig, sig_len);
     }
     else if (strcasecmp (encoding, "hex") == 0) {
@@ -225,13 +226,20 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
         return HIBUS_SC_BAD_REQUEST;
     }
 
-    if (hibus_verify_signature (app_name,
+    retv = hibus_verify_signature (app_name,
             endpoint->sta_data, strlen (endpoint->sta_data),
-            sig, sig_len - 1)) {
-        free (sig);
+            sig, sig_len);
+    free (sig);
+
+    if (retv < 0) {
+        ULOG_WARN ("No such app installed: %s\n", app_name);
+        return HIBUS_SC_NOT_FOUND;
+    }
+    else if (retv == 0) {
+        ULOG_WARN ("Failed to authenticate the app (%s) with challenge code: %s\n",
+                app_name, (char *)endpoint->sta_data);
         return HIBUS_SC_UNAUTHORIZED;
     }
-    free (sig);
 
     /* make endpoint ready here */
     if (endpoint->type == CT_UNIX_SOCKET) {
@@ -243,9 +251,8 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
         host_name = HIBUS_LOCALHOST;
     }
     
-    if ((endpoint_name = hibus_assembly_endpoint_alloc (host_name,
-                    app_name, runner_name)) == NULL)
-        return HIBUS_SC_INSUFFICIENT_STORAGE;
+    assert (hibus_assemble_endpoint (host_name,
+                    app_name, runner_name, endpoint_name) > 0);
 
     ULOG_INFO ("New endpoint: %s\n", endpoint_name);
 
@@ -256,7 +263,6 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
 
     if (!kvlist_set (&the_server->endpoint_list, endpoint_name, endpoint)) {
         ULOG_ERR ("Failed to store the endpoint: %s\n", endpoint_name);
-        free (endpoint_name);
         return HIBUS_SC_INSUFFICIENT_STORAGE;
     }
 
@@ -291,7 +297,12 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
                 char buff [512];
                 int n;
 
+                assert (endpoint->sta_data);
+
                 if ((retv = authenticate_endpoint (the_server, endpoint, jo)) != HIBUS_SC_OK) {
+
+                    free (endpoint->sta_data);
+                    endpoint->sta_data = NULL;
 
                     /* send authFailed packet */
                     n = snprintf (buff, sizeof (buff), 
@@ -306,6 +317,9 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
                         send_packet_to_endpoint (the_server, endpoint, buff);
                     goto failed;
                 }
+
+                free (endpoint->sta_data);
+                endpoint->sta_data = NULL;
 
                 /* send authPassed packet */
                 n = snprintf (buff, sizeof (buff), 

@@ -161,26 +161,26 @@ error:
 	return obj;
 }
 
-int hibus_is_valid_token (const char* token, int max_len)
+bool hibus_is_valid_token (const char* token, int max_len)
 {
     int i;
 
     if (!isalpha (token [0]))
-        return 0;
+        return false;
 
     i = 1;
     while (token [i]) {
 
         if (i > max_len)
-            return 0;
+            return false;
 
         if (!isalnum (token [i]) && token [i] != '_')
-            return 0;
+            return false;
 
         i++;
     }
 
-    return 1;
+    return true;
 }
 
 /* @<host_name>/<app_name>/<runner_name> */
@@ -286,7 +286,7 @@ char* hibus_extract_runner_name_alloc (const char* endpoint)
     return NULL;
 }
 
-int hibus_assembly_endpoint (const char* host_name, const char* app_name,
+int hibus_assemble_endpoint (const char* host_name, const char* app_name,
         const char* runner_name, char* buff)
 {
     int host_len, app_len, runner_len;
@@ -304,17 +304,19 @@ int hibus_assembly_endpoint (const char* host_name, const char* app_name,
     buff [1] = '\0';
     strcat (buff, host_name);
     buff [host_len + 1] = '/';
+    buff [host_len + 2] = '\0';
 
     strcat (buff, app_name);
     buff [host_len + app_len + 2] = '/';
+    buff [host_len + app_len + 3] = '\0';
 
     strcat (buff, runner_name);
-    ULOG_INFO ("Assemblied endpoint: %s\n", buff);
+    ULOG_INFO ("Assembled endpoint: %s\n", buff);
 
     return host_len + app_len + runner_len + 3;
 }
 
-char* hibus_assembly_endpoint_alloc (const char* host_name, const char* app_name,
+char* hibus_assemble_endpoint_alloc (const char* host_name, const char* app_name,
         const char* runner_name)
 {
     char* endpoint;
@@ -346,13 +348,13 @@ char* hibus_assembly_endpoint_alloc (const char* host_name, const char* app_name
     return endpoint;
 }
 
-int hibus_is_valid_host_name (const char* host_name)
+bool hibus_is_valid_host_name (const char* host_name)
 {
-    return 1;
+    return true;
 }
 
 /* cn.fmsoft.hybridos.aaa */
-int hibus_is_valid_app_name (const char* app_name)
+bool hibus_is_valid_app_name (const char* app_name)
 {
     int len, max_len = LEN_APP_NAME;
     const char *start;
@@ -372,10 +374,10 @@ int hibus_is_valid_app_name (const char* app_name)
         }
 
         if (end == start)
-            return 0;
+            return false;
 
         if ((len = hibus_is_valid_token (start, max_len)) <= 0)
-            return 0;
+            return false;
 
         max_len -= len;
         if (saved) {
@@ -388,6 +390,6 @@ int hibus_is_valid_app_name (const char* app_name)
         }
     }
 
-    return 1;
+    return true;
 }
 
