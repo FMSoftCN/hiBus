@@ -127,10 +127,10 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
 
     retv = snprintf (buff, sizeof (buff), 
             "{"
-            "\"packetType\": \"auth\","
-            "\"protocolName\": \"%s\","
-            "\"protocolVersion\": %d,"
-            "\"challengeCode\": \"%s\""
+            "\"packetType\":\"auth\","
+            "\"protocolName\":\"%s\","
+            "\"protocolVersion\":%d,"
+            "\"challengeCode\":\"%s\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             ch_code);
@@ -307,9 +307,9 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
                     /* send authFailed packet */
                     n = snprintf (buff, sizeof (buff), 
                             "{"
-                            "\"packetType\": \"authFailed\","
-                            "\"retCode\": %d,"
-                            "\"retMsg\": \"%s\","
+                            "\"packetType\":\"authFailed\","
+                            "\"retCode\":%d,"
+                            "\"retMsg\":\"%s\","
                             "}",
                             retv, hibus_get_error_message (retv));
 
@@ -324,9 +324,9 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
                 /* send authPassed packet */
                 n = snprintf (buff, sizeof (buff), 
                         "{"
-                        "\"packetType\": \"authPassed\","
-                        "\"serverHostName\": \"%s\","
-                        "\"reassignedHostName\": \"%s\","
+                        "\"packetType\":\"authPassed\","
+                        "\"serverHostName\":\"%s\","
+                        "\"reassignedHostName\":\"%s\""
                         "}",
                         the_server->server_name, endpoint->host_name);
 

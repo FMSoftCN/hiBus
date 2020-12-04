@@ -23,6 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include <hibox/ulog.h>
 
@@ -30,6 +35,7 @@
 
 int main (int argc, char **argv)
 {
+    int nr_loops = 20;
     int fd;
     hibus_conn* conn;
 
@@ -39,6 +45,44 @@ int main (int argc, char **argv)
             HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE, &conn);
 
     ULOG_NOTE ("fd (%d)\n", fd);
+
+    while (nr_loops--) {
+        fd_set rfds;
+        struct timeval tv;
+        int retval;
+        char* packet;
+        unsigned int data_len;
+
+        FD_ZERO (&rfds);
+        FD_SET (fd, &rfds);
+
+        tv.tv_sec = 0;
+        tv.tv_usec = 500 * 1000;
+        retval = select (fd + 1, &rfds, NULL, NULL, &tv);
+
+        if (retval == -1) {
+            ULOG_ERR ("Failed to call select(): %s\n", strerror (errno));
+            break;
+        }
+        else if (retval) {
+            packet = hibus_read_packet_alloc (conn, &data_len);
+
+            if (packet == NULL) {
+                ULOG_ERR ("Failed to read packet\n");
+                break;
+            }
+            else {
+                ULOG_INFO ("got a packet (%u long):\n%s\n", data_len, packet);
+            }
+
+            free (packet);
+        }
+        else {
+            ULOG_INFO ("Timeout\n");
+        }
+    }
+
+    hibus_disconnect (conn);
 
     ulog_close ();
 

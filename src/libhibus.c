@@ -78,7 +78,7 @@ static char* read_text_payload_from_us (int fd, int* len)
     }
     else {
         n = read (fd, payload, header.sz_payload);
-        if (n != header.sz_payload) {
+        if (n < header.sz_payload) {
             ULOG_ERR ("Failed to read payload.\n");
             goto failed;
         }
@@ -229,14 +229,14 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
 
     retv = snprintf (buff, 1024, 
             "{"
-            "\"packetType\": \"auth\","
-            "\"protocolName\": \"%s\","
-            "\"protocolVersion\": %d,"
-            "\"hostName\": \"%s\","
-            "\"appName\": \"%s\","
-            "\"runnerName\": \"%s\","
-            "\"signature\": \"%s\","
-            "\"encodedIn\": \"base64\""
+            "\"packetType\":\"auth\","
+            "\"protocolName\":\"%s\","
+            "\"protocolVersion\":%d,"
+            "\"hostName\":\"%s\","
+            "\"appName\":\"%s\","
+            "\"runnerName\":\"%s\","
+            "\"signature\":\"%s\","
+            "\"encodedIn\":\"base64\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             conn->own_host_name, conn->app_name, conn->runner_name, enc_sig);
@@ -418,7 +418,7 @@ int hibus_conn_socket_type (hibus_conn* conn)
     return conn->type;
 }
 
-int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data_len)
+int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len)
 {
     unsigned int offset;
     if (conn->type == CT_UNIX_SOCKET) {
@@ -427,12 +427,16 @@ int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data
             USFrameHeader header;
 
             n = read (conn->fd, &header, sizeof (USFrameHeader));
-            if (n <= sizeof (USFrameHeader)) {
+            if (n < sizeof (USFrameHeader)) {
                 ULOG_ERR ("Failed to read frame header from Unix socket\n");
                 return -1;
             }
 
-            if (header.op == US_OPCODE_PING) {
+            if (header.op == US_OPCODE_PONG) {
+                // TODO
+                continue;
+            }
+            else if (header.op == US_OPCODE_PING) {
                 header.op = US_OPCODE_PONG;
                 header.sz_payload = 0;
                 n = write (conn->fd, &header, sizeof (USFrameHeader));
@@ -453,7 +457,7 @@ int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data
                     is_text = 0;
                 }
 
-                if (read (conn->fd, data_buf, header.sz_payload)
+                if (read (conn->fd, packet_buf, header.sz_payload)
                         < header.sz_payload) {
                     ULOG_ERR ("Failed to read packet from Unix socket\n");
                     return -1;
@@ -462,7 +466,7 @@ int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data
                 offset = header.sz_payload;
                 while (header.fragmented) {
                     n = read (conn->fd, &header, sizeof (USFrameHeader));
-                    if (n <= sizeof (USFrameHeader)) {
+                    if (n < sizeof (USFrameHeader)) {
                         ULOG_ERR ("Failed to read frame header from Unix socket\n");
                         return -1;
                     }
@@ -475,7 +479,7 @@ int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data
                         return -1;
                     }
 
-                    if (read (conn->fd, data_buf + offset, header.sz_payload)
+                    if (read (conn->fd, packet_buf + offset, header.sz_payload)
                             < header.sz_payload) {
                         ULOG_ERR ("Failed to read packet from Unix socket\n");
                         return -1;
@@ -484,10 +488,14 @@ int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data
                     offset += header.sz_payload;
                 }
 
-                if (is_text)
-                    ((char *)data_buf) [offset] = '\0';
+                if (is_text) {
+                    ((char *)packet_buf) [offset] = '\0';
+                    *packet_len = offset + 1;
+                }
+                else {
+                    *packet_len = offset;
+                }
 
-                *data_len = offset;
                 return 0;
             }
             else {
@@ -506,9 +514,9 @@ int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data
     return 0;
 }
 
-void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len)
+void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
 {
-    void* data_buf = NULL;
+    void* packet_buf = NULL;
     unsigned int offset;
 
     if (conn->type == CT_UNIX_SOCKET) {
@@ -518,12 +526,16 @@ void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len)
             USFrameHeader header;
 
             n = read (conn->fd, &header, sizeof (USFrameHeader));
-            if (n <= sizeof (USFrameHeader)) {
+            if (n < sizeof (USFrameHeader)) {
                 ULOG_ERR ("Failed to read frame header from Unix socket\n");
                 break;
             }
 
-            if (header.op != US_OPCODE_PING) {
+            if (header.op == US_OPCODE_PONG) {
+                // TODO
+                continue;
+            }
+            else if (header.op == US_OPCODE_PING) {
                 header.op = US_OPCODE_PONG;
                 header.sz_payload = 0;
                 n = write (conn->fd, &header, sizeof (USFrameHeader));
@@ -544,23 +556,23 @@ void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len)
                     is_text = 0;
                 }
 
-                if ((data_buf = malloc (header.sz_payload + 1)) == NULL) {
+                if ((packet_buf = malloc (header.sz_payload + 1)) == NULL) {
                     return NULL;
                 }
 
-                if (read (conn->fd, data_buf, header.sz_payload)
+                if (read (conn->fd, packet_buf, header.sz_payload)
                         < header.sz_payload) {
                     ULOG_ERR ("Failed to read packet from Unix socket\n");
-                    free (data_buf);
+                    free (packet_buf);
                     return NULL;
                 }
 
                 offset = header.sz_payload;
                 while (header.fragmented) {
                     n = read (conn->fd, &header, sizeof (USFrameHeader));
-                    if (n <= sizeof (USFrameHeader)) {
+                    if (n < sizeof (USFrameHeader)) {
                         ULOG_ERR ("Failed to read frame header from Unix socket\n");
-                        free (data_buf);
+                        free (packet_buf);
                         return NULL;
                     }
 
@@ -569,31 +581,34 @@ void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len)
                     }
                     else if (header.op != US_OPCODE_CONTINUATION ) {
                         ULOG_ERR ("Not a continuation frame\n");
-                        free (data_buf);
+                        free (packet_buf);
                         return NULL;
                     }
 
-                    if ((data_buf = realloc (data_buf, offset + header.sz_payload + 1))
+                    if ((packet_buf = realloc (packet_buf, offset + header.sz_payload + 1))
                             == NULL) {
                         // free?
                         return NULL;
                     }
 
-                    if (read (conn->fd, data_buf + offset, header.sz_payload)
+                    if (read (conn->fd, packet_buf + offset, header.sz_payload)
                             < header.sz_payload) {
                         ULOG_ERR ("Failed to read packet from Unix socket\n");
-                        free (data_buf);
+                        free (packet_buf);
                         return NULL;
                     }
 
                     offset += header.sz_payload;
                 }
 
-                if (is_text)
-                    ((char *)data_buf) [offset] = '\0';
-
-                *data_len = offset;
-                return data_buf;
+                if (is_text) {
+                    ((char *)packet_buf) [offset] = '\0';
+                    *packet_len = offset + 1;
+                }
+                else {
+                    *packet_len = offset;
+                }
+                return packet_buf;
             }
             else {
                 ULOG_ERR ("Bad packet op code: %d\n", header.op);
@@ -610,7 +625,7 @@ void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len)
         return NULL;
     }
 
-    return data_buf;
+    return packet_buf;
 }
 
 /* TODO: fragment if the text is too long */

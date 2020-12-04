@@ -194,8 +194,8 @@ int hibus_verify_signature (const char* app_name,
         const unsigned char* data, unsigned int data_len,
         const unsigned char* sig, unsigned int sig_len);
 
-int hibus_read_packet_data (hibus_conn* conn, void* data_buf, unsigned int *data_len);
-void* hibus_read_packet_data_alloc (hibus_conn* conn, unsigned int *data_len);
+int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
+void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len);
 
 int hibus_send_text (hibus_conn* conn, const char* text, unsigned int txt_len);
 

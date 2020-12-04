@@ -355,6 +355,16 @@ int us_handle_reads (USServer* server, USClient* usc)
 
         break;
 
+    case US_OPCODE_PONG: {
+        BusEndpoint *endpoint = usc->priv_data;
+
+        assert (endpoint);
+
+        ULOG_INFO ("Got a PONG frame from endpoint @%s/%s/%s\n",
+                endpoint->host_name, endpoint->app_name, endpoint->runner_name);
+        break;
+    }
+
     default:
         ULOG_ERR ("Unknown frame opcode: %d\n", header.op);
         err_code = HIBUS_EC_PROTOCOL;
