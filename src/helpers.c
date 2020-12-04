@@ -311,7 +311,6 @@ int hibus_assemble_endpoint (const char* host_name, const char* app_name,
     buff [host_len + app_len + 3] = '\0';
 
     strcat (buff, runner_name);
-    ULOG_INFO ("Assembled endpoint: %s\n", buff);
 
     return host_len + app_len + runner_len + 3;
 }
@@ -338,12 +337,13 @@ char* hibus_assemble_endpoint_alloc (const char* host_name, const char* app_name
     endpoint [1] = '\0';
     strcat (endpoint, host_name);
     endpoint [host_len + 1] = '/';
+    endpoint [host_len + 2] = '\0';
 
     strcat (endpoint, app_name);
     endpoint [host_len + app_len + 2] = '/';
+    endpoint [host_len + app_len + 3] = '\0';
 
     strcat (endpoint, runner_name);
-    ULOG_INFO ("Assemblied endpoint: %s\n", endpoint);
 
     return endpoint;
 }
