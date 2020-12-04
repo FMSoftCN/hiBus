@@ -655,3 +655,25 @@ int hibus_send_text (hibus_conn* conn, const char* text, unsigned int len)
     return 0;
 }
 
+int
+hibus_conn_endpoint_name (hibus_conn* conn, char *buff)
+{
+    if (conn->own_host_name && conn->app_name && conn->runner_name) {
+        return hibus_assemble_endpoint (conn->own_host_name,
+                conn->app_name, conn->runner_name, buff);
+    }
+
+    return 0;
+}
+
+char *
+hibus_conn_endpoint_name_alloc (hibus_conn* conn)
+{
+    if (conn->own_host_name && conn->app_name && conn->runner_name) {
+        return hibus_assemble_endpoint_alloc (conn->own_host_name,
+                conn->app_name, conn->runner_name);
+    }
+
+    return NULL;
+}
+
