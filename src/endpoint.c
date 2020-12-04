@@ -76,7 +76,15 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
 
 int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
 {
-    // TODO: remove from avl list.
+    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+
+    if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
+        ULOG_INFO ("Deleting an endpoint: %s\n", endpoint_name);
+        kvlist_delete (&the_server->endpoint_list, endpoint_name);
+    }
+    else {
+        strcpy (endpoint_name, "@unknown/unknown/unknown");
+    }
 
     if (endpoint->sta_data) free (endpoint->sta_data);
     if (endpoint->host_name) free (endpoint->host_name);
@@ -84,6 +92,7 @@ int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
     if (endpoint->runner_name) free (endpoint->runner_name);
 
     free (endpoint);
+    ULOG_WARN ("Endpoint (%s) removed\n", endpoint_name);
     return 0;
 }
 
