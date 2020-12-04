@@ -164,8 +164,8 @@ char* hibus_extract_app_name_alloc (const char* endpoint);
 char* hibus_extract_runner_name_alloc (const char* endpoint);
 
 /* return the length of the endpoint name if success, <= 0 otherwise */
-int hibus_assemble_endpoint (const char* host_name, const char* app_name,
-        const char* runner_name, char* buff);
+int hibus_assemble_endpoint (const char *host_name, const char *app_name,
+        const char *runner_name, char *buff);
 char* hibus_assemble_endpoint_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
 
@@ -182,6 +182,9 @@ const char* hibus_conn_srv_host_name (hibus_conn* conn);
 const char* hibus_conn_own_host_name (hibus_conn* conn);
 const char* hibus_conn_app_name (hibus_conn* conn);
 const char* hibus_conn_runner_name (hibus_conn* conn);
+int hibus_conn_endpoint_name (hibus_conn* conn, char *buff);
+char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
+
 int hibus_conn_socket_fd (hibus_conn* conn);
 int hibus_conn_socket_type (hibus_conn* conn);
 
@@ -241,22 +244,26 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
 }
 #endif
 
-static inline int hibus_is_valid_runner_name (const char* runner_name)
+static inline int
+hibus_is_valid_runner_name (const char* runner_name)
 {
     return hibus_is_valid_token (runner_name, LEN_RUNNER_NAME);
 }
 
-static inline int hibus_is_valid_method_name (const char* method_name)
+static inline int
+hibus_is_valid_method_name (const char* method_name)
 {
     return hibus_is_valid_token (method_name, LEN_METHOD_NAME);
 }
 
-static inline int hibus_is_valid_bubble_name (const char* bubble_name)
+static inline int
+hibus_is_valid_bubble_name (const char* bubble_name)
 {
     return hibus_is_valid_token (bubble_name, LEN_BUBBLE_NAME);
 }
 
-static inline int hibus_name_tolower (char* name)
+static inline int
+hibus_name_tolower (char* name)
 {
     int i = 0;
 
@@ -268,7 +275,8 @@ static inline int hibus_name_tolower (char* name)
     return i;
 }
 
-static inline int hibus_name_toupper (char* name)
+static inline int
+hibus_name_toupper (char* name)
 {
     int i = 0;
 
