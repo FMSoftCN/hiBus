@@ -380,7 +380,7 @@ static int on_packet_us (USServer* us_srv, USClient* client,
     return HIBUS_SC_OK;
 }
 
-static int on_cleanup_us (USServer* us_srv, USClient* client)
+static int on_close_us (USServer* us_srv, USClient* client)
 {
     if (client->priv_data) {
         BusEndpoint *endpoint = (BusEndpoint *)client->priv_data;
@@ -415,7 +415,7 @@ static void server_start (void)
     the_server.us_srv->on_failed = on_failed_us;
     the_server.us_srv->on_accepted = on_accepted_us;
     the_server.us_srv->on_packet = on_packet_us;
-    the_server.us_srv->on_cleanup = on_cleanup_us;
+    the_server.us_srv->on_close = on_close_us;
 
     // create web socket listener if enabled
     if (the_server.ws_srv) {

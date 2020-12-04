@@ -55,7 +55,7 @@ typedef struct USServer_
     int (*on_accepted) (struct USServer_* server, USClient* client);
     int (*on_packet) (struct USServer_* server, USClient* client,
             const char* body, unsigned int sz_body, int type);
-    int (*on_cleanup) (struct USServer_* server, USClient* client);
+    int (*on_close) (struct USServer_* server, USClient* client);
 
     const ServerConfig* config;
 } USServer;
