@@ -20,6 +20,7 @@
 ** along with this program.  If not, see http://www.gnu.org/licenses/.
 */
 
+#include <stdarg.h>
 #include <string.h>
 #include <assert.h>
 
@@ -28,6 +29,7 @@
 #include <hibox/ulog.h>
 #include <hibox/json.h>
 #include <hibox/list.h>
+#include <hibox/blobmsg.h>
 
 #include "hibus.h"
 
@@ -520,8 +522,41 @@ void hibus_destroy_pattern_list (hibus_pattern_list *pl)
 }
 
 bool hibus_pattern_match (hibus_pattern_list *pl, const char* string,
-        const char* var_name, const char* substitution, ...)
+        int nr_vars, ...)
 {
+    va_list ap;
+    struct blob_buf var_map;
+
+    if (blob_buf_init (&var_map, 0)) {
+        ULOG_ERR ("Failed to call blob_buf_init\n");
+        return false;
+    }
+
+    va_start (ap, nr_vars);
+    while (nr_vars > 0) {
+        const char *var, *sub;
+
+        var = va_arg (ap, const char *);
+        sub = va_arg (ap, const char *);
+        if (var && sub) {
+            if (blobmsg_add_string (&var_map, var, sub)) {
+                goto failed;
+            }
+        }
+        else
+            break;
+
+        nr_vars--;
+    }
+    va_end (ap);
+
+    // ...
+
+    blob_buf_free (&var_map);
     return true;
+
+failed:
+    blob_buf_free (&var_map);
+    return false;
 }
 

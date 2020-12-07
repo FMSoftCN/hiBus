@@ -208,7 +208,7 @@ hibus_pattern_list *hibus_create_pattern_list (const char* pattern);
 void hibus_destroy_pattern_list (hibus_pattern_list *pl);
 
 bool hibus_pattern_match (hibus_pattern_list *pl, const char* string,
-        const char* var_name, const char* substitution, ...);
+        int nr_vars, ...);
 
 /*
  * connection functions - implemented in libhibus.c, only for clients.
