@@ -45,6 +45,11 @@ int main (int argc, char **argv)
     fd = hibus_connect_via_unix_socket (HIBUS_US_PATH,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE, &conn);
 
+    if (fd < 0) {
+        ULOG_ERR ("Failed to connect to hiBus server\n");
+        goto failed;
+    }
+
     ULOG_NOTE ("fd (%d)\n", fd);
 
     while (nr_loops--) {
@@ -121,8 +126,8 @@ int main (int argc, char **argv)
 
     hibus_disconnect (conn);
 
+failed:
     ulog_close ();
-
     return 0;
 }
 
