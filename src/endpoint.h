@@ -43,8 +43,8 @@ typedef hibus_json* (*builtin_method_handler)(BusEndpoint* from_endpoint,
 /* Method information */
 typedef struct MethodInfo_
 {
-    char*               for_host;
-    char*               for_app;
+    hibus_pattern_list* host_patt_list;
+    hibus_pattern_list* app_patt_list;
 
     /* only not null for built-in methods */
     builtin_method_handler handler;
@@ -53,24 +53,25 @@ typedef struct MethodInfo_
 /* Bubble information */
 typedef struct BubbleInfo_
 {
-    char* for_host;
-    char* for_app;
+    hibus_pattern_list* host_patt_list;
+    hibus_pattern_list* app_patt_list;
 
     /* All subscribers of this bubble */
     struct kvlist subscriber_list;
 } BubbleInfo;
 
-int register_procedure (BusEndpoint* from_endpoint, const char* method_name,
+int register_procedure (BusEndpoint* endpoint, const char* method_name,
         const char* for_host, const char* for_app, builtin_method_handler handler);
-int revoke_procedure (BusEndpoint* from_endpoint, const char* method_name);
+int revoke_procedure (BusEndpoint* endpoint, const char* method_name);
 
-int register_event (BusEndpoint* from_endpoint, const char* bubble_name,
+int register_event (BusEndpoint* endpoint, const char* bubble_name,
         const char* for_host, const char* for_app);
+int revoke_event (BusEndpoint* endpoint, const char* bubble_name);
 
-int revoke_event (BusEndpoint* from_endpoint, const char* bubble_name);
+int subscribe_event (BusEndpoint* endpoint, const char* event_name);
+int unsubscribe_event (BusEndpoint* endpoint, const char* event_name);
 
-int subscribe_event (BusEndpoint* from_endpoint, const char* event_name);
-int unsubscribe_event (BusEndpoint* from_endpoint, const char* event_name);
+bool init_builtin_endpoint (BusEndpoint* builtin_endpoint);
 
 typedef struct PendingCall_ {
 	struct safe_list list;
