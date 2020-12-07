@@ -98,35 +98,35 @@ builtin_method_list_event_subscribers (BusEndpoint* from_endpoint,
 bool init_builtin_endpoint (BusEndpoint* builtin)
 {
     register_procedure (builtin, "registerProcedure",
-            HIBUS_HOST_ANY, HIBUS_APP_ANY,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_register_procedure);
     register_procedure (builtin, "revokeProcedure",
-            HIBUS_HOST_ANY, HIBUS_APP_SELF,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
             builtin_method_revoke_procedure);
 
     register_procedure (builtin, "registerEvent",
-            HIBUS_HOST_ANY, HIBUS_APP_ANY,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_register_event);
     register_procedure (builtin, "revokeEvent",
-            HIBUS_HOST_ANY, HIBUS_APP_SELF,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
             builtin_method_revoke_event);
 
     register_procedure (builtin, "subscribeEvent",
-            HIBUS_HOST_ANY, HIBUS_APP_ANY,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_subscribe_event);
     register_procedure (builtin, "unsubscribeEvent",
-            HIBUS_HOST_ANY, HIBUS_APP_SELF,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
             builtin_method_unsubscribe_event);
 
     register_procedure (builtin, "listProcedures",
-            HIBUS_HOST_ANY, HIBUS_APP_HIBUS,
+            HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
             builtin_method_list_procedures);
     register_procedure (builtin, "listEvents",
-            HIBUS_HOST_ANY, HIBUS_APP_HIBUS,
+            HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
             builtin_method_list_events);
 
     register_procedure (builtin, "listEventSubscribers",
-            HIBUS_HOST_ANY, HIBUS_APP_SELF,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER "," HIBUS_APP_HIBUS,
             builtin_method_list_event_subscribers);
 
     return true;
