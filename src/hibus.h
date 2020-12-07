@@ -39,8 +39,12 @@
 #define HIBUS_WS_PORT                   "7700"
 #define HIBUS_WS_PORT_RESERVED          "7701"
 
+#define HIBUS_HOST_ANY                  "*"
+#define HIBUS_APP_ANY                   "*"
+#define HIBUS_HOST_SELF                 "$self"
+#define HIBUS_APP_SELF                  "$self"
+
 #define HIBUS_LOCALHOST                 "localhost"
-#define HIBUS_APP_SELF                  "self"
 #define HIBUS_APP_HIBUS                 "cn.fmsoft.hybridos.hibus"
 #define HIBUS_RUNNER_BUILITIN           "builtin"
 #define HIBUS_RUNNER_CMDLINE            "cmdline"
@@ -154,6 +158,9 @@ typedef struct _hibus_conn hibus_conn;
 
 typedef struct json_object hibus_json;
 
+struct _hibus_pattern_list;
+typedef struct _hibus_pattern_list hibus_pattern_list;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -195,6 +202,13 @@ int hibus_verify_signature (const char* app_name,
 /* parse the JSON packet and return the packet type and the JSON object */
 int hibus_json_packet_to_object (const char* json, unsigned int json_len,
         hibus_json **jo);
+
+/* allowed pattern: `*, $self, xxx?, yyy*, !aaa*` */
+hibus_pattern_list *hibus_create_pattern_list (const char* pattern);
+void hibus_destroy_pattern_list (hibus_pattern_list *pl);
+
+bool hibus_pattern_match (hibus_pattern_list *pl, const char* string,
+        const char* var_name, const char* substitution, ...);
 
 /*
  * connection functions - implemented in libhibus.c, only for clients.
