@@ -188,6 +188,31 @@ set_nonblocking (int sock)
     return 0;
 }
 
+void
+us_send_error_packet (USServer* us_srv, USClient* client, int err_code)
+{
+    int size;
+    char buff [1024];
+
+    size = snprintf (buff, 1024, 
+            "{"
+            "\"packetType\":\"error\","
+            "\"protocolName\":\"%s\","
+            "\"protocolVersion\":%d,"
+            "\"retCode\":%d,"
+            "\"retMsg\":\"%s\""
+            "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
+            err_code, hibus_get_error_message (err_code));
+
+    if (size >= sizeof (buff)) {
+        // should never reach here
+        assert (0);
+    }
+
+    us_send_data (us_srv, client, US_OPCODE_TEXT, buff, strlen (buff));
+}
+
 /* Handle a new UNIX socket connection. */
 USClient *
 us_handle_accept (USServer* server)
@@ -221,7 +246,7 @@ us_handle_accept (USServer* server)
 
     if (server->nr_clients > MAX_CLIENTS_EACH) {
         ULOG_WARN ("Too many clients (maximal clients allowed: %d)\n", MAX_CLIENTS_EACH);
-        server->on_failed (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
+        us_send_error_packet (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
         goto cleanup;
     }
 
@@ -232,7 +257,7 @@ us_handle_accept (USServer* server)
             ULOG_WARN ("Internal error after accepted this client (%d): %d\n",
                     newfd, ret_code);
 
-            server->on_failed (server, usc, ret_code);
+            us_send_error_packet (server, usc, ret_code);
             goto cleanup;
         }
     }
@@ -380,7 +405,7 @@ done:
         */
 
         if (sta_code) {
-            server->on_failed (server, usc, sta_code);
+            us_send_error_packet (server, usc, sta_code);
         }
 
         us_client_cleanup (server, usc);
@@ -401,7 +426,7 @@ got_packet:
     if (sta_code != HIBUS_SC_OK) {
         ULOG_WARN ("Internal error after got a packet: %d\n", sta_code);
 
-        server->on_failed (server, usc, sta_code);
+        us_send_error_packet (server, usc, sta_code);
         err_code = HIBUS_EC_UPPER;
 
         us_client_cleanup (server, usc);

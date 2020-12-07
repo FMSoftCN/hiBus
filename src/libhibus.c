@@ -247,7 +247,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
     }
 
     ULOG_INFO ("auth packate: \n%s\n", buff);
-    if (hibus_send_text (conn, buff, retv)) {
+    if (hibus_send_text_packet (conn, buff, retv)) {
         ULOG_ERR ("Failed to send text packet to hiBus server in send_auth_info.\n");
         goto failed;
     }
@@ -629,7 +629,7 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
 }
 
 /* TODO: fragment if the text is too long */
-int hibus_send_text (hibus_conn* conn, const char* text, unsigned int len)
+int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int len)
 {
     if (conn->type == CT_UNIX_SOCKET) {
         ssize_t n = 0;

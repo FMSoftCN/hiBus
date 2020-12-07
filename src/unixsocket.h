@@ -51,7 +51,6 @@ typedef struct USServer_
     int nr_clients;
 
     /* Callbacks */
-    void (*on_failed) (struct USServer_* server, USClient* client, int ret_code);
     int (*on_accepted) (struct USServer_* server, USClient* client);
     int (*on_packet) (struct USServer_* server, USClient* client,
             const char* body, unsigned int sz_body, int type);
@@ -68,6 +67,7 @@ USClient *us_handle_accept (USServer *server);
 int us_handle_reads (USServer *server, USClient* us_client);
 int us_client_cleanup (USServer* server, USClient* us_client);
 
+void us_send_error_packet (USServer* us_srv, USClient* client, int err_code);
 int us_ping_client (USServer* server, USClient* us_client);
 int us_send_data (USServer* server, USClient* us_client,
         USOpcode op, const char *data, int sz);

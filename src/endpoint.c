@@ -34,11 +34,6 @@
 #include "unixsocket.h"
 #include "websocket.h"
 
-static int get_len_string (struct kvlist *kv, const void *data)
-{
-    return strlen (data);
-}
-
 BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
 {
     BusEndpoint* endpoint = NULL;
@@ -55,8 +50,8 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
     endpoint->app_name = NULL;
     endpoint->runner_name = NULL;
 
-    kvlist_init (&endpoint->method_list, get_len_string);
-    kvlist_init (&endpoint->bubble_list, get_len_string);
+    kvlist_init (&endpoint->method_list, kvlist_strlen);
+    kvlist_init (&endpoint->bubble_list, kvlist_strlen);
     INIT_SAFE_LIST (&endpoint->pending_calling);
 
     if (type == ET_UNIX_SOCKET) {

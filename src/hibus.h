@@ -200,7 +200,7 @@ int hibus_verify_signature (const char* app_name,
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
 void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len);
 
-int hibus_send_text (hibus_conn* conn, const char* text, unsigned int txt_len);
+int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt_len);
 
 typedef hibus_json* (*hibus_method_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,
