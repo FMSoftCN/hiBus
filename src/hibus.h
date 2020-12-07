@@ -101,10 +101,11 @@
 #define LEN_ENDPOINT_NAME   (LEN_HOST_NAME + LEN_APP_NAME + LEN_RUNNER_NAME + 3)
 
 /* the maximal size of a payload in a frame */
-#define MAX_SIZE_PAYLOAD        4096
+#define MAX_PAYLOAD_SIZE    4096    /* 4 KiB max frame payload size */
+#define MAX_FRAME_SIZE      MAX_PAYLOAD_SIZE
 
 /* the maximal size of a packet which will be held in memory */
-#define MAX_SIZE_INMEM_PACKET   40960
+#define MAX_INMEM_PACKET_SIZE   40960
 
 typedef enum USOpcode_ {
     US_OPCODE_CONTINUATION = 0x00,
@@ -135,6 +136,19 @@ enum {
     PT_BINARY,
 };
 
+/* JSON packet type */
+enum {
+    JPT_BAD_JSON = -1,
+    JPT_UNKNOWN = 0,
+    JPT_ERROR,
+    JPT_AUTH,
+    JPT_AUTH_PASSED,
+    JPT_AUTH_FAILED,
+    JPT_CALL,
+    JPT_RESULT,
+    JPT_EVENT,
+};
+
 struct _hibus_conn;
 typedef struct _hibus_conn hibus_conn;
 
@@ -145,7 +159,7 @@ extern "C" {
 #endif
 
 /*
- * helper functions - implemented in helpers.c
+ * helper functions - implemented in helpers.c, for both server and clients.
  */
 const char* hibus_get_error_message (int err_code);
 
@@ -164,13 +178,26 @@ char* hibus_extract_app_name_alloc (const char* endpoint);
 char* hibus_extract_runner_name_alloc (const char* endpoint);
 
 /* return the length of the endpoint name if success, <= 0 otherwise */
-int hibus_assemble_endpoint (const char *host_name, const char *app_name,
+int hibus_assemble_endpoint_name (const char *host_name, const char *app_name,
         const char *runner_name, char *buff);
-char* hibus_assemble_endpoint_alloc (const char* host_name, const char* app_name,
+char* hibus_assemble_endpoint_name_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
 
+unsigned char *hibus_sign_data (const char *app_name,
+        const unsigned char* data, unsigned int data_len,
+        unsigned int *sig_len);
+
+/* return > 0 if verified, = 0 if failes, < 0 when no such app. */
+int hibus_verify_signature (const char* app_name,
+        const unsigned char* data, unsigned int data_len,
+        const unsigned char* sig, unsigned int sig_len);
+
+/* parse the JSON packet and return the packet type and the JSON object */
+int hibus_json_packet_to_object (const char* json, unsigned int json_len,
+        hibus_json **jo);
+
 /*
- * connection functions - implemented in libhibus.c
+ * connection functions - implemented in libhibus.c, only for clients.
  */
 int hibus_connect_via_unix_socket (const char* path_to_socket,
         const char* app_name, const char* runner_name, hibus_conn** conn);
@@ -187,15 +214,6 @@ char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
 
 int hibus_conn_socket_fd (hibus_conn* conn);
 int hibus_conn_socket_type (hibus_conn* conn);
-
-unsigned char *hibus_sign_data (const char *app_name,
-        const unsigned char* data, unsigned int data_len,
-        unsigned int *sig_len);
-
-/* return > 0 if verified, = 0 if failes, < 0 when no such app. */
-int hibus_verify_signature (const char* app_name,
-        const unsigned char* data, unsigned int data_len,
-        const unsigned char* sig, unsigned int sig_len);
 
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
 void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len);

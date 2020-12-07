@@ -1,7 +1,8 @@
 /**
  * websocket.c -- Utilities for WebSocket server.
  *
- * The code comes from gwsocket - An rfc6455-complaint Web Socket Server.
+ * The original code comes from gwsocket
+ *  - An rfc6455-complaint Web Socket Server.
  *
  * The MIT License (MIT)
  *
@@ -2014,14 +2015,21 @@ ws_realloc_frm_payload (WSFrame * frm, WSMessage * msg)
   char *tmp = NULL;
   uint64_t newlen = 0;
 
-  /* TODO: should check the maximal size of the message body here. */
   newlen = msg->payloadsz + frm->payloadlen;
+  /* check the maximal size of the message body here. */
+  if (newlen >= MAX_INMEM_PACKET_SIZE) {
+    free (msg->payload);
+    msg->payload = NULL;
+    return 1;
+  }
+
   tmp = realloc (msg->payload, newlen);
   if (tmp == NULL && newlen > 0) {
     free (msg->payload);
     msg->payload = NULL;
     return 1;
   }
+
   msg->payload = tmp;
 
   return 0;
@@ -2361,17 +2369,6 @@ ws_init (ServerConfig *config)
   WSServer *server = calloc (1, sizeof (WSServer));
 
   server->config = config;
-
-#if 0
-  wsconfig.accesslog = NULL;
-  wsconfig.host = wsconfig.host;
-  wsconfig.max_frm_size = WS_MAX_FRM_SZ;
-  wsconfig.origin = NULL;
-  wsconfig.sslcert = wsconfig.sslcert;
-  wsconfig.sslkey = wsconfig.sslkey;
-  wsconfig.port = wsconfig.port;
-  wsconfig.use_ssl = 0;
-#endif
 
   return server;
 }

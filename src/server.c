@@ -176,11 +176,15 @@ handle_signal_action (int sig_number)
 {
     if (sig_number == SIGINT) {
         ULOG_WARN ("SIGINT caught!\n");
+#if 1
+        the_server.running = false;
+#else
         /* if it fails to write, force stop */
         us_stop (the_server.us_srv);
         if (the_server.ws_srv)
             ws_stop (the_server.ws_srv);
         _exit (1);
+#endif
     }
     else if (sig_number == SIGPIPE) {
         ULOG_WARN ("SIGPIPE caught!\n");
@@ -322,7 +326,8 @@ srv_daemon (void)
 
 /* callbacks for Unix socket */
 // Allocate a BusEndpoint structure for a new client and send `auth` packet.
-static int on_accepted_us (USServer* us_srv, USClient* client)
+static int
+on_accepted_us (USServer* us_srv, USClient* client)
 {
     int ret_code;
     BusEndpoint* endpoint;
@@ -339,7 +344,8 @@ static int on_accepted_us (USServer* us_srv, USClient* client)
     return HIBUS_SC_OK;
 }
 
-static int on_packet_us (USServer* us_srv, USClient* client,
+static int
+on_packet_us (USServer* us_srv, USClient* client,
             const char* body, unsigned int sz_body, int type)
 {
     assert (client->priv_data);
@@ -356,29 +362,43 @@ static int on_packet_us (USServer* us_srv, USClient* client,
     return HIBUS_SC_OK;
 }
 
-static int on_close_us (USServer* us_srv, USClient* client)
+static int
+on_close_us (USServer* us_srv, USClient* client)
 {
     if (client->priv_data) {
         BusEndpoint *endpoint = (BusEndpoint *)client->priv_data;
+        char endpoint_name [LEN_ENDPOINT_NAME + 1];
+
+        if (epoll_ctl (the_server.epollfd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
+            ULOG_ERR ("Failed to call epoll_ctl to delete the client fd (%d): %s\n",
+                    client->fd, strerror (errno));
+        }
+
+        assemble_endpoint_name (endpoint, endpoint_name);
         del_endpoint (&the_server, endpoint);
+
+        kvlist_delete (&the_server.endpoint_list, endpoint_name);
+        the_server.nr_endpoints--;
+
+        ULOG_INFO ("An endpoint removed: %s (%p), %d enpoints left.\n",
+                endpoint_name, endpoint, the_server.nr_endpoints);
+
         client->priv_data = NULL;
     }
 
     return 0;
 }
 
-#if 1 // epoll version
-
 /* max events for epoll */
 #define MAX_EVENTS          10
 #define PTR_FOR_US_LISTENER ((void *)1)
 #define PTR_FOR_WS_LISTENER ((void *)2)
 
-static void server_start (void)
+static void
+run_server (void)
 {
     int us_listener = -1, ws_listener = -1;
     struct epoll_event ev, events[MAX_EVENTS];
-    int epollfd;
 
     // create unix socket
     if ((us_listener = us_listen (the_server.us_srv)) < 0) {
@@ -416,15 +436,15 @@ static void server_start (void)
     ULOG_NOTE ("Listening on Web Socket (%s, %s) %s SSL...\n",
             srvcfg.host, srvcfg.port, srvcfg.sslcert ? "with" : "without");
 
-    epollfd = epoll_create1 (EPOLL_CLOEXEC);
-    if (epollfd == -1) {
+    the_server.epollfd = epoll_create1 (EPOLL_CLOEXEC);
+    if (the_server.epollfd == -1) {
         ULOG_ERR ("Failed to call epoll_create1: %s\n", strerror (errno));
         goto error;
     }
 
     ev.events = EPOLLIN;
     ev.data.ptr = PTR_FOR_US_LISTENER;
-    if (epoll_ctl (epollfd, EPOLL_CTL_ADD, us_listener, &ev) == -1) {
+    if (epoll_ctl (the_server.epollfd, EPOLL_CTL_ADD, us_listener, &ev) == -1) {
         ULOG_ERR ("Failed to call epoll_ctl with us_listener (%d): %s\n",
                 us_listener, strerror (errno));
         goto error;
@@ -433,17 +453,17 @@ static void server_start (void)
     if (ws_listener >= 0) {
         ev.events = EPOLLIN;
         ev.data.ptr = PTR_FOR_WS_LISTENER;
-        if (epoll_ctl (epollfd, EPOLL_CTL_ADD, ws_listener, &ev) == -1) {
+        if (epoll_ctl (the_server.epollfd, EPOLL_CTL_ADD, ws_listener, &ev) == -1) {
             ULOG_ERR ("Failed to call epoll_ctl with ws_listener (%d): %s\n",
                     ws_listener, strerror (errno));
             goto error;
         }
     }
 
-    while (1) {
+    while (the_server.running) {
         int nfds, n;
 
-        nfds = epoll_wait (epollfd, events, MAX_EVENTS, -1);
+        nfds = epoll_wait (the_server.epollfd, events, MAX_EVENTS, -1);
         if (nfds == -1) {
             ULOG_ERR ("Failed to call epoll_wait: %s\n",
                     strerror (errno));
@@ -459,7 +479,8 @@ static void server_start (void)
                 else {
                     ev.events = EPOLLIN | EPOLLET;
                     ev.data.ptr = client;
-                    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client->fd, &ev) == -1) {
+                    if (epoll_ctl (the_server.epollfd,
+                                EPOLL_CTL_ADD, client->fd, &ev) == -1) {
                         ULOG_ERR ("Failed epoll_ctl for connected unix socket (%d): %s\n",
                                 client->fd, strerror (errno));
                         goto error;
@@ -474,7 +495,8 @@ static void server_start (void)
                 else {
                     ev.events = EPOLLIN | EPOLLET;
                     ev.data.ptr = client;
-                    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, client->fd, &ev) == -1) {
+                    if (epoll_ctl(the_server.epollfd,
+                                EPOLL_CTL_ADD, client->fd, &ev) == -1) {
                         ULOG_ERR ("Failed epoll_ctl for connected web socket (%d): %s\n",
                                 client->fd, strerror (errno));
                         goto error;
@@ -503,207 +525,76 @@ error:
     return;
 }
 
-#else // select version
-
-static int max_file_fd = 0;
-static WSEState fdstate;
-
-/* Set each client to determine if:
- * 1. We want to see if it has data for reading
- * 2. We want to write data to it.
- * If so, set the client's socket descriptor in the descriptor set. */
-static void
-set_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
+static int
+endpoint_get_len (struct kvlist *kv, const void *data)
 {
-    GSLList *client_node = server->colist;
-    WSClient *client = NULL;
-
-    /* WebSocket server socket, ready for accept() */
-    FD_SET (ws_listener, &fdstate.rfds);
-
-    /* UnixSocket server socket, ready for accept() */
-    FD_SET (us_listener, &fdstate.rfds);
-
-    while (client_node) {
-        int ws_fd, us_fd = 0;
-
-        client = (WSClient*)(client_node->data);
-        ws_fd = client->fd;
-
-        /* As long as we are not closing a connection, we assume we always
-         * check a client for reading */
-        if (!server->closing) {
-            FD_SET (ws_fd, &fdstate.rfds);
-            if (ws_fd > max_file_fd)
-                max_file_fd = ws_fd;
-
-            if (us_fd > 0) {
-                FD_SET (us_fd, &fdstate.rfds);
-                if (us_fd > max_file_fd)
-                    max_file_fd = us_fd;
-            }
-        }
-
-        /* Only if we have data to send to the WebSocket client */
-        if (client->status & WS_SENDING) {
-            FD_SET (ws_fd, &fdstate.wfds);
-            if (ws_fd > max_file_fd)
-                max_file_fd = ws_fd;
-        }
-
-        client_node = client_node->next;
-    }
-}
-
-/* Check and handle fds. */
-static void
-check_rfds_wfds (int ws_listener, int us_listener, WSServer * server)
-{
-    GSLList *client_node = server->colist;
-    WSClient *ws_client = NULL;
-    USClient *us_client = NULL;
-
-    /* handle new WebSocket connections */
-    if (FD_ISSET (ws_listener, &fdstate.rfds))
-        ws_handle_accept (ws_listener, server);
-    /* handle new UnixSocket connections */
-    else if (FD_ISSET (us_listener, &fdstate.rfds))
-        us_handle_accept (us_listener, NULL);
-
-    while (client_node) {
-        int ws_fd;
-        int retval = 0;
-
-        ws_client = (WSClient*)(client_node->data);
-        us_client = (USClient*)(client_node->data);
-        ws_fd = ws_client->fd;
-
-        /* handle reading data from a WebSocket client */
-        if (FD_ISSET (ws_fd, &fdstate.rfds))
-            retval = ws_handle_reads (ws_fd, server);
-        /* handle sending data to a WebSocket client */
-        else if (FD_ISSET (ws_fd, &fdstate.wfds))
-            retval = ws_handle_writes (ws_fd, server);
-
-        if (retval >= 0) {
-
-            /* handle reading data from a UnixSocket client */
-            if (FD_ISSET (us_client->fd, &fdstate.rfds))
-                handle_us_reads (us_client, ws_client, server);
-            /* handle sending data to a UnixSocket client */
-            else if (FD_ISSET (us_client->fd, &fdstate.wfds))
-                handle_us_writes (us_client, ws_client, server);
-        }
-
-        client_node = client_node->next;
-    }
-}
-
-/* Start the server and start to monitor the file
- * descriptors until we have something to read or write. */
-static void server_start (void)
-{
-    int ws_listener = -1, us_listener = -1, retval;
-
-    memset (&fdstate, 0, sizeof fdstate);
-
-    // create unix socket
-    if ((us_listener = us_listen (the_server.us_srv)) < 0) {
-        ULOG_ERR ("Unable to listen on Unix socket (%s)\n",
-                srvcfg.unixsocket);
-        goto error;
-    }
-
-    // create web socket listener if enabled
-    if (the_server.ws_srv) {
-#ifdef HAVE_LIBSSL
-        if (srvcfg.sslcert && srvcfg.sslkey) {
-            ULOG_NOTE ("==Using TLS/SSL==\n");
-            srvcfg.use_ssl = 1;
-            if (initialize_ssl_ctx (server)) {
-                ULOG_NOTE ("Unable to initialize_ssl_ctx\n");
-                return;
-            }
-        }
-#endif
-
-        if ((ws_listener = ws_listen (the_server.ws_srv)) < 0) {
-            ULOG_ERR ("Unable to listen on Web socket (%s, %s)\n",
-                    srvcfg.host, srvcfg.port);
-            goto error;
-        }
-    }
-
-    while (1) {
-        struct timeval timeout = {0, 10000};   /* 10 ms */
-        max_file_fd = MAX (ws_listener, us_listener);
-
-        /* Clear out the fd sets for this iteration. */
-        FD_ZERO (&fdstate.rfds);
-        FD_ZERO (&fdstate.wfds);
-
-        set_rfds_wfds (ws_listener, us_listener, the_server.ws_srv);
-        max_file_fd += 1;
-
-        /* yep, wait patiently */
-        /* should it be using epoll/kqueue? will see... */
-        retval = select (max_file_fd, &fdstate.rfds, &fdstate.wfds, NULL, &timeout);
-        if (retval == 0) {
-            //check_dirty_pixels (server);
-        }
-        else if (retval > 0) {
-            check_rfds_wfds (ws_listener, us_listener, the_server.ws_srv);
-        }
-        else {
-            switch (errno) {
-                case EINTR:
-                    ULOG_WARN ("select interrupted\n");
-                    break;
-                default:
-                    ULOG_ERR ("Unable to select: %s\n", strerror (errno));
-                    goto error;
-            }
-        }
-    }
-
-error:
-    return;
-}
-
-#endif // select version
-
-static void
-server_stop (void)
-{
-}
-
-static int endpoint_get_len (struct kvlist *kv, const void *data)
-{
-    return sizeof (BusEndpoint);
+    return sizeof (BusEndpoint *);
 }
 
 static int
 init_bus_server (void)
 {
+    BusEndpoint* endpoint;
+    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+
     /* TODO for host name */
+    the_server.running = true;
     the_server.server_name = strdup (HIBUS_LOCALHOST);
     kvlist_init (&the_server.endpoint_list, endpoint_get_len);
 
+    endpoint = new_endpoint (&the_server, ET_BUILTIN, NULL);
+    if (endpoint == NULL) {
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+    }
+
+    if (assemble_endpoint_name (endpoint, endpoint_name) <= 0) {
+        return HIBUS_SC_INTERNAL_SERVER_ERROR;
+    }
+
+    if (!kvlist_set (&the_server.endpoint_list, endpoint_name, &endpoint)) {
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+    }
+    the_server.nr_endpoints++;
+
+    ULOG_INFO ("Builtin endpoint stored: %s (%p)\n", endpoint_name, endpoint);
     return 0;
 }
 
-static void cleanup_bus_server (void)
+static void
+cleanup_bus_server (void)
 {
     const char* name;
+    void* data;
     BusEndpoint* endpoint;
 
-    free (the_server.server_name);
+    kvlist_for_each (&the_server.endpoint_list, name, data) {
+        memcpy (&endpoint, data, sizeof (BusEndpoint*));
+        ULOG_INFO ("Deleting endpoint: %s (%p) in cleanup_bus_server\n", name, endpoint);
 
-    kvlist_for_each (&the_server.endpoint_list, name, endpoint) {
+        if (endpoint->type != ET_BUILTIN) {
+            if (endpoint->type == ET_UNIX_SOCKET && endpoint->usc) {
+                endpoint->usc->priv_data = NULL;    // avoid re-entrance
+                us_client_cleanup (the_server.us_srv, endpoint->usc);
+            }
+            else if (endpoint->type == ET_WEB_SOCKET && endpoint->wsc) {
+                endpoint->wsc->priv_data = NULL;    // avoid re-entrance
+                ws_handle_tcp_close (the_server.ws_srv, endpoint->wsc);
+            }
+        }
+
         del_endpoint (&the_server, endpoint);
+        the_server.nr_endpoints--;
     }
 
     kvlist_free (&the_server.endpoint_list);
+
+    us_stop (the_server.us_srv);
+    if (the_server.ws_srv)
+        ws_stop (the_server.ws_srv);
+
+    free (the_server.server_name);
+
+    assert (the_server.nr_endpoints == 0);
 }
 
 int
@@ -716,7 +607,7 @@ main (int argc, char **argv)
     srv_set_config_host ("localhost");
     srv_set_config_port (HIBUS_WS_PORT);
     srv_set_config_unixsocket (HIBUS_US_PATH);
-    srv_set_config_frame_size (WS_MAX_FRM_SZ);
+    srv_set_config_frame_size (MAX_FRAME_SIZE);
     srv_set_config_backlog (SOMAXCONN);
 
     retval = read_option_args (argc, argv);
@@ -740,8 +631,9 @@ main (int argc, char **argv)
 
     setup_signals ();
 
-    if (init_bus_server ()) {
-        ULOG_ERR ("Error during init_bus_server\n");
+    if ((retval = init_bus_server ())) {
+        ULOG_ERR ("Error during init_bus_server: %s\n",
+                hibus_get_error_message (retval));
         goto error;
     }
 
@@ -761,41 +653,16 @@ main (int argc, char **argv)
         ULOG_NOTE ("Skip web socket");
     }
 
-    server_start ();
-    server_stop ();
+    run_server ();
 
     cleanup_bus_server ();
+    ulog_close ();
+
+    ULOG_NOTE ("Will exit normally.\n");
     return EXIT_SUCCESS;
 
 error:
     ulog_close ();
     return EXIT_FAILURE;
 }
-
-#if 0
-
-/* Handle a UnixSocket read. */
-static void
-handle_us_reads (USClient *us_client, WSClient* ws_client, WSServer* server)
-{
-    int retval = us_on_client_data (us_client);
-
-    if (retval < 0) {
-        ULOG_NOTE ("handle_us_reads: client #%d exited.\n", us_client->pid);
-        /* force to close the connection */
-        ws_handle_tcp_close (ws_client->fd, ws_client, server);
-    }
-    else if (retval > 0) {
-        ULOG_NOTE ("handle_us_reads: error when handling data from client #%d.\n", us_client->pid);
-    }
-}
-
-/* Handle a UnixSocket write. */
-static void
-handle_us_writes (USClient *us_client, WSClient* ws_client, WSServer* server)
-{
-    ULOG_NOTE ("handle_us_writes: do nothing for client #%d.\n", us_client->pid);
-}
-
-#endif
 

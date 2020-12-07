@@ -42,17 +42,32 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
     if (endpoint == NULL)
         return NULL;
 
-    endpoint->type = type;
-    endpoint->status = ES_AUTHING;
-    endpoint->usc = client;
+    switch (type) {
+        case ET_BUILTIN:
+            endpoint->type = ET_BUILTIN;
+            endpoint->status = ES_READY;
+            endpoint->usc = NULL;
 
-    endpoint->host_name = NULL;
-    endpoint->app_name = NULL;
-    endpoint->runner_name = NULL;
+            endpoint->host_name = strdup (the_server->server_name);
+            endpoint->app_name = strdup (HIBUS_APP_HIBUS);
+            endpoint->runner_name = strdup (HIBUS_RUNNER_BUILITIN);
+            break;
 
-    kvlist_init (&endpoint->method_list, kvlist_strlen);
-    kvlist_init (&endpoint->bubble_list, kvlist_strlen);
-    INIT_SAFE_LIST (&endpoint->pending_calling);
+        case ET_UNIX_SOCKET:
+        case ET_WEB_SOCKET:
+            endpoint->type = type;
+            endpoint->status = ES_AUTHING;
+            endpoint->usc = client;
+
+            endpoint->host_name = NULL;
+            endpoint->app_name = NULL;
+            endpoint->runner_name = NULL;
+            break;
+
+        default:
+            free (endpoint);
+            return NULL;
+    }
 
     if (type == ET_UNIX_SOCKET) {
         USClient* usc = (USClient*)client;
@@ -62,9 +77,10 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
         WSClient* wsc = (WSClient*)client;
         wsc->priv_data = endpoint;
     }
-    else {
-        assert (0);
-    }
+
+    kvlist_init (&endpoint->method_list, kvlist_strlen);
+    kvlist_init (&endpoint->bubble_list, kvlist_strlen);
+    INIT_SAFE_LIST (&endpoint->pending_calling);
 
     return endpoint;
 }
@@ -74,8 +90,8 @@ int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
     char endpoint_name [LEN_ENDPOINT_NAME + 1];
 
     if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
-        ULOG_INFO ("Deleting an endpoint: %s\n", endpoint_name);
-        kvlist_delete (&the_server->endpoint_list, endpoint_name);
+        ULOG_INFO ("Deleting an endpoint: %s (%p)\n", endpoint_name, endpoint);
+        //kvlist_delete (&the_server->endpoint_list, endpoint_name);
     }
     else {
         strcpy (endpoint_name, "@unknown/unknown/unknown");
@@ -255,8 +271,8 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
         host_name = HIBUS_LOCALHOST;
     }
     
-    assert (hibus_assemble_endpoint (host_name,
-                    app_name, runner_name, endpoint_name) > 0);
+    hibus_assemble_endpoint_name (host_name,
+                    app_name, runner_name, endpoint_name);
 
     ULOG_INFO ("New endpoint: %s\n", endpoint_name);
 
@@ -265,10 +281,14 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
         return HIBUS_SC_CONFILCT;
     }
 
-    if (!kvlist_set (&the_server->endpoint_list, endpoint_name, endpoint)) {
+    if (!kvlist_set (&the_server->endpoint_list, endpoint_name, &endpoint)) {
         ULOG_ERR ("Failed to store the endpoint: %s\n", endpoint_name);
         return HIBUS_SC_INSUFFICIENT_STORAGE;
     }
+    the_server->nr_endpoints++;
+
+    ULOG_INFO ("New endpoint stored: %s (%p), %d enpoints totally.\n",
+            endpoint_name, endpoint, the_server->nr_endpoints);
 
     endpoint->host_name = strdup (host_name);
     endpoint->app_name = strdup (app_name);

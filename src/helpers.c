@@ -1,5 +1,5 @@
 /*
-** helpers.c -- The helpers for hiBus.
+** helpers.c -- The helpers for both hiBus server and clients.
 **
 ** Copyright (c) 2020 FMSoft (http://www.fmsoft.cn)
 **
@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include <hibox/ulog.h>
+#include <hibox/json.h>
 
 #include "hibus.h"
 
@@ -286,7 +287,7 @@ char* hibus_extract_runner_name_alloc (const char* endpoint)
     return NULL;
 }
 
-int hibus_assemble_endpoint (const char* host_name, const char* app_name,
+int hibus_assemble_endpoint_name (const char* host_name, const char* app_name,
         const char* runner_name, char* buff)
 {
     int host_len, app_len, runner_len;
@@ -315,7 +316,7 @@ int hibus_assemble_endpoint (const char* host_name, const char* app_name,
     return host_len + app_len + runner_len + 3;
 }
 
-char* hibus_assemble_endpoint_alloc (const char* host_name, const char* app_name,
+char* hibus_assemble_endpoint_name_alloc (const char* host_name, const char* app_name,
         const char* runner_name)
 {
     char* endpoint;
@@ -391,5 +392,55 @@ bool hibus_is_valid_app_name (const char* app_name)
     }
 
     return true;
+}
+
+int hibus_json_packet_to_object (const char* json, unsigned int json_len,
+        hibus_json **jo)
+{
+    int jpt = JPT_BAD_JSON;
+    hibus_json *jo_tmp;
+
+    *jo = json_object_from_string (json, json_len, 2);
+    if (*jo == NULL) {
+        goto failed;
+    }
+
+    if (json_object_object_get_ex (*jo, "packetType", &jo_tmp)) {
+        const char *pack_type;
+        pack_type = json_object_get_string (jo_tmp);
+
+        if (strcasecmp (pack_type, "error") == 0) {
+            jpt = JPT_ERROR;
+        }
+        else if (strcasecmp (pack_type, "auth") == 0) {
+            jpt = JPT_AUTH;
+        }
+        else if (strcasecmp (pack_type, "authPassed") == 0) {
+            jpt = JPT_AUTH_PASSED;
+        }
+        else if (strcasecmp (pack_type, "authFailed") == 0) {
+            jpt = JPT_AUTH_FAILED;
+        }
+        else if (strcasecmp (pack_type, "call") == 0) {
+            jpt = JPT_CALL;
+        }
+        else if (strcasecmp (pack_type, "result") == 0) {
+            jpt = JPT_RESULT;
+        }
+        else if (strcasecmp (pack_type, "event") == 0) {
+            jpt = JPT_EVENT;
+        }
+        else {
+            jpt = JPT_UNKNOWN;
+        }
+    }
+
+    return jpt;
+
+failed:
+    if (*jo)
+        json_object_put (*jo);
+
+    return jpt;
 }
 

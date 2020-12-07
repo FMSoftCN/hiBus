@@ -86,12 +86,14 @@ struct USServer_;
 /* The hiBus Server */
 typedef struct BusServer_
 {
+    int epollfd;
+    unsigned int nr_endpoints;
+    bool running;
+
     char* server_name;
 
     struct WSServer_ *ws_srv;
     struct USServer_ *us_srv;
-
-    unsigned int nr_endpoints;
 
     /* The AVL tree using endpoint as the key, and BusClient* as the value */
     struct kvlist endpoint_list;

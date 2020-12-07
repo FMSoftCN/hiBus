@@ -283,8 +283,7 @@ int us_handle_reads (USServer* server, USClient* usc)
 
     n = read (usc->fd, &header, sizeof (USFrameHeader));
     if (n < sizeof (USFrameHeader)) {
-        ULOG_ERR ("Failed to read frame header from Unix socket: %s\n",
-                strerror (errno));
+        ULOG_ERR ("Failed to read frame header from Unix socket.\n");
         err_code = HIBUS_EC_IO;
         sta_code = HIBUS_SC_EXPECTATION_FAILED;
         goto done;
@@ -318,7 +317,7 @@ int us_handle_reads (USServer* server, USClient* usc)
             usc->sz_packet = header.sz_payload;
         }
 
-        if (usc->sz_packet > MAX_SIZE_INMEM_PACKET) {
+        if (usc->sz_packet > MAX_INMEM_PACKET_SIZE) {
             err_code = HIBUS_EC_PROTOCOL;
             sta_code = HIBUS_SC_PACKET_TOO_LARGE;
             break;
@@ -477,15 +476,16 @@ int us_client_cleanup (USServer* server, USClient* us_client)
 {
     server->on_close (server, us_client);
 
-    if (us_client->fd >= 0)
+    if (us_client->fd >= 0) {
         close (us_client->fd);
+    }
+
     us_client->fd = -1;
 
     server->nr_clients--;
-
     assert (server->nr_clients >= 0);
-    free (us_client);
 
+    free (us_client);
     return 0;
 }
 
