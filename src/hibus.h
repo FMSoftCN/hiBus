@@ -45,6 +45,7 @@
 
 #define HIBUS_LOCALHOST                 "localhost"
 #define HIBUS_APP_HIBUS                 "cn.fmsoft.hybridos.hibus"
+#define HIBUS_SYS_APPS                  "cn.fmsoft.hybridos.*"
 #define HIBUS_RUNNER_BUILITIN           "builtin"
 #define HIBUS_RUNNER_CMDLINE            "cmdline"
 

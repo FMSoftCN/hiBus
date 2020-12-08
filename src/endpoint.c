@@ -115,7 +115,8 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
     kvlist_free (&endpoint->method_list);
 
     kvlist_for_each (&endpoint->bubble_list, bubble_name, data) {
-        const char* name;
+        const char* sub_name;
+        void* sub_data;
         bubble_info* bubble;
 
         bubble = *(bubble_info **)data;
@@ -125,12 +126,12 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
         cleanup_pattern_list (&bubble->host_patt_list);
         cleanup_pattern_list (&bubble->app_patt_list);
 
-        kvlist_for_each (&bubble->subscriber_list, name, data) {
+        kvlist_for_each (&bubble->subscriber_list, sub_name, sub_data) {
             BusEndpoint* subscriber;
-            data = kvlist_get (&bus_srv->endpoint_list, name);
+            sub_data = kvlist_get (&bus_srv->endpoint_list, sub_name);
 
-            if (data) {
-                subscriber = *(BusEndpoint **)data;
+            if (sub_data) {
+                subscriber = *(BusEndpoint **)sub_data;
                 fire_system_event (bus_srv, SBT_LOST_EVENT_GENERATOR,
                         endpoint, subscriber, bubble_name);
             }

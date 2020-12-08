@@ -165,7 +165,16 @@ bool init_builtin_endpoint (BusEndpoint* builtin)
         return false;
     }
 
-    ULOG_INFO ("The procedures registered for builtin runner\n");
+    if (register_event (builtin, "newEndpoint",
+            HIBUS_PATTERN_ANY, HIBUS_SYS_APPS) != HIBUS_SC_OK) {
+        return false;
+    }
+    if (register_event (builtin, "brokenEndpoint",
+            HIBUS_PATTERN_ANY, HIBUS_SYS_APPS) != HIBUS_SC_OK) {
+        return false;
+    }
+
+    ULOG_INFO ("The builtin procedures and events have been registered.\n");
 
     return true;
 }
