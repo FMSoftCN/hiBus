@@ -73,9 +73,6 @@ typedef struct BusEndpoint_
     /* All bubbles registered by this endpoint */
     struct kvlist bubble_list;
 
-    /* All pending calls sent to this endpoint */
-    struct safe_list pending_calling;
-
     /* the data for current status, e.g., the challenge code for authentication */
     void* sta_data;
 } BusEndpoint;

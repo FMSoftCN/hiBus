@@ -33,11 +33,20 @@
 #include "hibus.h"
 #include "server.h"
 
-BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client);
-int del_endpoint (BusServer* the_server, BusEndpoint* endpoint);
+BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client);
 
-int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint);
-int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
+/* causes to delete endpoint */
+enum {
+    CDE_INITIALIZING,
+    CDE_EXITING,
+    CDE_LOST_CONNECTION,
+    CDE_NOT_RESPONDING,
+};
+
+int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause);
+
+int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint);
+int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const char* json, unsigned int len);
 
 typedef char* (*method_handler) (BusEndpoint* from_endpoint,
@@ -55,6 +64,9 @@ typedef struct method_info_
     pattern_list app_patt_list;
 
     method_handler handler;
+
+    /* All pending calls sent to this endpoint */
+    struct safe_list pending_calls;
 } method_info;
 
 /* Bubble information */
@@ -91,6 +103,16 @@ int unsubscribe_event (BusEndpoint* endpoint,
         const char* bubble_name, BusEndpoint *subscrber);
 
 bool init_builtin_endpoint (BusEndpoint* builtin_endpoint);
+
+/* system bubble types */
+enum {
+    SBT_NEW_ENDPOINT,
+    SBT_BROKEN_ENDPOINT,
+    SBT_LOST_EVENT_GENERATOR,
+};
+
+bool fire_system_event (BusServer* bus_srv, int bubble_type,
+        BusEndpoint* cause, BusEndpoint* to, const char* add_msg);
 
 typedef struct pending_call_ {
 	struct safe_list list;

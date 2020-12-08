@@ -386,7 +386,7 @@ on_close_us (USServer* us_srv, USClient* client)
             ULOG_INFO ("An authenticated endpoint removed: %s (%p), %d endpoints left.\n",
                     endpoint_name, endpoint, the_server.nr_endpoints);
         }
-        del_endpoint (&the_server, endpoint);
+        del_endpoint (&the_server, endpoint, CDE_LOST_CONNECTION);
 
         client->priv_data = NULL;
     }
@@ -547,17 +547,17 @@ init_bus_server (void)
     }
 
     if (assemble_endpoint_name (builtin, endpoint_name) <= 0) {
-        del_endpoint (&the_server, builtin);
+        del_endpoint (&the_server, builtin, CDE_INITIALIZING);
         return HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
 
     if (!init_builtin_endpoint (builtin)) {
-        del_endpoint (&the_server, builtin);
+        del_endpoint (&the_server, builtin, CDE_INITIALIZING);
         return HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
 
     if (!kvlist_set (&the_server.endpoint_list, endpoint_name, &builtin)) {
-        del_endpoint (&the_server, builtin);
+        del_endpoint (&the_server, builtin, CDE_INITIALIZING);
         return HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
     the_server.nr_endpoints++;
@@ -590,7 +590,7 @@ cleanup_bus_server (void)
             }
         }
 
-        del_endpoint (&the_server, endpoint);
+        del_endpoint (&the_server, endpoint, CDE_EXITING);
         the_server.nr_endpoints--;
     }
 

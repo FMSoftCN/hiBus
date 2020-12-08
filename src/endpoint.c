@@ -34,7 +34,7 @@
 #include "unixsocket.h"
 #include "websocket.h"
 
-BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
+BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
 {
     BusEndpoint* endpoint = NULL;
 
@@ -48,7 +48,7 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
             endpoint->status = ES_READY;
             endpoint->usc = NULL;
 
-            endpoint->host_name = strdup (the_server->server_name);
+            endpoint->host_name = strdup (bus_srv->server_name);
             endpoint->app_name = strdup (HIBUS_APP_HIBUS);
             endpoint->runner_name = strdup (HIBUS_RUNNER_BUILITIN);
             break;
@@ -80,46 +80,63 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
 
     kvlist_init (&endpoint->method_list, NULL);
     kvlist_init (&endpoint->bubble_list, NULL);
-    INIT_SAFE_LIST (&endpoint->pending_calling);
 
     return endpoint;
 }
 
-int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
+int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
 {
     char endpoint_name [LEN_ENDPOINT_NAME + 1];
-    const char *name;
+    const char *method_name, *bubble_name;
     void *data;
 
     if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
         ULOG_INFO ("Deleting an endpoint: %s (%p)\n", endpoint_name, endpoint);
+        if (cause == CDE_LOST_CONNECTION || cause == CDE_NOT_RESPONDING) {
+            fire_system_event (bus_srv, SBT_BROKEN_ENDPOINT, endpoint, NULL,
+                    (cause == CDE_LOST_CONNECTION) ? "lostConnection" : "notResponding");
+        }
     }
     else {
         strcpy (endpoint_name, "@unknown/unknown/unknown");
     }
 
-    kvlist_for_each (&endpoint->method_list, name, data) {
+    kvlist_for_each (&endpoint->method_list, method_name, data) {
         method_info* method;
 
         method = *(method_info **)data;
         ULOG_INFO ("Revoke procedure: @%s/%s/%s/%s (%p)\n",
                 endpoint->host_name, endpoint->app_name, endpoint->runner_name,
-                name, method);
+                method_name, method);
         cleanup_pattern_list (&method->host_patt_list);
         cleanup_pattern_list (&method->app_patt_list);
         free (method);
     }
     kvlist_free (&endpoint->method_list);
 
-    kvlist_for_each (&endpoint->bubble_list, name, data) {
+    kvlist_for_each (&endpoint->bubble_list, bubble_name, data) {
+        const char* name;
         bubble_info* bubble;
 
         bubble = *(bubble_info **)data;
         ULOG_INFO ("Revoke event: @%s/%s/%s/%s (%p)\n",
                 endpoint->host_name, endpoint->app_name, endpoint->runner_name,
-                name, bubble);
+                bubble_name, bubble);
         cleanup_pattern_list (&bubble->host_patt_list);
         cleanup_pattern_list (&bubble->app_patt_list);
+
+        kvlist_for_each (&bubble->subscriber_list, name, data) {
+            BusEndpoint* subscriber;
+            data = kvlist_get (&bus_srv->endpoint_list, name);
+
+            if (data) {
+                subscriber = *(BusEndpoint **)data;
+                fire_system_event (bus_srv, SBT_LOST_EVENT_GENERATOR,
+                        endpoint, subscriber, bubble_name);
+            }
+        }
+        kvlist_free (&bubble->subscriber_list);
+
         free (bubble);
     }
     kvlist_free (&endpoint->bubble_list);
@@ -134,22 +151,22 @@ int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
     return 0;
 }
 
-inline static int send_packet_to_endpoint (BusServer* the_server,
+inline static int send_packet_to_endpoint (BusServer* bus_srv,
         BusEndpoint* endpoint, const char* body)
 {
     if (endpoint->type == ET_UNIX_SOCKET) {
-        return us_send_data (the_server->us_srv, endpoint->usc,
+        return us_send_data (bus_srv->us_srv, endpoint->usc,
                 US_OPCODE_TEXT, body, strlen (body));
     }
     else if (endpoint->type == ET_WEB_SOCKET) {
-        return ws_send_data (the_server->ws_srv, endpoint->wsc,
+        return ws_send_data (bus_srv->ws_srv, endpoint->wsc,
                 WS_OPCODE_TEXT, body, strlen (body));
     }
 
     return -1;
 }
 
-int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
+int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint)
 {
     int retv;
     char key [32];
@@ -187,7 +204,7 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
         assert (0);
     }
     else
-        retv = send_packet_to_endpoint (the_server, endpoint, buff);
+        retv = send_packet_to_endpoint (bus_srv, endpoint, buff);
 
     if (retv) {
         endpoint->status = ES_CLOSING;
@@ -199,7 +216,7 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint)
     return HIBUS_SC_OK;
 }
 
-static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
+static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
         const hibus_json *jo)
 {
     hibus_json *jo_tmp;
@@ -303,29 +320,30 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
 
     ULOG_INFO ("New endpoint: %s\n", endpoint_name);
 
-    if (kvlist_get (&the_server->endpoint_list, endpoint_name)) {
+    if (kvlist_get (&bus_srv->endpoint_list, endpoint_name)) {
         ULOG_WARN ("Duplicated endpoint: %s\n", endpoint_name);
         return HIBUS_SC_CONFILCT;
     }
 
-    if (!kvlist_set (&the_server->endpoint_list, endpoint_name, &endpoint)) {
+    if (!kvlist_set (&bus_srv->endpoint_list, endpoint_name, &endpoint)) {
         ULOG_ERR ("Failed to store the endpoint: %s\n", endpoint_name);
         return HIBUS_SC_INSUFFICIENT_STORAGE;
     }
-    the_server->nr_endpoints++;
+    bus_srv->nr_endpoints++;
 
     ULOG_INFO ("New endpoint stored: %s (%p), %d endpoints totally.\n",
-            endpoint_name, endpoint, the_server->nr_endpoints);
+            endpoint_name, endpoint, bus_srv->nr_endpoints);
 
     endpoint->host_name = strdup (host_name);
     endpoint->app_name = strdup (app_name);
     endpoint->runner_name = strdup (runner_name);
     endpoint->status = ES_READY;
 
+    fire_system_event (bus_srv, SBT_NEW_ENDPOINT, endpoint, NULL, NULL);
     return HIBUS_SC_OK;
 }
 
-int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
+int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const char* json, unsigned int len)
 {
     int retv = HIBUS_SC_OK;
@@ -350,7 +368,7 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
 
                 assert (endpoint->sta_data);
 
-                if ((retv = authenticate_endpoint (the_server, endpoint, jo)) !=
+                if ((retv = authenticate_endpoint (bus_srv, endpoint, jo)) !=
                         HIBUS_SC_OK) {
 
                     free (endpoint->sta_data);
@@ -366,7 +384,7 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
                             retv, hibus_get_error_message (retv));
 
                     if (n < sizeof (buff))
-                        send_packet_to_endpoint (the_server, endpoint, buff);
+                        send_packet_to_endpoint (bus_srv, endpoint, buff);
                     goto failed;
                 }
 
@@ -380,10 +398,10 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
                         "\"serverHostName\":\"%s\","
                         "\"reassignedHostName\":\"%s\""
                         "}",
-                        the_server->server_name, endpoint->host_name);
+                        bus_srv->server_name, endpoint->host_name);
 
                 if (n < sizeof (buff))
-                    send_packet_to_endpoint (the_server, endpoint, buff);
+                    send_packet_to_endpoint (bus_srv, endpoint, buff);
             }
             else {
                 retv = HIBUS_SC_PRECONDITION_FAILED;
@@ -460,15 +478,17 @@ failed:
 int revoke_procedure (BusEndpoint* endpoint, const char* method_name)
 {
     void *data;
+    method_info *info;
 
     if ((data = kvlist_get (&endpoint->method_list, method_name)) == NULL) {
         return HIBUS_SC_NOT_FOUND;
     }
 
-    /* TODO: cancel pending calls
-    method_info *info;
     info = *(method_info **)data;
-    */
+    cleanup_pattern_list (&info->host_patt_list);
+    cleanup_pattern_list (&info->app_patt_list);
+    /* TODO: cancel pending calls */
+    free (info);
 
     kvlist_delete (&endpoint->method_list, method_name);
     return HIBUS_SC_OK;
@@ -529,15 +549,18 @@ failed:
 int revoke_event (BusEndpoint* endpoint, const char* bubble_name)
 {
     void *data;
+    bubble_info *info;
 
     if ((data = kvlist_get (&endpoint->bubble_list, bubble_name)) == NULL) {
         return HIBUS_SC_NOT_FOUND;
     }
 
-    /*
-    bubble_info *info;
     info = *(bubble_info **)data;
-    */
+    cleanup_pattern_list (&info->host_patt_list);
+    cleanup_pattern_list (&info->app_patt_list);
+    /* TODO: notify subscribers */
+
+    free (info);
 
     kvlist_delete (&endpoint->bubble_list, bubble_name);
     return HIBUS_SC_OK;

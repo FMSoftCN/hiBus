@@ -170,3 +170,9 @@ bool init_builtin_endpoint (BusEndpoint* builtin)
     return true;
 }
 
+bool fire_system_event (BusServer* bus_srv, int bubble_type,
+        BusEndpoint* cause, BusEndpoint* to, const char* add_msg)
+{
+    return true;
+}
+
