@@ -23,9 +23,12 @@
 #ifndef _HIBUS_ENDPOINT_H_
 #define _HIBUS_ENDPOINT_H_
 
+#include <stdbool.h>
+
 #include <hibox/avl.h>
 #include <hibox/kvlist.h>
 #include <hibox/safe_list.h>
+#include <hibox/list.h>
 
 #include "hibus.h"
 #include "server.h"
@@ -40,11 +43,16 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
 typedef hibus_json* (*method_handler) (BusEndpoint* from_endpoint,
         const char* method_name, const hibus_json* method_param, int* ret_code);
 
+typedef struct _pattern_list {
+    struct list_head list;
+    int nr_patterns;
+} pattern_list;
+
 /* Method information */
 typedef struct MethodInfo_
 {
-    hibus_pattern_list *host_patt_list;
-    hibus_pattern_list *app_patt_list;
+    pattern_list host_patt_list;
+    pattern_list app_patt_list;
 
     method_handler handler;
 } MethodInfo;
@@ -52,12 +60,22 @@ typedef struct MethodInfo_
 /* Bubble information */
 typedef struct BubbleInfo_
 {
-    hibus_pattern_list *host_patt_list;
-    hibus_pattern_list *app_patt_list;
+    pattern_list host_patt_list;
+    pattern_list app_patt_list;
 
     /* All subscribers of this bubble */
     struct kvlist subscriber_list;
 } BubbleInfo;
+
+/* allowed pattern: `*, $owner, xxx?, yyy*, !aaa*` */
+pattern_list *create_pattern_list (const char* pattern);
+void destroy_pattern_list (pattern_list *pl);
+
+bool init_pattern_list (pattern_list *pl, const char* pattern);
+void cleanup_pattern_list (pattern_list *pl);
+
+bool match_pattern (pattern_list *pl, const char* string,
+        int nr_vars, ...);
 
 int register_procedure (BusEndpoint* endpoint, const char* method_name,
         const char* for_host, const char* for_app, method_handler handler);
