@@ -202,13 +202,6 @@ int hibus_verify_signature (const char* app_name,
 int hibus_json_packet_to_object (const char* json, unsigned int json_len,
         hibus_json **jo);
 
-/* allowed pattern: `*, $self, xxx?, yyy*, !aaa*` */
-hibus_pattern_list *hibus_create_pattern_list (const char* pattern);
-void hibus_destroy_pattern_list (hibus_pattern_list *pl);
-
-bool hibus_pattern_match (hibus_pattern_list *pl, const char* string,
-        int nr_vars, ...);
-
 /*
  * connection functions - implemented in libhibus.c, only for clients.
  */
