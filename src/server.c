@@ -374,14 +374,19 @@ on_close_us (USServer* us_srv, USClient* client)
                     client->fd, strerror (errno));
         }
 
-        assemble_endpoint_name (endpoint, endpoint_name);
+        if (endpoint->status == ES_AUTHING) {
+            ULOG_INFO ("An endpoint not authenticated removed: (%p), %d endpoints left.\n",
+                    endpoint, the_server.nr_endpoints);
+        }
+        else {
+            assemble_endpoint_name (endpoint, endpoint_name);
+            if (kvlist_delete (&the_server.endpoint_list, endpoint_name))
+                the_server.nr_endpoints--;
+
+            ULOG_INFO ("An authenticated endpoint removed: %s (%p), %d endpoints left.\n",
+                    endpoint_name, endpoint, the_server.nr_endpoints);
+        }
         del_endpoint (&the_server, endpoint);
-
-        kvlist_delete (&the_server.endpoint_list, endpoint_name);
-        the_server.nr_endpoints--;
-
-        ULOG_INFO ("An endpoint removed: %s (%p), %d enpoints left.\n",
-                endpoint_name, endpoint, the_server.nr_endpoints);
 
         client->priv_data = NULL;
     }
@@ -528,7 +533,7 @@ error:
 static int
 init_bus_server (void)
 {
-    BusEndpoint* endpoint;
+    BusEndpoint* builtin;
     char endpoint_name [LEN_ENDPOINT_NAME + 1];
 
     /* TODO for host name */
@@ -536,21 +541,28 @@ init_bus_server (void)
     the_server.server_name = strdup (HIBUS_LOCALHOST);
     kvlist_init (&the_server.endpoint_list, NULL);
 
-    endpoint = new_endpoint (&the_server, ET_BUILTIN, NULL);
-    if (endpoint == NULL) {
+    builtin = new_endpoint (&the_server, ET_BUILTIN, NULL);
+    if (builtin == NULL) {
         return HIBUS_SC_INSUFFICIENT_STORAGE;
     }
 
-    if (assemble_endpoint_name (endpoint, endpoint_name) <= 0) {
+    if (assemble_endpoint_name (builtin, endpoint_name) <= 0) {
+        del_endpoint (&the_server, builtin);
         return HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
 
-    if (!kvlist_set (&the_server.endpoint_list, endpoint_name, &endpoint)) {
-        return HIBUS_SC_INSUFFICIENT_STORAGE;
+    if (!init_builtin_endpoint (builtin)) {
+        del_endpoint (&the_server, builtin);
+        return HIBUS_SC_INTERNAL_SERVER_ERROR;
+    }
+
+    if (!kvlist_set (&the_server.endpoint_list, endpoint_name, &builtin)) {
+        del_endpoint (&the_server, builtin);
+        return HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
     the_server.nr_endpoints++;
 
-    ULOG_INFO ("Builtin endpoint stored: %s (%p)\n", endpoint_name, endpoint);
+    ULOG_INFO ("Builtin builtin stored: %s (%p)\n", endpoint_name, builtin);
     return 0;
 }
 

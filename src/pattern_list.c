@@ -68,8 +68,6 @@ bool init_pattern_list (pattern_list *pl, const char* pattern)
         if (token == NULL)
             break;
 
-        ULOG_INFO ("Got a token: %s\n", token);
-
         one_pattern = malloc (sizeof (struct one_pattern));
         if (one_pattern == NULL) {
             break;
@@ -110,7 +108,7 @@ bool init_pattern_list (pattern_list *pl, const char* pattern)
             }
         }
 
-        list_add_tail (&pl->list, &one_pattern->list);
+        list_add_tail (&one_pattern->list, &pl->list);
         pl->nr_patterns++;
     }
 
@@ -122,6 +120,9 @@ void cleanup_pattern_list (pattern_list *pl)
 {
     struct list_head *node, *tmp;
     struct one_pattern *pattern;
+
+    if (pl->nr_patterns == 0)
+        return;
 
     list_for_each_safe (node, tmp, &pl->list) {
         pattern = (struct one_pattern *)node;

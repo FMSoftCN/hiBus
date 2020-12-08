@@ -78,8 +78,8 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
         wsc->priv_data = endpoint;
     }
 
-    kvlist_init (&endpoint->method_list, kvlist_strlen);
-    kvlist_init (&endpoint->bubble_list, kvlist_strlen);
+    kvlist_init (&endpoint->method_list, NULL);
+    kvlist_init (&endpoint->bubble_list, NULL);
     INIT_SAFE_LIST (&endpoint->pending_calling);
 
     return endpoint;
@@ -88,14 +88,41 @@ BusEndpoint* new_endpoint (BusServer* the_server, int type, void* client)
 int del_endpoint (BusServer* the_server, BusEndpoint* endpoint)
 {
     char endpoint_name [LEN_ENDPOINT_NAME + 1];
+    const char *name;
+    void *data;
 
     if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
         ULOG_INFO ("Deleting an endpoint: %s (%p)\n", endpoint_name, endpoint);
-        //kvlist_delete (&the_server->endpoint_list, endpoint_name);
     }
     else {
         strcpy (endpoint_name, "@unknown/unknown/unknown");
     }
+
+    kvlist_for_each (&endpoint->method_list, name, data) {
+        method_info* method;
+
+        method = *(method_info **)data;
+        ULOG_INFO ("Revoke procedure: @%s/%s/%s/%s (%p)\n",
+                endpoint->host_name, endpoint->app_name, endpoint->runner_name,
+                name, method);
+        cleanup_pattern_list (&method->host_patt_list);
+        cleanup_pattern_list (&method->app_patt_list);
+        free (method);
+    }
+    kvlist_free (&endpoint->method_list);
+
+    kvlist_for_each (&endpoint->bubble_list, name, data) {
+        bubble_info* bubble;
+
+        bubble = *(bubble_info **)data;
+        ULOG_INFO ("Revoke event: @%s/%s/%s/%s (%p)\n",
+                endpoint->host_name, endpoint->app_name, endpoint->runner_name,
+                name, bubble);
+        cleanup_pattern_list (&bubble->host_patt_list);
+        cleanup_pattern_list (&bubble->app_patt_list);
+        free (bubble);
+    }
+    kvlist_free (&endpoint->bubble_list);
 
     if (endpoint->sta_data) free (endpoint->sta_data);
     if (endpoint->host_name) free (endpoint->host_name);
@@ -287,7 +314,7 @@ static int authenticate_endpoint (BusServer* the_server, BusEndpoint* endpoint,
     }
     the_server->nr_endpoints++;
 
-    ULOG_INFO ("New endpoint stored: %s (%p), %d enpoints totally.\n",
+    ULOG_INFO ("New endpoint stored: %s (%p), %d endpoints totally.\n",
             endpoint_name, endpoint, the_server->nr_endpoints);
 
     endpoint->host_name = strdup (host_name);
@@ -323,7 +350,8 @@ int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
 
                 assert (endpoint->sta_data);
 
-                if ((retv = authenticate_endpoint (the_server, endpoint, jo)) != HIBUS_SC_OK) {
+                if ((retv = authenticate_endpoint (the_server, endpoint, jo)) !=
+                        HIBUS_SC_OK) {
 
                     free (endpoint->sta_data);
                     endpoint->sta_data = NULL;
@@ -387,7 +415,7 @@ int register_procedure (BusEndpoint* endpoint, const char* method_name,
         return HIBUS_SC_CONFILCT;
     }
 
-    if ((info = malloc (sizeof (method_info))) == NULL)
+    if ((info = calloc (1, sizeof (method_info))) == NULL)
         return HIBUS_SC_INSUFFICIENT_STORAGE;
 
     if (!init_pattern_list (&info->host_patt_list, for_host)) {
@@ -412,14 +440,19 @@ int register_procedure (BusEndpoint* endpoint, const char* method_name,
 
     info->handler = handler;
 
-    if (!kvlist_set (&endpoint->method_list, method_name, info)) {
+    if (!kvlist_set (&endpoint->method_list, method_name, &info)) {
         retv = HIBUS_SC_INSUFFICIENT_STORAGE;
         goto failed;
     }
 
+    ULOG_INFO ("New procedure registered: @%s/%s/%s/%s (%p)\n",
+            endpoint->host_name, endpoint->app_name, endpoint->runner_name,
+            method_name, info);
     return HIBUS_SC_OK;
 
 failed:
+    cleanup_pattern_list (&info->host_patt_list);
+    cleanup_pattern_list (&info->app_patt_list);
     free (info);
     return retv;
 }
@@ -451,7 +484,7 @@ int register_event (BusEndpoint* endpoint, const char* bubble_name,
         return HIBUS_SC_CONFILCT;
     }
 
-    if ((info = malloc (sizeof (bubble_info))) == NULL)
+    if ((info = calloc (1, sizeof (bubble_info))) == NULL)
         return HIBUS_SC_INSUFFICIENT_STORAGE;
 
     if (!init_pattern_list (&info->host_patt_list, for_host)) {
@@ -476,14 +509,19 @@ int register_event (BusEndpoint* endpoint, const char* bubble_name,
 
     kvlist_init (&info->subscriber_list, NULL);
 
-    if (!kvlist_set (&endpoint->bubble_list, bubble_name, info)) {
+    if (!kvlist_set (&endpoint->bubble_list, bubble_name, &info)) {
         retv = HIBUS_SC_INSUFFICIENT_STORAGE;
         goto failed;
     }
 
+    ULOG_INFO ("New event registered: @%s/%s/%s/%s (%p)\n",
+            endpoint->host_name, endpoint->app_name, endpoint->runner_name,
+            bubble_name, info);
     return HIBUS_SC_OK;
 
 failed:
+    cleanup_pattern_list (&info->host_patt_list);
+    cleanup_pattern_list (&info->app_patt_list);
     free (info);
     return retv;
 }
@@ -522,7 +560,7 @@ int subscribe_event (BusEndpoint* endpoint,
     if (kvlist_get (&info->subscriber_list, endpoint_name))
         return HIBUS_SC_CONFILCT;
 
-    if (!kvlist_set (&info->subscriber_list, endpoint_name, subscriber))
+    if (!kvlist_set (&info->subscriber_list, endpoint_name, &subscriber))
         return HIBUS_SC_INSUFFICIENT_STORAGE;
 
     return HIBUS_SC_OK;

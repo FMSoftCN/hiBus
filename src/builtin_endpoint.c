@@ -32,72 +32,76 @@
 #include "hibus.h"
 #include "endpoint.h"
 
-static hibus_json *
+static char *
 builtin_method_echo (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
-    return NULL;
+    if (method_param) {
+        return strdup (method_param);
+    }
+
+    return strdup ("ARE YOU JOKING ME?");
 }
 
-static hibus_json *
+static char *
 builtin_method_register_procedure (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_revoke_procedure (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_register_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_revoke_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_subscribe_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_unsubscribe_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_list_procedures (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_list_events (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
 
-static hibus_json *
+static char *
 builtin_method_list_event_subscribers (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code)
+        const char* method_name, const char* method_param, int* ret_code)
 {
     return NULL;
 }
@@ -156,7 +160,7 @@ bool init_builtin_endpoint (BusEndpoint* builtin)
     }
 
     if (register_procedure (builtin, "listEventSubscribers",
-            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER "," HIBUS_APP_HIBUS,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER ", ;" HIBUS_APP_HIBUS,
             builtin_method_list_event_subscribers) != HIBUS_SC_OK) {
         return false;
     }

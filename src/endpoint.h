@@ -40,8 +40,8 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint);
 int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
         const char* json, unsigned int len);
 
-typedef hibus_json* (*method_handler) (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param, int* ret_code);
+typedef char* (*method_handler) (BusEndpoint* from_endpoint,
+        const char* method_name, const char* method_param, int* ret_code);
 
 typedef struct _pattern_list {
     struct list_head list;
@@ -92,7 +92,7 @@ int unsubscribe_event (BusEndpoint* endpoint,
 
 bool init_builtin_endpoint (BusEndpoint* builtin_endpoint);
 
-typedef struct PendingCall_ {
+typedef struct pending_call_ {
 	struct safe_list list;
 
     BusEndpoint* from_endpoint;
@@ -100,7 +100,7 @@ typedef struct PendingCall_ {
     const hibus_json* method_param;
 
     struct timeval queued_time;
-} PendingCall;
+} pending_call;
 
 static inline int
 assemble_endpoint_name (BusEndpoint *endpoint, char *buff)
