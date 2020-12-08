@@ -52,7 +52,7 @@ enum {
     ES_BUSY,            // the endpoint is busy for a call to procedure.
 };
 
-/* A hiBus Client */
+/* A hiBus Endpoint */
 typedef struct BusEndpoint_
 {
     int     type;

@@ -179,7 +179,7 @@ bool match_pattern (pattern_list *pl, const char* string,
     struct kvlist kv;
     struct list_head *node;
 
-    kvlist_init (&kv, kvlist_strlen);
+    kvlist_init (&kv, NULL);
 
     va_start (ap, nr_vars);
     while (nr_vars > 0) {
@@ -201,6 +201,7 @@ bool match_pattern (pattern_list *pl, const char* string,
 
     list_for_each (node, &pl->list) {
         struct one_pattern *pattern = (struct one_pattern *)node;
+        void *data;
         const char *sub;
         switch (pattern->type) {
             case PT_ANY:
@@ -214,13 +215,14 @@ bool match_pattern (pattern_list *pl, const char* string,
 
             case PT_NOT_SPEC:
                 assert (pattern->not_spec);
-                if (!g_pattern_match_string (pattern->not_spec, string))
-                    goto success;
+                if (g_pattern_match_string (pattern->not_spec, string))
+                    goto failed;
                 break;
 
             case PT_VARIABLE:
                 assert (pattern->var_name);
-                sub = kvlist_get (&kv, pattern->var_name);
+                data = kvlist_get (&kv, pattern->var_name);
+                sub = *(char **)data;
                 if (sub && strcasecmp (sub, string) == 0) {
                     goto success;
                 }
