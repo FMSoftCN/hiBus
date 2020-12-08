@@ -526,12 +526,6 @@ error:
 }
 
 static int
-endpoint_get_len (struct kvlist *kv, const void *data)
-{
-    return sizeof (BusEndpoint *);
-}
-
-static int
 init_bus_server (void)
 {
     BusEndpoint* endpoint;
@@ -540,7 +534,7 @@ init_bus_server (void)
     /* TODO for host name */
     the_server.running = true;
     the_server.server_name = strdup (HIBUS_LOCALHOST);
-    kvlist_init (&the_server.endpoint_list, endpoint_get_len);
+    kvlist_init (&the_server.endpoint_list, NULL);
 
     endpoint = new_endpoint (&the_server, ET_BUILTIN, NULL);
     if (endpoint == NULL) {
@@ -568,7 +562,9 @@ cleanup_bus_server (void)
     BusEndpoint* endpoint;
 
     kvlist_for_each (&the_server.endpoint_list, name, data) {
-        memcpy (&endpoint, data, sizeof (BusEndpoint*));
+        //memcpy (&endpoint, data, sizeof (BusEndpoint*));
+        endpoint = *(BusEndpoint **)data;
+
         ULOG_INFO ("Deleting endpoint: %s (%p) in cleanup_bus_server\n", name, endpoint);
 
         if (endpoint->type != ET_BUILTIN) {
