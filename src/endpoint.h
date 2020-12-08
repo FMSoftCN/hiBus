@@ -49,23 +49,23 @@ typedef struct _pattern_list {
 } pattern_list;
 
 /* Method information */
-typedef struct MethodInfo_
+typedef struct method_info_
 {
     pattern_list host_patt_list;
     pattern_list app_patt_list;
 
     method_handler handler;
-} MethodInfo;
+} method_info;
 
 /* Bubble information */
-typedef struct BubbleInfo_
+typedef struct bubble_info_
 {
     pattern_list host_patt_list;
     pattern_list app_patt_list;
 
     /* All subscribers of this bubble */
     struct kvlist subscriber_list;
-} BubbleInfo;
+} bubble_info;
 
 /* allowed pattern: `*, $owner, xxx?, yyy*, !aaa*` */
 pattern_list *create_pattern_list (const char* pattern);
@@ -85,8 +85,10 @@ int register_event (BusEndpoint* endpoint, const char* bubble_name,
         const char* for_host, const char* for_app);
 int revoke_event (BusEndpoint* endpoint, const char* bubble_name);
 
-int subscribe_event (BusEndpoint* endpoint, const char* event_name);
-int unsubscribe_event (BusEndpoint* endpoint, const char* event_name);
+int subscribe_event (BusEndpoint* endpoint,
+        const char* bubble_name, BusEndpoint *subscrber);
+int unsubscribe_event (BusEndpoint* endpoint,
+        const char* bubble_name, BusEndpoint *subscrber);
 
 bool init_builtin_endpoint (BusEndpoint* builtin_endpoint);
 

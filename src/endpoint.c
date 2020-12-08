@@ -380,32 +380,172 @@ failed:
 int register_procedure (BusEndpoint* endpoint, const char* method_name,
         const char* for_host, const char* for_app, method_handler handler)
 {
+    int retv = HIBUS_SC_OK;
+    method_info *info;
+
+    if (kvlist_get (&endpoint->method_list, method_name)) {
+        return HIBUS_SC_CONFILCT;
+    }
+
+    if ((info = malloc (sizeof (method_info))) == NULL)
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+
+    if (!init_pattern_list (&info->host_patt_list, for_host)) {
+        retv = HIBUS_SC_INSUFFICIENT_STORAGE;
+        goto failed;
+    }
+
+    if (info->host_patt_list.nr_patterns == 0) {
+        retv = HIBUS_SC_NOT_ACCEPTABLE;
+        goto failed;
+    }
+
+    if (!init_pattern_list (&info->app_patt_list, for_app)) {
+        retv = HIBUS_SC_INSUFFICIENT_STORAGE;
+        goto failed;
+    }
+
+    if (info->app_patt_list.nr_patterns == 0) {
+        retv = HIBUS_SC_NOT_ACCEPTABLE;
+        goto failed;
+    }
+
+    info->handler = handler;
+
+    if (!kvlist_set (&endpoint->method_list, method_name, info)) {
+        retv = HIBUS_SC_INSUFFICIENT_STORAGE;
+        goto failed;
+    }
+
     return HIBUS_SC_OK;
+
+failed:
+    free (info);
+    return retv;
 }
 
 int revoke_procedure (BusEndpoint* endpoint, const char* method_name)
 {
+    void *data;
+
+    if ((data = kvlist_get (&endpoint->method_list, method_name)) == NULL) {
+        return HIBUS_SC_NOT_FOUND;
+    }
+
+    /* TODO: cancel pending calls
+    method_info *info;
+    info = *(method_info **)data;
+    */
+
+    kvlist_delete (&endpoint->method_list, method_name);
     return HIBUS_SC_OK;
 }
 
 int register_event (BusEndpoint* endpoint, const char* bubble_name,
         const char* for_host, const char* for_app)
 {
+    int retv = HIBUS_SC_OK;
+    bubble_info *info;
+
+    if (kvlist_get (&endpoint->bubble_list, bubble_name)) {
+        return HIBUS_SC_CONFILCT;
+    }
+
+    if ((info = malloc (sizeof (bubble_info))) == NULL)
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+
+    if (!init_pattern_list (&info->host_patt_list, for_host)) {
+        retv = HIBUS_SC_INSUFFICIENT_STORAGE;
+        goto failed;
+    }
+
+    if (info->host_patt_list.nr_patterns == 0) {
+        retv = HIBUS_SC_NOT_ACCEPTABLE;
+        goto failed;
+    }
+
+    if (!init_pattern_list (&info->app_patt_list, for_app)) {
+        retv = HIBUS_SC_INSUFFICIENT_STORAGE;
+        goto failed;
+    }
+
+    if (info->app_patt_list.nr_patterns == 0) {
+        retv = HIBUS_SC_NOT_ACCEPTABLE;
+        goto failed;
+    }
+
+    kvlist_init (&info->subscriber_list, NULL);
+
+    if (!kvlist_set (&endpoint->bubble_list, bubble_name, info)) {
+        retv = HIBUS_SC_INSUFFICIENT_STORAGE;
+        goto failed;
+    }
+
     return HIBUS_SC_OK;
+
+failed:
+    free (info);
+    return retv;
 }
 
 int revoke_event (BusEndpoint* endpoint, const char* bubble_name)
 {
+    void *data;
+
+    if ((data = kvlist_get (&endpoint->bubble_list, bubble_name)) == NULL) {
+        return HIBUS_SC_NOT_FOUND;
+    }
+
+    /*
+    bubble_info *info;
+    info = *(bubble_info **)data;
+    */
+
+    kvlist_delete (&endpoint->bubble_list, bubble_name);
     return HIBUS_SC_OK;
 }
 
-int subscribe_event (BusEndpoint* endpoint, const char* event_name)
+int subscribe_event (BusEndpoint* endpoint,
+        const char* bubble_name, BusEndpoint* subscriber)
 {
+    void *data;
+    bubble_info *info;
+    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+
+    if ((data = kvlist_get (&endpoint->bubble_list, bubble_name)) == NULL) {
+        return HIBUS_SC_NOT_FOUND;
+    }
+
+    assemble_endpoint_name (subscriber, endpoint_name);
+
+    info = *(bubble_info **)data;
+    if (kvlist_get (&info->subscriber_list, endpoint_name))
+        return HIBUS_SC_CONFILCT;
+
+    if (!kvlist_set (&info->subscriber_list, endpoint_name, subscriber))
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+
     return HIBUS_SC_OK;
 }
 
-int unsubscribe_event (BusEndpoint* endpoint, const char* event_name)
+int unsubscribe_event (BusEndpoint* endpoint,
+        const char* bubble_name, BusEndpoint* subscriber)
 {
+    void *data;
+    bubble_info *info;
+    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+
+    if ((data = kvlist_get (&endpoint->bubble_list, bubble_name)) == NULL) {
+        return HIBUS_SC_NOT_FOUND;
+    }
+
+    assemble_endpoint_name (subscriber, endpoint_name);
+
+    info = *(bubble_info **)data;
+    if (kvlist_get (&info->subscriber_list, endpoint_name))
+        return HIBUS_SC_NOT_FOUND;
+
+    kvlist_delete (&info->subscriber_list, endpoint_name);
     return HIBUS_SC_OK;
 }
 
