@@ -33,101 +33,135 @@
 #include "endpoint.h"
 
 static hibus_json *
+builtin_method_echo (BusEndpoint* from_endpoint,
+        const char* method_name, const hibus_json* method_param, int* ret_code)
+{
+    return NULL;
+}
+
+static hibus_json *
 builtin_method_register_procedure (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_revoke_procedure (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_register_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_revoke_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_subscribe_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_unsubscribe_event (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_list_procedures (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_list_events (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 static hibus_json *
 builtin_method_list_event_subscribers (BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param)
+        const char* method_name, const hibus_json* method_param, int* ret_code)
 {
     return NULL;
 }
 
 bool init_builtin_endpoint (BusEndpoint* builtin)
 {
-    register_procedure (builtin, "registerProcedure",
+    if (register_procedure (builtin, "echo",
             HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
-            builtin_method_register_procedure);
-    register_procedure (builtin, "revokeProcedure",
-            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
-            builtin_method_revoke_procedure);
+            builtin_method_echo) != HIBUS_SC_OK) {
+        return false;
+    }
 
-    register_procedure (builtin, "registerEvent",
+    if (register_procedure (builtin, "registerProcedure",
             HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
-            builtin_method_register_event);
-    register_procedure (builtin, "revokeEvent",
-            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
-            builtin_method_revoke_event);
+            builtin_method_register_procedure) != HIBUS_SC_OK) {
+        return false;
+    }
 
-    register_procedure (builtin, "subscribeEvent",
+    if (register_procedure (builtin, "revokeProcedure",
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
+            builtin_method_revoke_procedure) != HIBUS_SC_OK) {
+        return false;
+    }
+
+    if (register_procedure (builtin, "registerEvent",
             HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
-            builtin_method_subscribe_event);
-    register_procedure (builtin, "unsubscribeEvent",
+            builtin_method_register_event) != HIBUS_SC_OK) {
+        return false;
+    }
+    if (register_procedure (builtin, "revokeEvent",
             HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
-            builtin_method_unsubscribe_event);
+            builtin_method_revoke_event) != HIBUS_SC_OK) {
+        return false;
+    }
 
-    register_procedure (builtin, "listProcedures",
+    if (register_procedure (builtin, "subscribeEvent",
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
+            builtin_method_subscribe_event) != HIBUS_SC_OK) {
+        return false;
+    }
+    if (register_procedure (builtin, "unsubscribeEvent",
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
+            builtin_method_unsubscribe_event) != HIBUS_SC_OK) {
+        return false;
+    }
+
+    if (register_procedure (builtin, "listProcedures",
             HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
-            builtin_method_list_procedures);
-    register_procedure (builtin, "listEvents",
+            builtin_method_list_procedures) != HIBUS_SC_OK) {
+        return false;
+    }
+    if (register_procedure (builtin, "listEvents",
             HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
-            builtin_method_list_events);
+            builtin_method_list_events) != HIBUS_SC_OK) {
+        return false;
+    }
 
-    register_procedure (builtin, "listEventSubscribers",
+    if (register_procedure (builtin, "listEventSubscribers",
             HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER "," HIBUS_APP_HIBUS,
-            builtin_method_list_event_subscribers);
+            builtin_method_list_event_subscribers) != HIBUS_SC_OK) {
+        return false;
+    }
+
+    ULOG_INFO ("The procedures registered for builtin runner\n");
 
     return true;
 }

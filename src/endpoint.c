@@ -378,7 +378,7 @@ failed:
 }
 
 int register_procedure (BusEndpoint* endpoint, const char* method_name,
-        const char* for_host, const char* for_app, builtin_method_handler handler)
+        const char* for_host, const char* for_app, method_handler handler)
 {
     return HIBUS_SC_OK;
 }

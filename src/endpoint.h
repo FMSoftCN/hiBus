@@ -37,31 +37,30 @@ int send_challenge_code (BusServer* the_server, BusEndpoint* endpoint);
 int handle_json_packet (BusServer* the_server, BusEndpoint* endpoint,
         const char* json, unsigned int len);
 
-typedef hibus_json* (*builtin_method_handler)(BusEndpoint* from_endpoint,
-        const char* method_name, const hibus_json* method_param);
+typedef hibus_json* (*method_handler) (BusEndpoint* from_endpoint,
+        const char* method_name, const hibus_json* method_param, int* ret_code);
 
 /* Method information */
 typedef struct MethodInfo_
 {
-    hibus_pattern_list* host_patt_list;
-    hibus_pattern_list* app_patt_list;
+    hibus_pattern_list *host_patt_list;
+    hibus_pattern_list *app_patt_list;
 
-    /* only not null for built-in methods */
-    builtin_method_handler handler;
+    method_handler handler;
 } MethodInfo;
 
 /* Bubble information */
 typedef struct BubbleInfo_
 {
-    hibus_pattern_list* host_patt_list;
-    hibus_pattern_list* app_patt_list;
+    hibus_pattern_list *host_patt_list;
+    hibus_pattern_list *app_patt_list;
 
     /* All subscribers of this bubble */
     struct kvlist subscriber_list;
 } BubbleInfo;
 
 int register_procedure (BusEndpoint* endpoint, const char* method_name,
-        const char* for_host, const char* for_app, builtin_method_handler handler);
+        const char* for_host, const char* for_app, method_handler handler);
 int revoke_procedure (BusEndpoint* endpoint, const char* method_name);
 
 int register_event (BusEndpoint* endpoint, const char* bubble_name,
