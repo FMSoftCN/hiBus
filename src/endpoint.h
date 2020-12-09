@@ -58,7 +58,7 @@ typedef struct _pattern_list {
 } pattern_list;
 
 /* Method information */
-typedef struct method_info_
+typedef struct MethodInfo_
 {
     pattern_list host_patt_list;
     pattern_list app_patt_list;
@@ -67,17 +67,17 @@ typedef struct method_info_
 
     /* All pending calls sent to this endpoint */
     struct safe_list pending_calls;
-} method_info;
+} MethodInfo;
 
 /* Bubble information */
-typedef struct bubble_info_
+typedef struct BubbleInfo_
 {
     pattern_list host_patt_list;
     pattern_list app_patt_list;
 
     /* All subscribers of this bubble */
     struct kvlist subscriber_list;
-} bubble_info;
+} BubbleInfo;
 
 /* allowed pattern: `*, $owner, xxx?, yyy*, !aaa*` */
 pattern_list *create_pattern_list (const char* pattern);
