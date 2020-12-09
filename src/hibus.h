@@ -27,6 +27,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <ctype.h>
+#include <time.h>
 
 #include <hibox/json.h>
 
@@ -70,7 +71,7 @@
 #define HIBUS_SC_NOT_FOUND              404
 #define HIBUS_SC_METHOD_NOT_ALLOWED     405
 #define HIBUS_SC_NOT_ACCEPTABLE         406
-#define HIBUS_SC_CONFILCT               409
+#define HIBUS_SC_CONFLICT               409
 #define HIBUS_SC_GONE                   410
 #define HIBUS_SC_PRECONDITION_FAILED    412
 #define HIBUS_SC_PACKET_TOO_LARGE       413
@@ -203,6 +204,15 @@ int hibus_verify_signature (const char* app_name,
 int hibus_json_packet_to_object (const char* json, unsigned int json_len,
         hibus_json **jo);
 
+/* generate a unique id by using MD5 digest algorithm. */
+void hibus_generate_md5_id (char* id_buff, const char* prefix);
+
+/* calculate the elapsed seconds in float number */
+double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct timespec *ts2);
+
+/* escaped a string for JSON */
+char* hibus_escape_string_for_json (const char* str);
+
 /*
  * connection functions - implemented in libhibus.c, only for clients.
  */
@@ -270,19 +280,19 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
 }
 #endif
 
-static inline int
+static inline bool
 hibus_is_valid_runner_name (const char* runner_name)
 {
     return hibus_is_valid_token (runner_name, LEN_RUNNER_NAME);
 }
 
-static inline int
+static inline bool
 hibus_is_valid_method_name (const char* method_name)
 {
     return hibus_is_valid_token (method_name, LEN_METHOD_NAME);
 }
 
-static inline int
+static inline bool
 hibus_is_valid_bubble_name (const char* bubble_name)
 {
     return hibus_is_valid_token (bubble_name, LEN_BUBBLE_NAME);
@@ -312,6 +322,42 @@ hibus_name_toupper (char* name)
     }
 
     return i;
+}
+
+static inline int
+hibus_name_tolower_copy (const char* name, char* buff, int max_len)
+{
+    int n = 0;
+
+    while (*name) {
+        buff [n] = tolower (*name);
+        name++;
+        n++;
+
+        if (max_len > 0 && n == max_len)
+            break;
+    }
+
+    buff [n] = '\0';
+    return n;
+}
+
+static inline int
+hibus_name_toupper_copy (const char* name, char* buff, int max_len)
+{
+    int n = 0;
+
+    while (*name) {
+        buff [n] = toupper (*name);
+        name++;
+        n++;
+
+        if (max_len > 0 && n == max_len)
+            break;
+    }
+
+    buff [n] = '\0';
+    return n;
 }
 
 #endif /* !_HIBUS_H_ */

@@ -20,14 +20,17 @@
 ** along with this program.  If not, see http://www.gnu.org/licenses/.
 */
 
+#include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <time.h>
 #include <assert.h>
 
 #include <hibox/ulog.h>
 #include <hibox/json.h>
 #include <hibox/list.h>
-#include <hibox/blobmsg.h>
+#include <hibox/md5.h>
+#include <hibox/utils.h>
 
 #include "hibus.h"
 
@@ -64,8 +67,8 @@ static struct  {
         "Method Not Allowed" },
     { HIBUS_SC_NOT_ACCEPTABLE,      /* 406 */
         "Not Acceptable" },
-    { HIBUS_SC_CONFILCT,            /* 409 */
-        "Confilct" },
+    { HIBUS_SC_CONFLICT,            /* 409 */
+        "Conflict" },
     { HIBUS_SC_GONE,                /* 410 */
         "Gone" },
     { HIBUS_SC_PRECONDITION_FAILED, /* 412 */
@@ -446,5 +449,109 @@ failed:
         json_object_put (*jo);
 
     return jpt;
+}
+
+void hibus_generate_md5_id (char* id_buff, const char* prefix)
+{
+    int n;
+    char key [256];
+    unsigned char md5_digest [MD5_DIGEST_SIZE];
+    struct timespec tp;
+
+    clock_gettime (CLOCK_REALTIME, &tp);
+    n = snprintf (key, sizeof (key), "%s-%ld-%ld-%ld", prefix,
+            tp.tv_sec, tp.tv_nsec, random ());
+    if (n >= sizeof (key))
+        ULOG_WARN ("The buffer is too small for resultId.\n");
+
+    md5digest (key, md5_digest);
+    bin2hex (md5_digest, MD5_DIGEST_SIZE, id_buff);
+}
+
+double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct timespec *ts2)
+{
+    struct timespec ts_curr;
+    time_t ds;
+    long dns;
+
+    if (ts2 == NULL) {
+        clock_gettime (CLOCK_REALTIME, &ts_curr);
+        ts2 = &ts_curr;
+    }
+
+    ds = ts2->tv_sec - ts1->tv_sec;
+    dns = ts2->tv_nsec - ts1->tv_nsec;
+    return ds + dns * 1.0E-9;
+}
+
+static const char *json_hex_chars = "0123456789abcdefABCDEF";
+
+char* hibus_escape_string_for_json (const char* str)
+{
+    struct printbuf my_buff, *pb = &my_buff;
+	size_t pos = 0, start_offset = 0;
+	unsigned char c;
+
+	if (printbuf_init (pb)) {
+        ULOG_ERR ("Failed to initialize buffer for escape string for JSON.\n");
+		return NULL;
+	}
+
+	while (str [pos]) {
+        const char* escaped;
+
+		c = str[pos];
+		switch (c) {
+		case '\b':
+            escaped = "\\b";
+            break;
+		case '\n':
+            escaped = "\\n";
+            break;
+		case '\r':
+            escaped = "\\n";
+            break;
+		case '\t':
+            escaped = "\\t";
+            break;
+		case '\f':
+            escaped = "\\f";
+            break;
+		case '"':
+            escaped = "\\\"";
+            break;
+		case '\\':
+            escaped = "\\\\";
+            break;
+        default:
+            escaped = NULL;
+			if (c < ' ') {
+				char sbuf[7];
+				if (pos - start_offset > 0)
+					printbuf_memappend (pb,
+                            str + start_offset, pos - start_offset);
+				snprintf (sbuf, sizeof (sbuf), "\\u00%c%c",
+                        json_hex_chars[c >> 4], json_hex_chars[c & 0xf]);
+				printbuf_memappend_fast (pb, sbuf, sizeof(sbuf) - 1);
+				start_offset = ++pos;
+			}
+			else
+				pos++;
+            break;
+        }
+
+        if (escaped) {
+            if (pos - start_offset > 0)
+                printbuf_memappend (pb, str + start_offset, pos - start_offset);
+
+            printbuf_memappend (pb, escaped, strlen (escaped));
+            start_offset = ++pos;
+        }
+	}
+
+	if (pos - start_offset > 0)
+		printbuf_memappend (pb, str + start_offset, pos - start_offset);
+
+    return pb->buf;
 }
 
