@@ -226,6 +226,7 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
 void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len);
 
 int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt_len);
+int hibus_ping_server (hibus_conn* conn);
 
 typedef hibus_json* (*hibus_method_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,

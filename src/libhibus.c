@@ -52,6 +52,26 @@ struct _hibus_conn {
     char* runner_name;
 };
 
+int hibus_conn_endpoint_name (hibus_conn* conn, char *buff)
+{
+    if (conn->own_host_name && conn->app_name && conn->runner_name) {
+        return hibus_assemble_endpoint_name (conn->own_host_name,
+                conn->app_name, conn->runner_name, buff);
+    }
+
+    return 0;
+}
+
+char *hibus_conn_endpoint_name_alloc (hibus_conn* conn)
+{
+    if (conn->own_host_name && conn->app_name && conn->runner_name) {
+        return hibus_assemble_endpoint_name_alloc (conn->own_host_name,
+                conn->app_name, conn->runner_name);
+    }
+
+    return NULL;
+}
+
 /* return NULL for error */
 static char* read_text_payload_from_us (int fd, int* len)
 {
@@ -655,23 +675,28 @@ int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int len
     return 0;
 }
 
-int hibus_conn_endpoint_name (hibus_conn* conn, char *buff)
+int hibus_ping_server (hibus_conn* conn)
 {
-    if (conn->own_host_name && conn->app_name && conn->runner_name) {
-        return hibus_assemble_endpoint_name (conn->own_host_name,
-                conn->app_name, conn->runner_name, buff);
+    if (conn->type == CT_UNIX_SOCKET) {
+        ssize_t n = 0;
+        USFrameHeader header;
+
+        header.op = US_OPCODE_PING;
+        header.fragmented = 0;
+        header.sz_payload = 0;
+        n = write (conn->fd, &header, sizeof (USFrameHeader));
+        if (n < sizeof (USFrameHeader)) {
+            ULOG_ERR ("Error when wirting to Unix Socket: %s\n", strerror (errno));
+            return -1;
+        }
     }
+    else if (conn->type == CT_WEB_SOCKET) {
+        /* TODO */
+        return -2;
+    }
+    else
+        return -3;
 
     return 0;
-}
-
-char *hibus_conn_endpoint_name_alloc (hibus_conn* conn)
-{
-    if (conn->own_host_name && conn->app_name && conn->runner_name) {
-        return hibus_assemble_endpoint_name_alloc (conn->own_host_name,
-                conn->app_name, conn->runner_name);
-    }
-
-    return NULL;
 }
 
