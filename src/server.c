@@ -142,7 +142,7 @@ static struct option long_opts[] = {
 static void
 cmd_help (void)
 {
-    printf ("\nhibusd - %s\n\n", HIBUS_VERSION);
+    printf ("hiBusD (%s) - the daemon of data bus system for HybridOS\n\n", HIBUS_VERSION);
 
     printf (
             "Usage: "
@@ -165,8 +165,22 @@ cmd_help (void)
             "  -h --help                - This help.\n"
             "  -V --version             - Display version information and exit.\n"
             "\n"
-            "hibusd Copyright (C) 2020 FMSoft <https://www.fmsoft.cn>\n"
-            "\n\n"
+            "hiBus - the data bus system for HybridOS.\n"
+            "\n"
+            "Copyright (C) 2020 FMSoft <https://www.fmsoft.cn>\n"
+            "\n"
+            "hiBus is free software: you can redistribute it and/or modify\n"
+            "it under the terms of the GNU General Public License as published by\n"
+            "the Free Software Foundation, either version 3 of the License, or\n"
+            "(at your option) any later version.\n"
+            "\n"
+            "hiBus is distributed in the hope that it will be useful,\n"
+            "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+            "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
+            "GNU General Public License for more details.\n"
+            "You should have received a copy of the GNU General Public License\n"
+            "along with this program.  If not, see http://www.gnu.org/licenses/.\n"
+            "\n"
             );
 }
 /* *INDENT-ON* */
@@ -263,7 +277,7 @@ read_option_args (int argc, char **argv)
                 cmd_help ();
                 return -1;
             case 'V':
-                fprintf (stdout, "hibusd %s\n", HIBUS_VERSION);
+                fprintf (stdout, "hiBusD: %s\n", HIBUS_VERSION);
                 return -1;
             case 0:
                 parse_long_opt (long_opts[idx].name, optarg);
@@ -276,8 +290,10 @@ read_option_args (int argc, char **argv)
         }
     }
 
-    for (idx = optind; idx < argc; idx++)
+    if (optind < argc) {
         cmd_help ();
+        return -1;
+    }
 
     return daemon;
 }
