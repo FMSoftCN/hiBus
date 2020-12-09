@@ -303,6 +303,7 @@ chop_nchars (char *str, size_t n, size_t len)
   return (len - n);
 }
 
+#if 0
 /* Match a client given a socket id and an item from the list.
  *
  * On match, 1 is returned, else 0. */
@@ -341,6 +342,26 @@ ws_get_client_from_list (int listener, GSLList ** colist)
     return NULL;
   return (WSClient *) match->data;
 }
+
+/* Remove the given client from the list. */
+static void
+ws_remove_client_from_list (WSServer * server, WSClient * client)
+{
+    GSLList *node = NULL;
+    if (!(node = ws_get_list_node_from_list (client->fd, &server->colist)))
+        return;
+
+    if (client->headers)
+        ws_clear_handshake_headers (client->headers);
+
+    //us_client_cleanup (client->us_buddy);
+    //free (client->us_buddy);
+    //client->us_buddy = NULL;
+
+    gslist_remove_node (&server->colist, node);
+}
+
+#endif
 
 /* Free a frame structure and its data for the given client. */
 static void
@@ -428,25 +449,6 @@ ws_clear_handshake_headers (WSHeaders * headers)
   headers = NULL;
 }
 
-/* Remove the given client from the list. */
-static void
-ws_remove_client_from_list (WSServer * server, WSClient * client)
-{
-    GSLList *node = NULL;
-
-    if (!(node = ws_get_list_node_from_list (client->fd, &server->colist)))
-        return;
-
-    if (client->headers)
-        ws_clear_handshake_headers (client->headers);
-
-    //us_client_cleanup (client->us_buddy);
-    //free (client->us_buddy);
-    //client->us_buddy = NULL;
-
-    gslist_remove_node (&server->colist, node);
-}
-
 #if HAVE_LIBSSL
 /* Attempt to send the TLS/SSL "close notify" shutdown and and removes
  * the SSL structure pointed to by ssl and frees up the allocated
@@ -483,12 +485,9 @@ ws_ssl_cleanup (WSServer * server)
 #endif
 
 /* Remove all clients that are still hanging out. */
-static int
-ws_remove_dangling_clients (void *value, void *user_data)
+int
+ws_remove_dangling_client (WSClient *client)
 {
-  WSClient *client = value;
-  (void) (user_data);
-
   if (client == NULL)
     return 1;
 
@@ -514,12 +513,14 @@ ws_stop (WSServer * server)
     access_log_close ();
 #endif
 
+#if 0
   /* remove dangling clients */
   if (gslist_count (server->colist) > 0)
     gslist_foreach (server->colist, ws_remove_dangling_clients, NULL);
 
   if (server->colist)
     gslist_remove_nodes (server->colist);
+#endif
 
 #ifdef HAVE_LIBSSL
   ws_ssl_cleanup (server);
@@ -899,8 +900,8 @@ set_nonblocking (int sock)
  * current connected clients.
  *
  * The newly assigned socket is returned. */
-static int
-accept_client (int listener, GSLList ** colist)
+static WSClient *
+accept_client (int listener /*, GSLList ** colist */)
 {
   WSClient *client;
   struct sockaddr_storage raddr;
@@ -916,7 +917,7 @@ accept_client (int listener, GSLList ** colist)
 
   if (newfd == -1) {
     ULOG_NOTE ("Unable to accept: %s.", strerror (errno));
-    return newfd;
+    return NULL;
   }
   src = ws_get_raddr ((struct sockaddr *) &raddr);
 
@@ -925,16 +926,18 @@ accept_client (int listener, GSLList ** colist)
   client->fd = newfd;
   inet_ntop (raddr.ss_family, src, client->remote_ip, INET6_ADDRSTRLEN);
 
+#if 0
   /* add up our new client to keep track of */
   if (*colist == NULL)
     *colist = gslist_create (client);
   else
     *colist = gslist_insert_prepend (*colist, client);
+#endif
 
   /* make the socket non-blocking */
   set_nonblocking (client->fd);
 
-  return newfd;
+  return client;
 }
 
 /* Extract the HTTP method.
@@ -1575,7 +1578,7 @@ ws_get_handshake (WSServer * server, WSClient * client)
   gettimeofday (&client->end_proc, NULL);
   if (server->config->accesslog)
     access_log (client, 101);
-  ULOG_NOTE ("Active: %d\n", gslist_count (server->colist));
+  ULOG_NOTE ("Active: %d\n", server->nr_clients); // gslist_count (server->colist));
 
   return ws_set_status (client, WS_OK, bytes);
 }
@@ -2152,9 +2155,14 @@ ws_handle_tcp_close (WSServer * server, WSClient * client)
   client->ssl = NULL;
 #endif
 
+#if 0
   /* remove client from our list */
   ws_remove_client_from_list (server, client);
   ULOG_NOTE ("Active: %d\n", gslist_count (server->colist));
+#else
+  server->nr_clients--;
+  ULOG_NOTE ("Active: %d\n", server->nr_clients);
+#endif
 }
 
 /* Handle a tcp read close connection. */
@@ -2172,18 +2180,20 @@ handle_ws_read_close (WSServer * server, WSClient * client)
 WSClient*
 ws_handle_accept (WSServer * server, int listener)
 {
-  WSClient *client = NULL;
-  int newfd;
+  WSClient *client;
 
-  newfd = accept_client (listener, &server->colist);
-  if (newfd == -1)
+  client = accept_client (listener/*, &server->colist*/);
+  if (client == NULL)
     return NULL;
 
+#if 0
   client = ws_get_client_from_list (newfd, &server->colist);
   server->nr_clients = gslist_count (server->colist);
+#endif
 
+  server->nr_clients++;
   if (server->nr_clients > MAX_CLIENTS_EACH) {
-    ULOG_WARN ("Too busy: %d %s.\n", newfd, client->remote_ip);
+    ULOG_WARN ("Too busy: %d %s.\n", client->fd, client->remote_ip);
 
     http_error (server, client, WS_TOO_BUSY_STR);
     handle_ws_read_close (server, client);
@@ -2196,7 +2206,9 @@ ws_handle_accept (WSServer * server, int listener)
     client->sslstatus |= WS_TLS_ACCEPTING;
 #endif
 
-  ULOG_NOTE ("Accepted: %d %s\n", newfd, client->remote_ip);
+  /* TODO: call on_accepted */
+
+  ULOG_NOTE ("Accepted: %d %s\n", client->fd, client->remote_ip);
   return client;
 }
 
@@ -2210,7 +2222,6 @@ ws_handle_reads (WSServer * server, WSClient * client)
 {
 #if 0
   WSClient *client = NULL;
-
   if (!(client = ws_get_client_from_list (conn, &server->colist)))
     return 1;
 #endif
@@ -2251,7 +2262,6 @@ ws_handle_writes (WSServer * server, WSClient * client)
 {
 #if 0
   WSClient *client = NULL; 
-
   if (!(client = ws_get_client_from_list (conn, &server->colist)))
     return 1;
 #endif

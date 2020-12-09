@@ -266,8 +266,8 @@ typedef struct WSServer_
           const char* body, unsigned int sz_body, int type);
   int (*on_close) (WSClient * client);
 
-  /* Connected Clients */
-  GSLList *colist;
+  /* Connected Clients
+  GSLList *colist; */
 
 #ifdef HAVE_LIBSSL
   SSL_CTX *ctx;
@@ -292,6 +292,7 @@ void ws_handle_tcp_close (WSServer * server, WSClient * client);
 int ws_handle_reads (WSServer * server, WSClient * client);
 int ws_handle_writes (WSServer * server, WSClient * client);
 
+int ws_remove_dangling_client (WSClient *client);
 void ws_stop (WSServer *server);
 
 #endif // _HIBUS_WEBSOCKET_H
