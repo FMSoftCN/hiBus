@@ -44,6 +44,7 @@
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <time.h>
+#include <assert.h>
 #include <unistd.h>
 
 #if HAVE_CONFIG_H
@@ -486,7 +487,7 @@ ws_ssl_cleanup (WSServer * server)
 
 /* Remove all clients that are still hanging out. */
 int
-ws_remove_dangling_client (WSClient *client)
+ws_remove_dangling_client (WSServer * server, WSClient *client)
 {
   if (client == NULL)
     return 1;
@@ -500,6 +501,8 @@ ws_remove_dangling_client (WSClient *client)
     ws_shutdown_dangling_clients (client);
 #endif
 
+  server->nr_clients--;
+  assert (server->nr_clients >= 0);
   return 0;
 }
 

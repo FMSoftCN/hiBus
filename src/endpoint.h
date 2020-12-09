@@ -46,6 +46,11 @@ enum {
 
 int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause);
 
+bool store_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint);
+bool remove_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint);
+bool make_endpoint_ready (BusServer* bus_srv,
+        const char* endpoint_name, BusEndpoint* endpoint);
+
 int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint);
 int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const struct timespec *ts, const char* json, unsigned int len);

@@ -67,6 +67,7 @@ void us_stop (USServer *server);
 int us_listen (USServer* server);
 USClient *us_handle_accept (USServer *server);
 int us_handle_reads (USServer *server, USClient* us_client);
+int us_remove_dangling_client (USServer * server, USClient *us_client);
 int us_client_cleanup (USServer* server, USClient* us_client);
 
 void us_send_error_packet (USServer* us_srv, USClient* client, int err_code);

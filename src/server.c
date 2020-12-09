@@ -596,6 +596,31 @@ cleanup_bus_server (void)
 
     kvlist_free (&the_server.endpoint_list);
 
+    if (the_server.dangling_endpoints) {
+        gs_list* node = the_server.dangling_endpoints;
+
+        while (node) {
+            endpoint = (BusEndpoint *)node->data;
+
+            assert (endpoint->status == ES_AUTHING);
+            if (endpoint->type == ET_UNIX_SOCKET) {
+                USClient* usc = endpoint->usc;
+                us_remove_dangling_client (the_server.us_srv, usc);
+            }
+            else if (endpoint->type == ET_WEB_SOCKET) {
+                WSClient* wsc = endpoint->wsc;
+                ws_remove_dangling_client (the_server.ws_srv, wsc);
+            }
+            else {
+                ULOG_WARN ("Bad type of dangling endpoint\n");
+            }
+
+            node = node->next;
+        }
+
+        gslist_remove_nodes (the_server.dangling_endpoints);
+    }
+
     us_stop (the_server.us_srv);
     if (the_server.ws_srv)
         ws_stop (the_server.ws_srv);

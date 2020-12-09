@@ -63,6 +63,10 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
             endpoint->host_name = NULL;
             endpoint->app_name = NULL;
             endpoint->runner_name = NULL;
+            if (!store_dangling_endpoint (bus_srv, endpoint)) {
+                free (endpoint);
+                return NULL;
+            }
             break;
 
         default:
@@ -151,6 +155,55 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
     free (endpoint);
     ULOG_WARN ("Endpoint (%s) removed\n", endpoint_name);
     return 0;
+}
+
+bool store_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint)
+{
+    if (bus_srv->dangling_endpoints == NULL)
+        bus_srv->dangling_endpoints = gslist_create (endpoint);
+    else
+        bus_srv->dangling_endpoints =
+            gslist_insert_append (bus_srv->dangling_endpoints, endpoint);
+
+    if (bus_srv->dangling_endpoints)
+        return true;
+
+    return false;
+}
+
+bool remove_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint)
+{
+    gs_list* node = bus_srv->dangling_endpoints;
+
+    while (node) {
+        if (node->data == endpoint) {
+            gslist_remove_node (&bus_srv->dangling_endpoints, node);
+            return true;
+        }
+
+        node = node->next;
+    }
+
+    return false;
+}
+
+bool make_endpoint_ready (BusServer* bus_srv,
+        const char* endpoint_name, BusEndpoint* endpoint)
+{
+    if (remove_dangling_endpoint (bus_srv, endpoint)) {
+        if (!kvlist_set (&bus_srv->endpoint_list, endpoint_name, &endpoint)) {
+            ULOG_ERR ("Failed to store the endpoint: %s\n", endpoint_name);
+            return false;
+        }
+
+        bus_srv->nr_endpoints++;
+    }
+    else {
+        ULOG_ERR ("Not found endpoint in dangling list: %s\n", endpoint_name);
+        return false;
+    }
+
+    return true;
 }
 
 inline static int send_packet_to_endpoint (BusServer* bus_srv,
@@ -338,11 +391,10 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
         return HIBUS_SC_CONFLICT;
     }
 
-    if (!kvlist_set (&bus_srv->endpoint_list, endpoint_name, &endpoint)) {
+    if (!make_endpoint_ready (bus_srv, endpoint_name, endpoint)) {
         ULOG_ERR ("Failed to store the endpoint: %s\n", endpoint_name);
         return HIBUS_SC_INSUFFICIENT_STORAGE;
     }
-    bus_srv->nr_endpoints++;
 
     ULOG_INFO ("New endpoint stored: %s (%p), %d endpoints totally.\n",
             endpoint_name, endpoint, bus_srv->nr_endpoints);

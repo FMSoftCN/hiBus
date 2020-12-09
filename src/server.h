@@ -26,7 +26,7 @@
 #include <hibox/gslist.h>
 #include <hibox/avl.h>
 #include <hibox/kvlist.h>
-#include <hibox/safe_list.h>
+#include <hibox/gslist.h>
 
 #include "hibus.h"
 
@@ -92,8 +92,11 @@ typedef struct BusServer_
     struct WSServer_ *ws_srv;
     struct USServer_ *us_srv;
 
-    /* The AVL tree using endpoint as the key, and BusClient* as the value */
+    /* The AVL tree using endpoint name as the key, and BusEndpoint* as the value */
     struct kvlist endpoint_list;
+
+    /* The accepted endpoints but waiting for authentification */
+    gs_list *dangling_endpoints;
 } BusServer;
 
 /* Config Options */

@@ -473,10 +473,8 @@ int us_send_data (USServer* server, USClient* us_client,
     return 0;
 }
 
-int us_client_cleanup (USServer* server, USClient* us_client)
+int us_remove_dangling_client (USServer * server, USClient *us_client)
 {
-    server->on_close (server, us_client);
-
     if (us_client->fd >= 0) {
         close (us_client->fd);
     }
@@ -488,5 +486,12 @@ int us_client_cleanup (USServer* server, USClient* us_client)
 
     free (us_client);
     return 0;
+}
+
+int us_client_cleanup (USServer* server, USClient* us_client)
+{
+    server->on_close (server, us_client);
+
+    return us_remove_dangling_client (server, us_client);
 }
 
