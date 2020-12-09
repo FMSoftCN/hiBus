@@ -24,6 +24,7 @@
 #define _HIBUS_UNIXSOCKET_H
 
 #include <stdint.h>
+#include <time.h>
 #include <unistd.h>
 
 /* A UnixSocket Client */
@@ -35,6 +36,7 @@ typedef struct USClient_
     uid_t       uid;        /* client UID */
 
     /* fields for current packet */
+    struct timespec ts;     /* time got the first frame of the current packet */
     int         t_packet;   /* type of packet */
     int         padding_;
     uint32_t    sz_packet;  /* total size of current packet */

@@ -23,6 +23,7 @@
 #ifndef _HIBUS_ENDPOINT_H_
 #define _HIBUS_ENDPOINT_H_
 
+#include <time.h>
 #include <stdbool.h>
 
 #include <hibox/avl.h>
@@ -47,7 +48,7 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause);
 
 int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint);
 int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
-        const char* json, unsigned int len);
+        const struct timespec *ts, const char* json, unsigned int len);
 
 typedef char* (*method_handler) (BusEndpoint* from_endpoint,
         const char* method_name, const char* method_param, int* ret_code);

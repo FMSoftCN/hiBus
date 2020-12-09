@@ -406,7 +406,7 @@ static int handle_auth_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 }
 
 static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
-        const hibus_json* jo)
+        const hibus_json* jo, const struct timespec *ts)
 {
     hibus_json *jo_tmp;
     const char *str_tmp;
@@ -417,7 +417,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     const char *call_id;
     int expected_time;
     struct timespec ts_start;
-    double time_consumed;
+    double time_diff, time_consumed;
     const char *parameter;
 
     char buff_in_stack [MAX_PAYLOAD_SIZE];
@@ -496,6 +496,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     hibus_generate_md5_id (result_id, call_id);
     ret_code = expected_time; // XXX
     clock_gettime (CLOCK_REALTIME, &ts_start);
+    time_diff = hibus_get_elapsed_seconds (ts, &ts_start);
     result = to_method->handler (endpoint, to_method_name, parameter, &ret_code);
     time_consumed = hibus_get_elapsed_seconds (&ts_start, NULL);
 
@@ -534,8 +535,8 @@ done:
             "\"callId\": \"%s\","
             "\"fromEndpoint\": \"@%s/%s/%s\","
             "\"fromMethod\": \"%s\""
+            "\"timeDiff\": %f,"
             "\"timeConsumed\": %f,"
-            "\"timeDiff\": 0.00,"
             "\"retCode\": %d,"
             "\"retMsg\": \"%s\","
             "\"retValue\": \"%s\""
@@ -543,7 +544,7 @@ done:
             result_id, call_id,
             to_endpoint->host_name, to_endpoint->app_name, to_endpoint->runner_name,
             to_method_name,
-            time_consumed,
+            time_diff, time_consumed,
             ret_code,
             hibus_get_error_message (ret_code),
             escaped_result ? escaped_result : "");
@@ -555,13 +556,13 @@ done:
             "\"packetType\": \"result\","
             "\"resultId\": \"%s\","
             "\"callId\": \"%s\","
+            "\"timeDiff\": %f,"
             "\"timeConsumed\": %f,"
-            "\"timeDiff\": 0.00,"
             "\"retCode\": %d,"
             "\"retMsg\": \"%s\""
             "}",
             result_id, call_id,
-            time_consumed,
+            time_diff, time_consumed,
             ret_code,
             hibus_get_error_message (ret_code));
     }
@@ -571,13 +572,13 @@ done:
             "\"packetType\": \"result\","
             "\"resultId\": \"%s\","
             "\"callId\": \"%s\","
+            "\"timeDiff\": %f,"
             "\"timeConsumed\": %f,"
-            "\"timeDiff\": 0.00,"
             "\"retCode\": %d,"
             "\"retMsg\": \"%s\""
             "}",
             result_id, call_id,
-            time_consumed,
+            time_diff, time_consumed,
             ret_code,
             hibus_get_error_message (ret_code));
     }
@@ -610,7 +611,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 }
 
 int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
-        const char* json, unsigned int len)
+        const struct timespec *ts, const char* json, unsigned int len)
 {
     int retv = HIBUS_SC_OK;
     hibus_json *jo = NULL, *jo_tmp;
@@ -631,7 +632,7 @@ int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             retv = handle_auth_packet (bus_srv, endpoint, jo);
         }
         else if (strcasecmp (pack_type, "call") == 0) {
-            retv = handle_call_packet (bus_srv, endpoint, jo);
+            retv = handle_call_packet (bus_srv, endpoint, jo, ts);
         }
         else if (strcasecmp (pack_type, "result") == 0) {
             retv = handle_result_packet (bus_srv, endpoint, jo);

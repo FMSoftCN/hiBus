@@ -30,6 +30,7 @@
 #ifndef _HIBUS_WEBSOCKET_H
 #define _HIBUS_WEBSOCKET_H
 
+#include <time.h>
 #include <netinet/in.h>
 #include <limits.h>
 #include <sys/select.h>
@@ -215,6 +216,7 @@ typedef struct WSMessage_
   char *payload;                /* payload message */
   int payloadsz;                /* total payload size (whole message) */
   int buflen;                   /* recv'd buf length so far (for each frame) */
+  struct timespec ts;           /* time got the first frame of the message */
 } WSMessage;
 
 /* FD event states */

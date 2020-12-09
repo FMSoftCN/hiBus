@@ -352,7 +352,7 @@ on_packet_us (USServer* us_srv, USClient* client,
 
     if (type == PT_TEXT) {
 
-        handle_json_packet (&the_server, client->priv_data, body, sz_body);
+        handle_json_packet (&the_server, client->priv_data, &client->ts, body, sz_body);
     }
     else {
         /* discard all packet in binary */
