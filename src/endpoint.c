@@ -64,12 +64,14 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
             endpoint->app_name = NULL;
             endpoint->runner_name = NULL;
             if (!store_dangling_endpoint (bus_srv, endpoint)) {
+                ULOG_ERR ("Failed to store dangling endpoint\n");
                 free (endpoint);
                 return NULL;
             }
             break;
 
         default:
+            ULOG_ERR ("Bad endpoint type\n");
             free (endpoint);
             return NULL;
     }
@@ -384,7 +386,7 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
     hibus_assemble_endpoint_name (host_name,
                     app_name, runner_name, endpoint_name);
 
-    ULOG_INFO ("New endpoint: %s\n", endpoint_name);
+    ULOG_INFO ("New endpoint: %s (%p)\n", endpoint_name, endpoint);
 
     if (kvlist_get (&bus_srv->endpoint_list, endpoint_name)) {
         ULOG_WARN ("Duplicated endpoint: %s\n", endpoint_name);

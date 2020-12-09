@@ -375,6 +375,7 @@ on_close_us (USServer* us_srv, USClient* client)
         }
 
         if (endpoint->status == ES_AUTHING) {
+            remove_dangling_endpoint (&the_server, endpoint);
             ULOG_INFO ("An endpoint not authenticated removed: (%p), %d endpoints left.\n",
                     endpoint, the_server.nr_endpoints);
         }
@@ -601,8 +602,9 @@ cleanup_bus_server (void)
 
         while (node) {
             endpoint = (BusEndpoint *)node->data;
+            ULOG_WARN ("Removing dangling endpoint: %p, type (%d), status (%d)\n",
+                    endpoint, endpoint->type, endpoint->status);
 
-            assert (endpoint->status == ES_AUTHING);
             if (endpoint->type == ET_UNIX_SOCKET) {
                 USClient* usc = endpoint->usc;
                 us_remove_dangling_client (the_server.us_srv, usc);
@@ -614,6 +616,8 @@ cleanup_bus_server (void)
             else {
                 ULOG_WARN ("Bad type of dangling endpoint\n");
             }
+
+            del_endpoint (&the_server, endpoint, CDE_EXITING);
 
             node = node->next;
         }
