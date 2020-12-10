@@ -40,6 +40,9 @@
 #define HIBUS_WS_PORT                   "7700"
 #define HIBUS_WS_PORT_RESERVED          "7701"
 
+#define HIBUS_PATTERN_VAR_SELF          "self"
+#define HIBUS_PATTERN_VAR_OWNER         "owner"
+
 #define HIBUS_PATTERN_ANY               "*"
 #define HIBUS_PATTERN_SELF              "$self"
 #define HIBUS_PATTERN_OWNER             "$owner"
