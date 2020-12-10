@@ -108,6 +108,8 @@
 #define LEN_BUBBLE_NAME     63
 #define LEN_ENDPOINT_NAME   (LEN_HOST_NAME + LEN_APP_NAME + LEN_RUNNER_NAME + 3)
 
+#define LEN_UNIQUE_ID       63
+
 /* the maximal size of a payload in a frame */
 #define MAX_PAYLOAD_SIZE    4096    /* 4 KiB max frame payload size */
 #define MAX_FRAME_SIZE      MAX_PAYLOAD_SIZE
@@ -207,7 +209,11 @@ int hibus_verify_signature (const char* app_name,
 int hibus_json_packet_to_object (const char* json, unsigned int json_len,
         hibus_json **jo);
 
-/* generate a unique id by using MD5 digest algorithm. */
+/* generate a unique id; the buffer size should be at least 64. */
+void hibus_generate_unique_id (char* id_buff, const char* prefix);
+
+/* generate a unique id by using MD5 digest algorithm
+   The buffer size should be at least 33. */
 void hibus_generate_md5_id (char* id_buff, const char* prefix);
 
 /* calculate the elapsed seconds in float number */

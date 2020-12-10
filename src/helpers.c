@@ -451,6 +451,28 @@ failed:
     return jpt;
 }
 
+void hibus_generate_unique_id (char* id_buff, const char* prefix)
+{
+    static unsigned long accumulator;
+    struct timespec tp;
+    int i, n = strlen (prefix);
+    char my_prefix [8];
+
+    for (i = 0; i < sizeof (my_prefix); i++) {
+        if (i < n) {
+            my_prefix [i] = toupper (prefix [i]);
+        }
+        else
+            my_prefix [i] = 'X';
+    }
+
+    clock_gettime (CLOCK_REALTIME, &tp);
+    snprintf (id_buff, LEN_UNIQUE_ID + 1,
+            "%8s-%016lX-%016lX-%016lX",
+            my_prefix, tp.tv_sec, tp.tv_nsec, accumulator);
+    accumulator++;
+}
+
 void hibus_generate_md5_id (char* id_buff, const char* prefix)
 {
     int n;

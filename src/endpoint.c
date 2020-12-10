@@ -476,7 +476,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 
     char buff_in_stack [MAX_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
-    char result_id[MD5_DIGEST_SIZE * 2 + 1], *result, *escaped_result = NULL;
+    char result_id [LEN_UNIQUE_ID + 1], *result, *escaped_result = NULL;
     char* packet_buff = NULL;
 
     if (json_object_object_get_ex (jo, "toEndpoint", &jo_tmp)) {
@@ -559,7 +559,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 
     assert (to_method->handler);
 
-    hibus_generate_md5_id (result_id, call_id);
+    hibus_generate_unique_id (result_id, "result");
     ret_code = expected_time; // XXX
     clock_gettime (CLOCK_REALTIME, &ts_start);
     time_diff = hibus_get_elapsed_seconds (ts, &ts_start);
@@ -636,11 +636,14 @@ done:
         n = snprintf (packet_buff, sz_packet_buff, 
             "{"
             "\"packetType\": \"error\","
-            "\"causeBy\": \"call\","
-            "\"causeId\": \"%s\","
+            "\"protocolName\":\"%s\","
+            "\"protocolVersion\":%d,"
+            "\"causedBy\": \"call\","
+            "\"causedId\": \"%s\","
             "\"retCode\": %d,"
             "\"retMsg\": \"%s\""
             "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             call_id,
             ret_code,
             hibus_get_error_message (ret_code));
@@ -806,11 +809,14 @@ failed:
         n = snprintf (packet_buff, sz_packet_buff, 
             "{"
             "\"packetType\": \"error\","
-            "\"causeBy\": \"event\","
-            "\"causeId\": \"%s\","
+            "\"protocolName\":\"%s\","
+            "\"protocolVersion\":%d,"
+            "\"causedBy\": \"event\","
+            "\"causedId\": \"%s\","
             "\"retCode\": %d,"
             "\"retMsg\": \"%s\""
             "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             event_id,
             ret_code,
             hibus_get_error_message (ret_code));
