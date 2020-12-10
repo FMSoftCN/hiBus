@@ -51,11 +51,13 @@ bool remove_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint);
 bool make_endpoint_ready (BusServer* bus_srv,
         const char* endpoint_name, BusEndpoint* endpoint);
 
+int send_packet_to_endpoint (BusServer* bus_srv,
+        BusEndpoint* endpoint, const char* body, int len_body);
 int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint);
 int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const struct timespec *ts, const char* json, unsigned int len);
 
-typedef char* (*method_handler) (BusEndpoint* from_endpoint,
+typedef char* (*method_handler) (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
         const char* method_name, const char* method_param, int* ret_code);
 
 typedef struct _pattern_list {
@@ -95,26 +97,27 @@ void cleanup_pattern_list (pattern_list *pl);
 bool match_pattern (pattern_list *pl, const char* string,
         int nr_vars, ...);
 
-int register_procedure (BusEndpoint* endpoint, const char* method_name,
+int register_procedure (BusServer *bus_srv, BusEndpoint* endpoint, const char* method_name,
         const char* for_host, const char* for_app, method_handler handler);
-int revoke_procedure (BusEndpoint* endpoint, const char* method_name);
+int revoke_procedure (BusServer *bus_srv, BusEndpoint* endpoint, const char* method_name);
 
-int register_event (BusEndpoint* endpoint, const char* bubble_name,
+int register_event (BusServer *bus_srv, BusEndpoint* endpoint, const char* bubble_name,
         const char* for_host, const char* for_app);
-int revoke_event (BusEndpoint* endpoint, const char* bubble_name);
+int revoke_event (BusServer *bus_srv, BusEndpoint* endpoint, const char* bubble_name);
 
-int subscribe_event (BusEndpoint* endpoint,
+int subscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
         const char* bubble_name, BusEndpoint *subscrber);
-int unsubscribe_event (BusEndpoint* endpoint,
+int unsubscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
         const char* bubble_name, BusEndpoint *subscrber);
 
-bool init_builtin_endpoint (BusEndpoint* builtin_endpoint);
+bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin_endpoint);
 
 /* system bubble types */
 enum {
     SBT_NEW_ENDPOINT,
     SBT_BROKEN_ENDPOINT,
     SBT_LOST_EVENT_GENERATOR,
+    SBT_LOST_EVENT_BUBBLE,
 };
 
 bool fire_system_event (BusServer* bus_srv, int bubble_type,

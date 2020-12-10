@@ -52,6 +52,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
             endpoint->host_name = strdup (bus_srv->server_name);
             endpoint->app_name = strdup (HIBUS_APP_HIBUS);
             endpoint->runner_name = strdup (HIBUS_RUNNER_BUILITIN);
+            endpoint->sta_data = bus_srv;
             break;
 
         case ET_UNIX_SOCKET:
@@ -133,14 +134,16 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
         cleanup_pattern_list (&bubble->host_patt_list);
         cleanup_pattern_list (&bubble->app_patt_list);
 
-        kvlist_for_each (&bubble->subscriber_list, sub_name, sub_data) {
-            BusEndpoint* subscriber;
-            sub_data = kvlist_get (&bus_srv->endpoint_list, sub_name);
+        if (endpoint->type != ET_BUILTIN) {
+            kvlist_for_each (&bubble->subscriber_list, sub_name, sub_data) {
+                BusEndpoint* subscriber;
+                sub_data = kvlist_get (&bus_srv->endpoint_list, sub_name);
 
-            if (sub_data) {
-                subscriber = *(BusEndpoint **)sub_data;
-                fire_system_event (bus_srv, SBT_LOST_EVENT_GENERATOR,
-                        endpoint, subscriber, bubble_name);
+                if (sub_data) {
+                    subscriber = *(BusEndpoint **)sub_data;
+                    fire_system_event (bus_srv, SBT_LOST_EVENT_GENERATOR,
+                            endpoint, subscriber, bubble_name);
+                }
             }
         }
         kvlist_free (&bubble->subscriber_list);
@@ -149,7 +152,10 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
     }
     kvlist_free (&endpoint->bubble_list);
 
-    if (endpoint->sta_data) free (endpoint->sta_data);
+    /* not for builtin endpoint */
+    if (endpoint->type != ET_BUILTIN && endpoint->sta_data)
+        free (endpoint->sta_data);
+
     if (endpoint->host_name) free (endpoint->host_name);
     if (endpoint->app_name) free (endpoint->app_name);
     if (endpoint->runner_name) free (endpoint->runner_name);
@@ -208,7 +214,7 @@ bool make_endpoint_ready (BusServer* bus_srv,
     return true;
 }
 
-inline static int send_packet_to_endpoint (BusServer* bus_srv,
+int send_packet_to_endpoint (BusServer* bus_srv,
         BusEndpoint* endpoint, const char* body, int len_body)
 {
     if (endpoint->type == ET_UNIX_SOCKET) {
@@ -475,7 +481,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     const char *parameter;
 
     char buff_in_stack [MAX_PAYLOAD_SIZE];
-    int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
+    int ret_code, sz_packet_buff = sizeof (buff_in_stack), n = 0;
     char result_id [LEN_UNIQUE_ID + 1], *result, *escaped_result = NULL;
     char* packet_buff = NULL;
 
@@ -560,10 +566,10 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     assert (to_method->handler);
 
     hibus_generate_unique_id (result_id, "result");
-    ret_code = expected_time; // XXX
     clock_gettime (CLOCK_REALTIME, &ts_start);
     time_diff = hibus_get_elapsed_seconds (ts, &ts_start);
-    result = to_method->handler (endpoint, to_method_name, parameter, &ret_code);
+    result = to_method->handler (endpoint, to_endpoint, to_method_name,
+            parameter, &ret_code);
     time_consumed = hibus_get_elapsed_seconds (&ts_start, NULL);
 
     if (ret_code == HIBUS_SC_OK && result) {
@@ -577,12 +583,14 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             sz_packet_buff = strlen (escaped_result) + 256;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
+                sz_packet_buff = sizeof (buff_in_stack);
             }
             else {
                 packet_buff = malloc (sz_packet_buff);
                 if (packet_buff == NULL) {
-                    ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
                     packet_buff = buff_in_stack;
+                    sz_packet_buff = sizeof (buff_in_stack);
+                    ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
                 }
             }
         }
@@ -617,22 +625,35 @@ done:
 
     }
     else if (ret_code == HIBUS_SC_ACCEPTED) {
-        n = snprintf (packet_buff, sz_packet_buff, 
-            "{"
-            "\"packetType\": \"result\","
-            "\"resultId\": \"%s\","
-            "\"callId\": \"%s\","
-            "\"timeDiff\": %f,"
-            "\"timeConsumed\": %f,"
-            "\"retCode\": %d,"
-            "\"retMsg\": \"%s\""
-            "}",
-            result_id, call_id,
-            time_diff, time_consumed,
-            ret_code,
-            hibus_get_error_message (ret_code));
+        BusWaitingInfo waiting_info;
+
+        waiting_info.ts = *ts;
+        waiting_info.expected_time = expected_time;
+        hibus_assemble_endpoint_name (endpoint->host_name, endpoint->app_name,
+                endpoint->runner_name, waiting_info.endpoint_name);
+
+        if (!kvlist_set (&bus_srv->waiting_endpoints, result_id, &waiting_info)) {
+            ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
+        }
+        else {
+            n = snprintf (packet_buff, sz_packet_buff, 
+                "{"
+                "\"packetType\": \"result\","
+                "\"resultId\": \"%s\","
+                "\"callId\": \"%s\","
+                "\"timeDiff\": %f,"
+                "\"timeConsumed\": %f,"
+                "\"retCode\": %d,"
+                "\"retMsg\": \"%s\""
+                "}",
+                result_id, call_id,
+                time_diff, time_consumed,
+                ret_code,
+                hibus_get_error_message (ret_code));
+        }
     }
-    else {
+
+    if (ret_code != HIBUS_SC_OK && ret_code != HIBUS_SC_ACCEPTED) {
         n = snprintf (packet_buff, sz_packet_buff, 
             "{"
             "\"packetType\": \"error\","
@@ -647,9 +668,10 @@ done:
             call_id,
             ret_code,
             hibus_get_error_message (ret_code));
+
     }
 
-    if (n < sz_packet_buff) {
+    if (n > 0 && n < sz_packet_buff) {
         send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
     }
     else {
@@ -667,7 +689,202 @@ done:
 static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const hibus_json* jo, const struct timespec *ts)
 {
-    return HIBUS_SC_NOT_IMPLEMENTED;
+    hibus_json *jo_tmp;
+    int real_ret_code;
+    const char *call_id, *result_id, *from_method_name;
+    double time_diff, time_consumed;
+    const char* ret_value;
+    void* data;
+    BusEndpoint *to_endpoint;
+
+    char buff_in_stack [MAX_PAYLOAD_SIZE];
+    int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
+    char* escaped_ret_value = NULL, *packet_buff = NULL;
+
+    if (json_object_object_get_ex (jo, "resultId", &jo_tmp) &&
+            (result_id = json_object_get_string (jo_tmp))) {
+        if (!hibus_is_valid_unique_id (result_id)) {
+            ret_code = HIBUS_SC_BAD_REQUEST;
+            goto failed;
+        }
+    }
+    else {
+        ret_code = HIBUS_SC_BAD_REQUEST;
+        goto failed;
+    }
+
+    if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
+            (call_id = json_object_get_string (jo_tmp))) {
+        if (!hibus_is_valid_unique_id (call_id)) {
+            ret_code = HIBUS_SC_BAD_REQUEST;
+            goto failed;
+        }
+    }
+    else {
+        ret_code = HIBUS_SC_BAD_REQUEST;
+        goto failed;
+    }
+
+    if (json_object_object_get_ex (jo, "retCode", &jo_tmp) &&
+            (real_ret_code = json_object_get_int (jo_tmp))) {
+    }
+    else {
+        ret_code = HIBUS_SC_BAD_REQUEST;
+        goto failed;
+    }
+
+    if (json_object_object_get_ex (jo, "fromMethod", &jo_tmp) &&
+            (from_method_name = json_object_get_string (jo_tmp))) {
+        if (hibus_is_valid_method_name (from_method_name)) {
+            ret_code = HIBUS_SC_BAD_REQUEST;
+            goto failed;
+        }
+    }
+    else {
+        ret_code = HIBUS_SC_BAD_REQUEST;
+        goto failed;
+    }
+
+    data = kvlist_get (&bus_srv->waiting_endpoints, result_id);
+    if (data == NULL) {
+        ret_code = HIBUS_SC_GONE;
+        goto failed;
+    }
+    else {
+        BusWaitingInfo waiting_info;
+
+        memcpy (&waiting_info, data, sizeof (BusWaitingInfo));
+        kvlist_delete (&bus_srv->waiting_endpoints, result_id);
+
+        if ((data = kvlist_get (&bus_srv->endpoint_list, waiting_info.endpoint_name)) ==
+                NULL) {
+            ret_code = HIBUS_SC_NOT_FOUND;
+            goto failed;
+        }
+        else {
+            /* NOTE: the endpoint might not the caller */
+            to_endpoint = *(BusEndpoint **)data;
+        }
+    }
+
+    if (json_object_object_get_ex (jo, "timeConsumed", &jo_tmp) &&
+            (time_consumed = json_object_get_double (jo_tmp))) {
+    }
+    else {
+        time_consumed = 0.0f;
+    }
+
+    if (json_object_object_get_ex (jo, "retValue", &jo_tmp) &&
+            (ret_value = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        ret_value = NULL;
+    }
+
+    packet_buff = buff_in_stack;
+    if (ret_value) {
+        escaped_ret_value = hibus_escape_string_for_json (ret_value);
+
+        if (escaped_ret_value == NULL) {
+            ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
+            goto failed;
+        }
+        else {
+            sz_packet_buff = strlen (escaped_ret_value) + 256;
+            if (sz_packet_buff <= sizeof (buff_in_stack)) {
+                packet_buff = buff_in_stack;
+                sz_packet_buff = sizeof (buff_in_stack);
+            }
+            else {
+                packet_buff = malloc (sz_packet_buff);
+                if (packet_buff == NULL) {
+                    packet_buff = buff_in_stack;
+                    sz_packet_buff = sizeof (buff_in_stack);
+                    ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
+                    goto failed;
+                }
+            }
+        }
+    }
+    else {
+        escaped_ret_value = NULL;
+    }
+
+    time_diff = hibus_get_elapsed_seconds (ts, NULL);
+    n = snprintf (packet_buff, sz_packet_buff, 
+        "{"
+        "\"packetType\":\"result\","
+        "\"resultId\":\"%s\","
+        "\"callId\":\"%s\","
+        "\"fromEndpoint\":\"@%s/%s/%s\","
+        "\"fromMethod\":\"%s\","
+        "\"timeConsumed\":%f,"
+        "\"timeDiff\":%f,"
+        "\"retCode\":%d,"
+        "\"retMsg\":\"%s\","
+        "\"retValue\":\"%s\""
+        "}",
+        result_id, call_id,
+        endpoint->host_name, endpoint->app_name, endpoint->runner_name,
+        from_method_name, time_consumed, time_diff,
+        real_ret_code, hibus_get_error_message (real_ret_code),
+        escaped_ret_value ? escaped_ret_value : "");
+
+    if (n < sz_packet_buff) {
+        send_packet_to_endpoint (bus_srv, to_endpoint, packet_buff, n);
+        ret_code = HIBUS_SC_OK;
+    }
+    else {
+        ULOG_ERR ("The size of buffer for result packet is too small.\n");
+        ret_code = HIBUS_SC_INTERNAL_SERVER_ERROR;
+    }
+
+failed:
+    if (ret_code != HIBUS_SC_OK) {
+        n = snprintf (packet_buff, sz_packet_buff, 
+            "{"
+            "\"packetType\":\"error\","
+            "\"protocolName\":\"%s\","
+            "\"protocolVersion\":%d,"
+            "\"causedBy\":\"result\","
+            "\"causedId\":\"%s\","
+            "\"retCode\":%d,"
+            "\"retMsg\":\"%s\""
+            "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
+            result_id,
+            ret_code, hibus_get_error_message (ret_code));
+
+        if (n < sz_packet_buff) {
+            send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
+        }
+        else {
+            ULOG_ERR ("The size of buffer for error packet is too small.\n");
+        }
+    }
+    else {
+        n = snprintf (packet_buff, sz_packet_buff, 
+            "{"
+            "\"packetType\":\"resultSent\","
+            "\"resultId\":\"%s\","
+            "\"timeDiff\":%.9f"
+            "}",
+            result_id, time_diff);
+
+        if (n < sz_packet_buff) {
+            send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
+        }
+        else {
+            ULOG_ERR ("The size of buffer for resultSent packet is too small.\n");
+        }
+    }
+
+    if (escaped_ret_value)
+        free (escaped_ret_value);
+    if (packet_buff && packet_buff != buff_in_stack)
+        free (packet_buff);
+
+    return HIBUS_SC_OK;
 }
 
 static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
@@ -683,6 +900,9 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     char buff_in_stack [MAX_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
     char* escaped_data = NULL, *packet_buff = NULL;
+    struct timespec ts_start;
+    double time_diff, time_consumed;
+    unsigned int nr_succeeded = 0, nr_failed = 0;
 
     if (json_object_object_get_ex (jo, "bubbleName", &jo_tmp)) {
         if ((str_tmp = json_object_get_string (jo_tmp))) {
@@ -733,10 +953,13 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             sz_packet_buff = strlen (escaped_data) + 256;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
+                sz_packet_buff = sizeof (buff_in_stack);
             }
             else {
                 packet_buff = malloc (sz_packet_buff);
                 if (packet_buff == NULL) {
+                    packet_buff = buff_in_stack;
+                    sz_packet_buff = sizeof (buff_in_stack);
                     ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
                     goto failed;
                 }
@@ -746,6 +969,9 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     else {
         escaped_data = NULL;
     }
+
+    clock_gettime (CLOCK_REALTIME, &ts_start);
+    time_diff = hibus_get_elapsed_seconds (ts, &ts_start);
 
     n = snprintf (packet_buff, sz_packet_buff, 
         "{"
@@ -772,14 +998,14 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 
             // forward event to subscriber.
             if (sub_data) {
-                double time_diff;
+                double my_time_diff;
                 char str_time_diff [64];
                 BusEndpoint* subscriber;
 
                 subscriber = *(BusEndpoint **)sub_data;
 
-                time_diff = hibus_get_elapsed_seconds (ts, NULL);
-                snprintf (str_time_diff, sizeof (str_time_diff), "%f}", time_diff);
+                my_time_diff = hibus_get_elapsed_seconds (ts, NULL);
+                snprintf (str_time_diff, sizeof (str_time_diff), "%f}", my_time_diff);
                 packet_buff [org_len] = '\0';
                 if (sz_packet_buff > org_len + strlen (str_time_diff)) {
                     strcat (packet_buff, str_time_diff);
@@ -790,9 +1016,11 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                     ret_code = HIBUS_SC_INTERNAL_SERVER_ERROR;
                     break;
                 }
+                nr_succeeded++;
             }
             else {
                 kvlist_delete (&bubble->subscriber_list, name);
+                nr_failed++;
             }
         }
 
@@ -805,7 +1033,6 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 
 failed:
     if (ret_code != HIBUS_SC_OK) {
-
         n = snprintf (packet_buff, sz_packet_buff, 
             "{"
             "\"packetType\": \"error\","
@@ -825,7 +1052,30 @@ failed:
             send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
         }
         else {
-            ULOG_ERR ("The size of buffer for result packet is too small.\n");
+            ULOG_ERR ("The size of buffer for error packet is too small.\n");
+        }
+    }
+    else {
+        time_consumed = hibus_get_elapsed_seconds (&ts_start, NULL);
+
+        n = snprintf (packet_buff, sz_packet_buff, 
+            "{"
+            "\"packetType\":\"eventSent\","
+            "\"eventId\":\"%s\","
+            "\"nrSucceeded\":%u,"
+            "\"nrFailed\":%u,"
+            "\"timeDiff\":%.9f,"
+            "\"timeConsumed\":%.9f"
+            "}",
+            event_id,
+            nr_succeeded, nr_failed,
+            time_diff, time_consumed);
+
+        if (n < sz_packet_buff) {
+            send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
+        }
+        else {
+            ULOG_ERR ("The size of buffer for eventSent packet is too small.\n");
         }
     }
 
@@ -845,7 +1095,7 @@ int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 
     ULOG_INFO ("Handling packet: \n%s\n", json);
 
-    jo = json_object_from_string (json, len, 2);
+    jo = hibus_json_object_from_string (json, len, 2);
     if (jo == NULL) {
         retv = HIBUS_SC_UNPROCESSABLE_PACKET;
         goto done;
@@ -882,7 +1132,7 @@ done:
     return retv;
 }
 
-int register_procedure (BusEndpoint* endpoint, const char* method_name,
+int register_procedure (BusServer *bus_srv, BusEndpoint* endpoint, const char* method_name,
         const char* for_host, const char* for_app, method_handler handler)
 {
     int retv = HIBUS_SC_OK;
@@ -940,7 +1190,7 @@ failed:
     return retv;
 }
 
-int revoke_procedure (BusEndpoint* endpoint, const char* method_name)
+int revoke_procedure (BusServer *bus_srv, BusEndpoint* endpoint, const char* method_name)
 {
     void *data;
     MethodInfo *info;
@@ -965,7 +1215,7 @@ int revoke_procedure (BusEndpoint* endpoint, const char* method_name)
     return HIBUS_SC_OK;
 }
 
-int register_event (BusEndpoint* endpoint, const char* bubble_name,
+int register_event (BusServer *bus_srv, BusEndpoint* endpoint, const char* bubble_name,
         const char* for_host, const char* for_app)
 {
     int retv = HIBUS_SC_OK;
@@ -1023,10 +1273,11 @@ failed:
     return retv;
 }
 
-int revoke_event (BusEndpoint* endpoint, const char* bubble_name)
+int revoke_event (BusServer *bus_srv, BusEndpoint *endpoint, const char* bubble_name)
 {
+    const char* name;
     void *data;
-    BubbleInfo *info;
+    BubbleInfo *bubble;
     char normalized_name [LEN_BUBBLE_NAME + 1];
 
     if (!hibus_is_valid_bubble_name (bubble_name))
@@ -1038,18 +1289,31 @@ int revoke_event (BusEndpoint* endpoint, const char* bubble_name)
         return HIBUS_SC_NOT_FOUND;
     }
 
-    info = *(BubbleInfo **)data;
-    cleanup_pattern_list (&info->host_patt_list);
-    cleanup_pattern_list (&info->app_patt_list);
-    /* TODO: notify subscribers */
+    bubble = *(BubbleInfo **)data;
+    cleanup_pattern_list (&bubble->host_patt_list);
+    cleanup_pattern_list (&bubble->app_patt_list);
 
-    free (info);
+    /* notify subscribers */
+    kvlist_for_each (&bubble->subscriber_list, name, data) {
+        void *sub_data;
+        BusEndpoint* subscriber;
+        sub_data = kvlist_get (&bus_srv->endpoint_list, name);
+
+        if (sub_data) {
+            subscriber = *(BusEndpoint **)sub_data;
+            fire_system_event (bus_srv, SBT_LOST_EVENT_BUBBLE,
+                    endpoint, subscriber, bubble_name);
+        }
+    }
+
+    kvlist_free (&bubble->subscriber_list);
+    free (bubble);
 
     kvlist_delete (&endpoint->bubble_list, normalized_name);
     return HIBUS_SC_OK;
 }
 
-int subscribe_event (BusEndpoint* endpoint,
+int subscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
         const char* bubble_name, BusEndpoint* subscriber)
 {
     void *data;
@@ -1078,7 +1342,7 @@ int subscribe_event (BusEndpoint* endpoint,
     return HIBUS_SC_OK;
 }
 
-int unsubscribe_event (BusEndpoint* endpoint,
+int unsubscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
         const char* bubble_name, BusEndpoint* subscriber)
 {
     void *data;

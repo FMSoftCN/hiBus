@@ -134,39 +134,39 @@ const char* hibus_get_error_message (int err_code)
     return UNKNOWN_ERR_CODE;
 }
 
-hibus_json *json_object_from_string (const char* json, int len, int in_depth)
+hibus_json *hibus_json_object_from_string (const char* json, int len, int in_depth)
 {
-	struct printbuf *pb;
-	struct json_object *obj = NULL;
-	json_tokener *tok;
+    struct printbuf *pb;
+    struct json_object *obj = NULL;
+    json_tokener *tok;
 
-	if (!(pb = printbuf_new())) {
+    if (!(pb = printbuf_new())) {
         ULOG_ERR ("Failed to allocate buffer for parse JSON.\n");
-		return NULL;
-	}
+        return NULL;
+    }
 
-	if (in_depth < 0)
+    if (in_depth < 0)
         in_depth = JSON_TOKENER_DEFAULT_DEPTH;
 
-	tok = json_tokener_new_ex (in_depth);
-	if (!tok) {
+    tok = json_tokener_new_ex (in_depth);
+    if (!tok) {
         ULOG_ERR ("Failed to create a new JSON tokener.\n");
-		printbuf_free (pb);
-		goto error;
-	}
+        printbuf_free (pb);
+        goto error;
+    }
 
-	printbuf_memappend (pb, json, len);
-	obj = json_tokener_parse_ex (tok, pb->buf, printbuf_length (pb));
-	if (obj == NULL) {
+    printbuf_memappend (pb, json, len);
+    obj = json_tokener_parse_ex (tok, pb->buf, printbuf_length (pb));
+    if (obj == NULL) {
         ULOG_ERR ("Failed to parse JSON: %s\n",
                 json_tokener_error_desc (json_tokener_get_error (tok)));
     }
 
-	json_tokener_free(tok);
+    json_tokener_free(tok);
 
 error:
-	printbuf_free(pb);
-	return obj;
+    printbuf_free(pb);
+    return obj;
 }
 
 bool hibus_is_valid_token (const char* token, int max_len)
@@ -407,7 +407,7 @@ int hibus_json_packet_to_object (const char* json, unsigned int json_len,
     int jpt = JPT_BAD_JSON;
     hibus_json *jo_tmp;
 
-    *jo = json_object_from_string (json, json_len, 2);
+    *jo = hibus_json_object_from_string (json, json_len, 2);
     if (*jo == NULL) {
         goto failed;
     }
@@ -490,6 +490,40 @@ void hibus_generate_md5_id (char* id_buff, const char* prefix)
     bin2hex (md5_digest, MD5_DIGEST_SIZE, id_buff);
 }
 
+bool hibus_is_valid_unique_id (const char* id)
+{
+    int n = 0;
+
+    while (id [n]) {
+        if (n > LEN_UNIQUE_ID)
+            return false;
+
+        if (!isalnum (id [n]) && id [n] != '-')
+            return false;
+
+        n++;
+    }
+
+    return true;
+}
+
+bool hibus_is_valid_md5_id (const char* id)
+{
+    int n = 0;
+
+    while (id [n]) {
+        if (n > (MD5_DIGEST_SIZE << 1))
+            return false;
+
+        if (!isalnum (id [n]))
+            return false;
+
+        n++;
+    }
+
+    return true;
+}
+
 double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct timespec *ts2)
 {
     struct timespec ts_curr;
@@ -511,54 +545,54 @@ static const char *json_hex_chars = "0123456789abcdefABCDEF";
 char* hibus_escape_string_for_json (const char* str)
 {
     struct printbuf my_buff, *pb = &my_buff;
-	size_t pos = 0, start_offset = 0;
-	unsigned char c;
+    size_t pos = 0, start_offset = 0;
+    unsigned char c;
 
-	if (printbuf_init (pb)) {
+    if (printbuf_init (pb)) {
         ULOG_ERR ("Failed to initialize buffer for escape string for JSON.\n");
-		return NULL;
-	}
+        return NULL;
+    }
 
-	while (str [pos]) {
+    while (str [pos]) {
         const char* escaped;
 
-		c = str[pos];
-		switch (c) {
-		case '\b':
+        c = str[pos];
+        switch (c) {
+        case '\b':
             escaped = "\\b";
             break;
-		case '\n':
+        case '\n':
             escaped = "\\n";
             break;
-		case '\r':
+        case '\r':
             escaped = "\\n";
             break;
-		case '\t':
+        case '\t':
             escaped = "\\t";
             break;
-		case '\f':
+        case '\f':
             escaped = "\\f";
             break;
-		case '"':
+        case '"':
             escaped = "\\\"";
             break;
-		case '\\':
+        case '\\':
             escaped = "\\\\";
             break;
         default:
             escaped = NULL;
-			if (c < ' ') {
-				char sbuf[7];
-				if (pos - start_offset > 0)
-					printbuf_memappend (pb,
+            if (c < ' ') {
+                char sbuf[7];
+                if (pos - start_offset > 0)
+                    printbuf_memappend (pb,
                             str + start_offset, pos - start_offset);
-				snprintf (sbuf, sizeof (sbuf), "\\u00%c%c",
+                snprintf (sbuf, sizeof (sbuf), "\\u00%c%c",
                         json_hex_chars[c >> 4], json_hex_chars[c & 0xf]);
-				printbuf_memappend_fast (pb, sbuf, sizeof(sbuf) - 1);
-				start_offset = ++pos;
-			}
-			else
-				pos++;
+                printbuf_memappend_fast (pb, sbuf, sizeof(sbuf) - 1);
+                start_offset = ++pos;
+            }
+            else
+                pos++;
             break;
         }
 
@@ -569,10 +603,10 @@ char* hibus_escape_string_for_json (const char* str)
             printbuf_memappend (pb, escaped, strlen (escaped));
             start_offset = ++pos;
         }
-	}
+    }
 
-	if (pos - start_offset > 0)
-		printbuf_memappend (pb, str + start_offset, pos - start_offset);
+    if (pos - start_offset > 0)
+        printbuf_memappend (pb, str + start_offset, pos - start_offset);
 
     return pb->buf;
 }

@@ -548,6 +548,14 @@ error:
 }
 
 static int
+get_waiting_info_len (struct kvlist *kv, const void *data)
+{
+    (void) kv;
+    (void )data;
+    return (int)sizeof (BusWaitingInfo);
+}
+
+static int
 init_bus_server (void)
 {
     BusEndpoint* builtin;
@@ -557,18 +565,20 @@ init_bus_server (void)
     the_server.running = true;
     the_server.server_name = strdup (HIBUS_LOCALHOST);
     kvlist_init (&the_server.endpoint_list, NULL);
+    kvlist_init (&the_server.waiting_endpoints, get_waiting_info_len);
 
     builtin = new_endpoint (&the_server, ET_BUILTIN, NULL);
     if (builtin == NULL) {
         return HIBUS_SC_INSUFFICIENT_STORAGE;
     }
+    the_server.endpoint_builtin = builtin;
 
     if (assemble_endpoint_name (builtin, endpoint_name) <= 0) {
         del_endpoint (&the_server, builtin, CDE_INITIALIZING);
         return HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
 
-    if (!init_builtin_endpoint (builtin)) {
+    if (!init_builtin_endpoint (&the_server, builtin)) {
         del_endpoint (&the_server, builtin, CDE_INITIALIZING);
         return HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
@@ -589,6 +599,8 @@ cleanup_bus_server (void)
     const char* name;
     void* data;
     BusEndpoint* endpoint;
+
+    kvlist_free (&the_server.waiting_endpoints);
 
     kvlist_for_each (&the_server.endpoint_list, name, data) {
         //memcpy (&endpoint, data, sizeof (BusEndpoint*));

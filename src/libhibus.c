@@ -130,7 +130,7 @@ static char *get_challenge_code (hibus_conn *conn)
         goto failed;
     }
 
-    jo = json_object_from_string (payload, len, 2);
+    jo = hibus_json_object_from_string (payload, len, 2);
     if (jo == NULL) {
         goto failed;
     }

@@ -77,6 +77,19 @@ typedef struct BusEndpoint_
     void* sta_data;
 } BusEndpoint;
 
+/* A hiBus waiting information */
+typedef struct BusWaitingInfo_
+{
+    /* time start waiting */
+    struct timespec ts;
+
+    /* expected time in seconds */
+    unsigned int    expected_time;
+
+    /* the name of the waiting endpoint */
+    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+} BusWaitingInfo;
+
 struct WSServer_;
 struct USServer_;
 
@@ -88,12 +101,16 @@ typedef struct BusServer_
     bool running;
 
     char* server_name;
+    BusEndpoint* endpoint_builtin;
 
     struct WSServer_ *ws_srv;
     struct USServer_ *us_srv;
 
-    /* The AVL tree using endpoint name as the key, and BusEndpoint* as the value */
+    /* The KV list using endpoint name as the key, and BusEndpoint* as the value */
     struct kvlist endpoint_list;
+
+    /* The KV list using resultId as the key, and BusEndpoint* as the value */
+    struct kvlist waiting_endpoints;
 
     /* The accepted endpoints but waiting for authentification */
     gs_list *dangling_endpoints;

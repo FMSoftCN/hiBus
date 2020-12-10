@@ -176,7 +176,7 @@ extern "C" {
  */
 const char* hibus_get_error_message (int err_code);
 
-hibus_json *json_object_from_string (const char* json, int len, int in_depth);
+hibus_json *hibus_json_object_from_string (const char* json, int len, int in_depth);
 
 bool hibus_is_valid_token (const char* token, int max_len);
 bool hibus_is_valid_host_name (const char* host_name);
@@ -215,6 +215,9 @@ void hibus_generate_unique_id (char* id_buff, const char* prefix);
 /* generate a unique id by using MD5 digest algorithm
    The buffer size should be at least 33. */
 void hibus_generate_md5_id (char* id_buff, const char* prefix);
+
+bool hibus_is_valid_unique_id (const char* id);
+bool hibus_is_valid_md5_id (const char* id);
 
 /* calculate the elapsed seconds in float number */
 double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct timespec *ts2);
