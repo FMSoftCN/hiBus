@@ -155,6 +155,7 @@ typedef struct WSQueue_
   int qlen;                     /* queue length */
 } WSQueue;
 
+#if 0   /* deprecated */
 typedef struct WSPacket_
 {
   uint32_t type;                /* packet type (fixed-size) */
@@ -162,6 +163,15 @@ typedef struct WSPacket_
   char *data;                   /* payload */
   int len;                      /* payload buffer len */
 } WSPacket;
+
+/* FD event states */
+typedef struct WSEState_
+{
+  fd_set master;
+  fd_set rfds;
+  fd_set wfds;
+} WSEState;
+#endif
 
 /* WS HTTP Headers */
 typedef struct WSHeaders_
@@ -219,14 +229,6 @@ typedef struct WSMessage_
   struct timespec ts;           /* time got the first frame of the message */
 } WSMessage;
 
-/* FD event states */
-typedef struct WSEState_
-{
-  fd_set master;
-  fd_set rfds;
-  fd_set wfds;
-} WSEState;
-
 /* A WebSocket Client */
 typedef struct WSClient_
 {
@@ -236,7 +238,7 @@ typedef struct WSClient_
   char remote_ip[INET6_ADDRSTRLEN];     /* client IP */
 
   WSQueue *sockqueue;           /* sending buffer */
-  WSEState *state;              /* FDs states */
+  //WSEState *state;              /* FDs states */
   WSHeaders *headers;           /* HTTP headers */
   WSFrame *frame;               /* frame headers */
   WSMessage *message;           /* message */

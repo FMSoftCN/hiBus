@@ -468,7 +468,7 @@ ws_close (WSClient* client)
  * bytes.
  *
  * The given number of bytes are returned. */
-static int
+static inline int
 ws_set_status (WSClient * client, WSStatus status, int bytes)
 {
   client->status = status;

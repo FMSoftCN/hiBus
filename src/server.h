@@ -24,9 +24,7 @@
 #define _HIBUS_SERVER_H_
 
 #include <hibox/gslist.h>
-#include <hibox/avl.h>
 #include <hibox/kvlist.h>
-#include <hibox/gslist.h>
 
 #include "hibus.h"
 
