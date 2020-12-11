@@ -97,12 +97,12 @@ static struct  {
         "Internal Server Error" },
     { HIBUS_SC_NOT_IMPLEMENTED,     /* 501 */
         "Not Implemented" },
-    { HIBUS_SC_BAD_GATEWAY,         /* 502 */
-        "Bad Gateway" },
+    { HIBUS_SC_BAD_CALLEE,          /* 502 */
+        "Bad Callee" },
     { HIBUS_SC_SERVICE_UNAVAILABLE, /* 503 */
         "Service Unavailable" },
-    { HIBUS_SC_GATEWAY_TIMEOUT,     /* 504 */
-        "Gateway Timeout" },
+    { HIBUS_SC_CALLEE_TIMEOUT,      /* 504 */
+        "Callee Timeout" },
     { HIBUS_SC_INSUFFICIENT_STORAGE,    /* 507 */
         "Insufficient Storage" },
 };

@@ -89,9 +89,9 @@
 #define HIBUS_SC_UNAVAILABLE_FOR_LEGAL_REASONS             451
 #define HIBUS_SC_INTERNAL_SERVER_ERROR  500
 #define HIBUS_SC_NOT_IMPLEMENTED        501
-#define HIBUS_SC_BAD_GATEWAY            502
+#define HIBUS_SC_BAD_CALLEE             502
 #define HIBUS_SC_SERVICE_UNAVAILABLE    503
-#define HIBUS_SC_GATEWAY_TIMEOUT        504
+#define HIBUS_SC_CALLEE_TIMEOUT         504
 #define HIBUS_SC_INSUFFICIENT_STORAGE   507
 
 #define HIBUS_EC_IO         (-1)
@@ -109,6 +109,8 @@
 #define LEN_ENDPOINT_NAME   (LEN_HOST_NAME + LEN_APP_NAME + LEN_RUNNER_NAME + 3)
 
 #define LEN_UNIQUE_ID       63
+#define MIN_PACKET_BUFF_SIZE    512
+#define DEF_PACKET_BUFF_SIZE    1024
 
 /* the maximal size of a payload in a frame */
 #define MAX_PAYLOAD_SIZE    4096    /* 4 KiB max frame payload size */
