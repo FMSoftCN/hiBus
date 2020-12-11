@@ -37,11 +37,15 @@
 
 BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
 {
+    struct timespec ts;
     BusEndpoint* endpoint = NULL;
 
     endpoint = (BusEndpoint *)calloc (sizeof (BusEndpoint), 1);
     if (endpoint == NULL)
         return NULL;
+
+    clock_gettime (CLOCK_REALTIME, &ts);
+    endpoint->t_created = ts.tv_sec;
 
     switch (type) {
         case ET_BUILTIN:

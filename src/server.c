@@ -499,7 +499,7 @@ run_server (void)
                     ULOG_NOTE ("Refused a client\n");
                 }
                 else {
-                    ev.events = EPOLLIN | EPOLLET;
+                    ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
                     ev.data.ptr = client;
                     if (epoll_ctl (the_server.epollfd,
                                 EPOLL_CTL_ADD, client->fd, &ev) == -1) {
@@ -515,7 +515,7 @@ run_server (void)
                     ULOG_NOTE ("Refused a client\n");
                 }
                 else {
-                    ev.events = EPOLLIN | EPOLLET;
+                    ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
                     ev.data.ptr = client;
                     if (epoll_ctl(the_server.epollfd,
                                 EPOLL_CTL_ADD, client->fd, &ev) == -1) {
@@ -528,11 +528,24 @@ run_server (void)
             else {
                 USClient *usc = (USClient *)events[n].data.ptr;
                 if (usc->type == ET_UNIX_SOCKET) {
-                    us_handle_reads (the_server.us_srv, usc);
+                    if (events[n].events & EPOLLIN) {
+                        us_handle_reads (the_server.us_srv, usc);
+                    }
+                    else if (events[n].events & EPOLLOUT) {
+                        us_handle_writes (the_server.us_srv, usc);
+                    }
+                    else {
+                        ULOG_WARN ("Unhandled event type for fd: %d\n", usc->fd);
+                    }
                 }
-                else if (usc->type == ET_UNIX_SOCKET) {
+                else if (usc->type == ET_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
-                    ws_handle_reads (the_server.ws_srv, wsc);
+                    if (events[n].events & EPOLLIN) {
+                        ws_handle_reads (the_server.ws_srv, wsc);
+                    }
+                    else if (events[n].events & EPOLLOUT) {
+                        ws_handle_writes (the_server.ws_srv, wsc);
+                    }
                 }
                 else {
                     ULOG_ERR ("Bad socket type (%d): %s\n",

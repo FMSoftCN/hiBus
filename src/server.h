@@ -61,6 +61,9 @@ typedef struct BusEndpoint_
         struct USClient_ *usc;
     };
 
+    time_t  t_created;
+    time_t  t_living;
+
     char*   host_name;
     char*   app_name;
     char*   runner_name;
