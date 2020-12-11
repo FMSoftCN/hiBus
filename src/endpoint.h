@@ -57,13 +57,22 @@ int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint);
 int handle_json_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const struct timespec *ts, const char* json, unsigned int len);
 
-typedef char* (*method_handler) (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+typedef char* (*method_handler) (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code);
 
 typedef struct _pattern_list {
     struct list_head list;
     int nr_patterns;
 } pattern_list;
+
+/* Call information */
+typedef struct CallInfo_
+{
+    const char* call_id;
+    const char* result_id;
+    double      time_diff;
+} CallInfo;
 
 /* Method information */
 typedef struct MethodInfo_

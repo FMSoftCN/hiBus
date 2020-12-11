@@ -52,7 +52,6 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
             endpoint->host_name = strdup (bus_srv->server_name);
             endpoint->app_name = strdup (HIBUS_APP_HIBUS);
             endpoint->runner_name = strdup (HIBUS_RUNNER_BUILITIN);
-            endpoint->sta_data = bus_srv;
             break;
 
         case ET_UNIX_SOCKET:
@@ -153,7 +152,7 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
     kvlist_free (&endpoint->bubble_list);
 
     /* not for builtin endpoint */
-    if (endpoint->type != ET_BUILTIN && endpoint->sta_data)
+    if (endpoint->sta_data)
         free (endpoint->sta_data);
 
     if (endpoint->host_name) free (endpoint->host_name);
@@ -235,7 +234,7 @@ int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint)
     char key [32];
     unsigned char ch_code_bin [SHA256_DIGEST_SIZE];
     char *ch_code;
-    char buff [1024];
+    char buff [DEF_PACKET_BUFF_SIZE];
 
     if ((endpoint->sta_data = malloc (SHA256_DIGEST_SIZE * 2 + 1)) == NULL) {
         return HIBUS_SC_INSUFFICIENT_STORAGE;
@@ -420,7 +419,7 @@ static int handle_auth_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const hibus_json* jo)
 {
     if (endpoint->status == ES_AUTHING) {
-        char buff [512];
+        char buff [MIN_PACKET_BUFF_SIZE];
         int retv, n;
 
         assert (endpoint->sta_data);
@@ -479,6 +478,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     struct timespec ts_start;
     double time_diff, time_consumed;
     const char *parameter;
+    CallInfo call_info;
 
     char buff_in_stack [MAX_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n = 0;
@@ -568,8 +568,15 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     hibus_generate_unique_id (result_id, "result");
     clock_gettime (CLOCK_REALTIME, &ts_start);
     time_diff = hibus_get_elapsed_seconds (ts, &ts_start);
-    result = to_method->handler (endpoint, to_endpoint, to_method_name,
+
+    call_info.call_id = call_id;
+    call_info.result_id = result_id;
+    call_info.time_diff = time_diff;
+    endpoint->sta_data = &call_info;
+    result = to_method->handler (bus_srv, endpoint, to_endpoint, to_method_name,
             parameter, &ret_code);
+    endpoint->sta_data = NULL;
+
     time_consumed = hibus_get_elapsed_seconds (&ts_start, NULL);
 
     if (ret_code == HIBUS_SC_OK && result) {
@@ -580,7 +587,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
         }
         else {
-            sz_packet_buff = strlen (escaped_result) + 256;
+            sz_packet_buff = strlen (escaped_result) + MIN_PACKET_BUFF_SIZE;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
                 sz_packet_buff = sizeof (buff_in_stack);
@@ -790,7 +797,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             goto failed;
         }
         else {
-            sz_packet_buff = strlen (escaped_ret_value) + 256;
+            sz_packet_buff = strlen (escaped_ret_value) + MIN_PACKET_BUFF_SIZE;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
                 sz_packet_buff = sizeof (buff_in_stack);
@@ -950,7 +957,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             goto failed;
         }
         else {
-            sz_packet_buff = strlen (escaped_data) + 256;
+            sz_packet_buff = strlen (escaped_data) + MIN_PACKET_BUFF_SIZE;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
                 sz_packet_buff = sizeof (buff_in_stack);

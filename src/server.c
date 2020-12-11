@@ -1,5 +1,5 @@
 /*
-** hibusd.c -- The code for hiBus daemon.
+** server.c -- The code for hiBus daemon.
 **
 ** Copyright (c) 2020 FMSoft (http://www.fmsoft.cn)
 **
