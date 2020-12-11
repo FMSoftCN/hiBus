@@ -304,66 +304,6 @@ chop_nchars (char *str, size_t n, size_t len)
   return (len - n);
 }
 
-#if 0
-/* Match a client given a socket id and an item from the list.
- *
- * On match, 1 is returned, else 0. */
-static int
-ws_find_client_sock_in_list (void *data, void *needle)
-{
-  WSClient *client = data;
-
-  return client->fd == (*(int *) needle);
-}
-
-/* Find a client given a socket id.
- *
- * On success, an instance of a GSLList node is returned, else NULL. */
-static GSLList *
-ws_get_list_node_from_list (int listener, GSLList ** colist)
-{
-  GSLList *match = NULL;
-
-  /* Find the client data for the socket in use */
-  if (!(match = gslist_find (*colist, ws_find_client_sock_in_list, &listener)))
-    return NULL;
-  return match;
-}
-
-/* Find a client given a socket id.
- *
- * On success, an instance of a WSClient is returned, else NULL. */
-static WSClient *
-ws_get_client_from_list (int listener, GSLList ** colist)
-{
-  GSLList *match = NULL;
-
-  /* Find the client data for the socket in use */
-  if (!(match = gslist_find (*colist, ws_find_client_sock_in_list, &listener)))
-    return NULL;
-  return (WSClient *) match->data;
-}
-
-/* Remove the given client from the list. */
-static void
-ws_remove_client_from_list (WSServer * server, WSClient * client)
-{
-    GSLList *node = NULL;
-    if (!(node = ws_get_list_node_from_list (client->fd, &server->colist)))
-        return;
-
-    if (client->headers)
-        ws_clear_handshake_headers (client->headers);
-
-    //us_client_cleanup (client->us_buddy);
-    //free (client->us_buddy);
-    //client->us_buddy = NULL;
-
-    gslist_remove_node (&server->colist, node);
-}
-
-#endif
-
 /* Free a frame structure and its data for the given client. */
 static void
 ws_free_frame (WSClient * client)
@@ -510,21 +450,6 @@ ws_remove_dangling_client (WSServer * server, WSClient *client)
 void
 ws_stop (WSServer * server)
 {
-#if 0
-  /* close access log (if any) */
-  if (server->config->accesslog)
-    access_log_close ();
-#endif
-
-#if 0
-  /* remove dangling clients */
-  if (gslist_count (server->colist) > 0)
-    gslist_foreach (server->colist, ws_remove_dangling_clients, NULL);
-
-  if (server->colist)
-    gslist_remove_nodes (server->colist);
-#endif
-
 #ifdef HAVE_LIBSSL
   ws_ssl_cleanup (server);
 #endif
@@ -928,14 +853,6 @@ accept_client (int listener /*, GSLList ** colist */)
   client = new_wsclient ();
   client->fd = newfd;
   inet_ntop (raddr.ss_family, src, client->remote_ip, INET6_ADDRSTRLEN);
-
-#if 0
-  /* add up our new client to keep track of */
-  if (*colist == NULL)
-    *colist = gslist_create (client);
-  else
-    *colist = gslist_insert_prepend (*colist, client);
-#endif
 
   /* make the socket non-blocking */
   set_nonblocking (client->fd);
@@ -1554,27 +1471,6 @@ ws_get_handshake (WSServer * server, WSClient * client)
   /* handshake response */
   ws_send_handshake_headers (server, client, client->headers);
 
-#if 0
-  /* upon success, call on_conn() callback */
-  if (server->on_conn && !server->config->echomode) {
-    pid_t pid_buddy = server->on_conn (client);
-
-    if (pid_buddy > 0) {
-        client->pid_buddy = pid_buddy;
-        client->status_buddy = WS_BUDDY_LAUNCHED;
-        client->launched_time_buddy = time (NULL);
-    }
-    else if (pid_buddy == 0) {
-        http_error (server, client, WS_BAD_REQUEST_STR);
-        return ws_set_status (client, WS_CLOSE, bytes);
-    }
-    else {
-        http_error (server, client, WS_INTERNAL_ERROR_STR);
-        return ws_set_status (client, WS_CLOSE, bytes);
-    }
-  }
-#endif
-
   client->headers->reading = 0;
 
   /* do access logging */
@@ -1831,16 +1727,8 @@ ws_handle_text_bin (WSServer * server, WSClient * client)
   }
 
   if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->on_packet) {
-#if 0
-    /* just echo the message to the client */
-    if (server->config->echomode)
-      ws_send_data (server, client, (*msg)->opcode, (*msg)->payload, (*msg)->payloadsz);
-    else
-      server->on_packet (client);
-#else
     server->on_packet (client, (*msg)->payload, (*msg)->payloadsz,
             (client->message->opcode == WS_OPCODE_TEXT) ? PT_TEXT : PT_BINARY);
-#endif
   }
   ws_free_message (client);
 }
@@ -2129,13 +2017,8 @@ ws_handle_tcp_close (WSServer * server, WSClient * client)
 
   shutdown (client->fd, SHUT_RDWR);
   /* upon close, call on_close() callback */
-#if 0
-  if (server->on_close && !server->config->echomode)
-    (*server->on_close) (client);
-#else
   if (server->on_close)
     (*server->on_close) (client);
-#endif
 
   /* do access logging */
   gettimeofday (&client->end_proc, NULL);
@@ -2158,14 +2041,8 @@ ws_handle_tcp_close (WSServer * server, WSClient * client)
   client->ssl = NULL;
 #endif
 
-#if 0
-  /* remove client from our list */
-  ws_remove_client_from_list (server, client);
-  ULOG_NOTE ("Active: %d\n", gslist_count (server->colist));
-#else
   server->nr_clients--;
   ULOG_NOTE ("Active: %d\n", server->nr_clients);
-#endif
 }
 
 /* Handle a tcp read close connection. */
@@ -2188,11 +2065,6 @@ ws_handle_accept (WSServer * server, int listener)
   client = accept_client (listener/*, &server->colist*/);
   if (client == NULL)
     return NULL;
-
-#if 0
-  client = ws_get_client_from_list (newfd, &server->colist);
-  server->nr_clients = gslist_count (server->colist);
-#endif
 
   server->nr_clients++;
   if (server->nr_clients > MAX_CLIENTS_EACH) {
@@ -2223,12 +2095,6 @@ ws_handle_accept (WSServer * server, int listener)
 int
 ws_handle_reads (WSServer * server, WSClient * client)
 {
-#if 0
-  WSClient *client = NULL;
-  if (!(client = ws_get_client_from_list (conn, &server->colist)))
-    return 1;
-#endif
-
 #ifdef HAVE_LIBSSL
   if (handle_ssl_pending_rw (server, client) == 0)
     return 1;
@@ -2263,12 +2129,6 @@ handle_write_close (WSServer * server, WSClient * client)
 int
 ws_handle_writes (WSServer * server, WSClient * client)
 {
-#if 0
-  WSClient *client = NULL; 
-  if (!(client = ws_get_client_from_list (conn, &server->colist)))
-    return 1;
-#endif
-
 #ifdef HAVE_LIBSSL
   if (handle_ssl_pending_rw (server, client) == 0)
     return 1;
