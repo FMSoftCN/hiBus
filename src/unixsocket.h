@@ -87,23 +87,23 @@ typedef struct USServer_
     int (*on_packet) (struct USServer_* server, USClient* client,
             const char* body, unsigned int sz_body, int type);
     int (*on_close) (struct USServer_* server, USClient* client);
+    void (*on_error) (struct USServer_* server, USClient* client, int err_code);
 
     const ServerConfig* config;
 } USServer;
 
 USServer *us_init (const ServerConfig* config);
+int us_listen (USServer* server);
 void us_stop (USServer *server);
 
-int us_listen (USServer* server);
 USClient *us_handle_accept (USServer *server);
 int us_handle_reads (USServer *server, USClient* usc);
 int us_handle_writes (USServer *server, USClient *usc);
 int us_remove_dangling_client (USServer * server, USClient *usc);
-int us_client_cleanup (USServer* server, USClient* usc);
+int us_cleanup_client (USServer* server, USClient* usc);
 
-void us_send_error_packet (USServer* us_srv, USClient* usc, int err_code);
 int us_ping_client (USServer* server, USClient* usc);
-int us_send_data (USServer* server, USClient* usc,
+int us_send_packet (USServer* server, USClient* usc,
         USOpcode op, const void *data, unsigned int sz);
 
 #endif // for #ifndef _HIBUS_UNIXSOCKET_H

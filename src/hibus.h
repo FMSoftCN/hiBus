@@ -119,6 +119,8 @@
 /* the maximal size of a packet which will be held in memory */
 #define MAX_INMEM_PACKET_SIZE   40960
 
+#define MAX_NO_RESPONDING_TIME  90  /* 90 seconds */
+
 typedef enum USOpcode_ {
     US_OPCODE_CONTINUATION = 0x00,
     US_OPCODE_TEXT = 0x01,

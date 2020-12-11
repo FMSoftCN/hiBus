@@ -263,13 +263,11 @@ typedef struct WSServer_
   int nr_clients;
 
   /* Callbacks */
-  int (*on_conn) (WSClient * client);
-  int (*on_packet) (WSClient * client,
+  int (*on_accepted) (struct WSServer_* server, WSClient * client);
+  int (*on_packet) (struct WSServer_* server, WSClient * client,
           const char* body, unsigned int sz_body, int type);
-  int (*on_close) (WSClient * client);
-
-  /* Connected Clients
-  GSLList *colist; */
+  int (*on_close) (struct WSServer_* server, WSClient * client);
+  void (*on_error) (struct WSServer_* server, WSClient* client, int err_code);
 
 #ifdef HAVE_LIBSSL
   SSL_CTX *ctx;
@@ -281,20 +279,19 @@ typedef struct WSServer_
 size_t pack_uint32 (void *buf, uint32_t val, int convert);
 size_t unpack_uint32 (const void *buf, uint32_t * val, int convert);
 
-int ws_send_data (WSServer * server, WSClient * client,
+int ws_send_packet (WSServer * server, WSClient * client,
         WSOpcode op, const char *data, int sz);
 int ws_validate_string (const char *str, int len);
 
 WSServer *ws_init (ServerConfig * config);
 int ws_initialize_ssl_ctx (WSServer * server);
 int ws_listen (WSServer *server);
+void ws_stop (WSServer *server);
 
 WSClient* ws_handle_accept (WSServer * server, int listener);
-void ws_handle_tcp_close (WSServer * server, WSClient * client);
 int ws_handle_reads (WSServer * server, WSClient * client);
 int ws_handle_writes (WSServer * server, WSClient * client);
-
 int ws_remove_dangling_client (WSServer * server, WSClient *client);
-void ws_stop (WSServer *server);
+void ws_cleanup_client (WSServer * server, WSClient * client);
 
 #endif // _HIBUS_WEBSOCKET_H

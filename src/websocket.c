@@ -1486,7 +1486,7 @@ ws_get_handshake (WSServer * server, WSClient * client)
  *
  * On success, 0 is returned. */
 int
-ws_send_data (WSServer * server, WSClient * client, WSOpcode opcode, const char *p, int sz)
+ws_send_packet (WSServer * server, WSClient * client, WSOpcode opcode, const char *p, int sz)
 {
   char *buf = NULL;
 
@@ -1727,7 +1727,7 @@ ws_handle_text_bin (WSServer * server, WSClient * client)
   }
 
   if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->on_packet) {
-    server->on_packet (client, (*msg)->payload, (*msg)->payloadsz,
+    server->on_packet (server, client, (*msg)->payload, (*msg)->payloadsz,
             (client->message->opcode == WS_OPCODE_TEXT) ? PT_TEXT : PT_BINARY);
   }
   ws_free_message (client);
@@ -2008,7 +2008,7 @@ read_client_data (WSServer * server, WSClient * client)
 
 /* Handle a tcp close connection. */
 void
-ws_handle_tcp_close (WSServer * server, WSClient * client)
+ws_cleanup_client (WSServer * server, WSClient * client)
 {
 #ifdef HAVE_LIBSSL
   if (client->ssl)
@@ -2018,7 +2018,7 @@ ws_handle_tcp_close (WSServer * server, WSClient * client)
   shutdown (client->fd, SHUT_RDWR);
   /* upon close, call on_close() callback */
   if (server->on_close)
-    (*server->on_close) (client);
+    (*server->on_close) (server, client);
 
   /* do access logging */
   gettimeofday (&client->end_proc, NULL);
@@ -2053,7 +2053,7 @@ handle_ws_read_close (WSServer * server, WSClient * client)
     server->closing = 1;
     return;
   }
-  ws_handle_tcp_close (server, client);
+  ws_cleanup_client (server, client);
 }
 
 /* Handle a new socket connection. */
@@ -2082,6 +2082,18 @@ ws_handle_accept (WSServer * server, int listener)
 #endif
 
   /* TODO: call on_accepted */
+  if (server->on_accepted) {
+      int ret_code;
+      ret_code = server->on_accepted (server, client);
+      if (ret_code != HIBUS_SC_OK) {
+          ULOG_WARN ("Internal error after accepted this WebSocket client (%d): %d\n",
+                  client->fd, ret_code);
+
+          server->on_error (server, client, ret_code);
+          handle_ws_read_close (server, client);
+          return NULL;
+      }
+  }
 
   ULOG_NOTE ("Accepted: %d %s\n", client->fd, client->remote_ip);
   return client;
@@ -2118,7 +2130,7 @@ ws_handle_reads (WSServer * server, WSClient * client)
 static void
 handle_write_close (WSServer * server, WSClient * client)
 {
-  ws_handle_tcp_close (server, client);
+  ws_cleanup_client (server, client);
 }
 
 /* Handle a tcp write.

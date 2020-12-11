@@ -226,7 +226,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
     unsigned int sig_len;
     char* enc_sig = NULL;
     unsigned int enc_sig_len;
-    char buff [1024];
+    char buff [DEF_PACKET_BUFF_SIZE];
 
     sig = hibus_sign_data (conn->app_name,
             (const unsigned char *)ch_code, strlen (ch_code), &sig_len);
@@ -247,7 +247,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
     free (sig);
     sig = NULL;
 
-    retv = snprintf (buff, 1024, 
+    retv = snprintf (buff, sizeof (buff), 
             "{"
             "\"packetType\":\"auth\","
             "\"protocolName\":\"%s\","

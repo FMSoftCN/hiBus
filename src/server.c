@@ -381,14 +381,14 @@ on_packet_us (USServer* us_srv, USClient* client,
 static int
 on_close_us (USServer* us_srv, USClient* client)
 {
+    if (epoll_ctl (the_server.epollfd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
+        ULOG_ERR ("Failed to call epoll_ctl to delete the client fd (%d): %s\n",
+                client->fd, strerror (errno));
+    }
+
     if (client->priv_data) {
         BusEndpoint *endpoint = (BusEndpoint *)client->priv_data;
         char endpoint_name [LEN_ENDPOINT_NAME + 1];
-
-        if (epoll_ctl (the_server.epollfd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
-            ULOG_ERR ("Failed to call epoll_ctl to delete the client fd (%d): %s\n",
-                    client->fd, strerror (errno));
-        }
 
         if (endpoint->status == ES_AUTHING) {
             remove_dangling_endpoint (&the_server, endpoint);
@@ -411,6 +411,31 @@ on_close_us (USServer* us_srv, USClient* client)
     return 0;
 }
 
+static void
+on_error_us (USServer* us_srv, USClient* client, int err_code)
+{
+    int size;
+    char buff [MIN_PACKET_BUFF_SIZE];
+
+    size = snprintf (buff, sizeof (buff), 
+            "{"
+            "\"packetType\":\"error\","
+            "\"protocolName\":\"%s\","
+            "\"protocolVersion\":%d,"
+            "\"retCode\":%d,"
+            "\"retMsg\":\"%s\""
+            "}",
+            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
+            err_code, hibus_get_error_message (err_code));
+
+    if (size >= sizeof (buff)) {
+        // should never reach here
+        assert (0);
+    }
+
+    us_send_packet (us_srv, client, US_OPCODE_TEXT, buff, strlen (buff));
+}
+
 /* max events for epoll */
 #define MAX_EVENTS          10
 #define PTR_FOR_US_LISTENER ((void *)1)
@@ -421,6 +446,8 @@ run_server (void)
 {
     int us_listener = -1, ws_listener = -1;
     struct epoll_event ev, events[MAX_EVENTS];
+    time_t t_last = time (NULL);
+    time_t t_diff;
 
     // create unix socket
     if ((us_listener = us_listen (the_server.us_srv)) < 0) {
@@ -433,6 +460,7 @@ run_server (void)
     the_server.us_srv->on_accepted = on_accepted_us;
     the_server.us_srv->on_packet = on_packet_us;
     the_server.us_srv->on_close = on_close_us;
+    the_server.us_srv->on_error = on_error_us;
 
     // create web socket listener if enabled
     if (the_server.ws_srv) {
@@ -527,23 +555,32 @@ run_server (void)
             }
             else {
                 USClient *usc = (USClient *)events[n].data.ptr;
+                struct timespec ts;
+
+                clock_gettime (CLOCK_REALTIME, &ts);
+
                 if (usc->type == ET_UNIX_SOCKET) {
+                    BusEndpoint *endpoint = usc->priv_data;
+
+                    endpoint->t_living = ts.tv_sec;
+
                     if (events[n].events & EPOLLIN) {
                         us_handle_reads (the_server.us_srv, usc);
                     }
-                    else if (events[n].events & EPOLLOUT) {
+                    if (events[n].events & EPOLLOUT) {
                         us_handle_writes (the_server.us_srv, usc);
-                    }
-                    else {
-                        ULOG_WARN ("Unhandled event type for fd: %d\n", usc->fd);
                     }
                 }
                 else if (usc->type == ET_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
+                    BusEndpoint *endpoint = wsc->priv_data;
+
+                    endpoint->t_living = ts.tv_sec;
+
                     if (events[n].events & EPOLLIN) {
                         ws_handle_reads (the_server.ws_srv, wsc);
                     }
-                    else if (events[n].events & EPOLLOUT) {
+                    if (events[n].events & EPOLLOUT) {
                         ws_handle_writes (the_server.ws_srv, wsc);
                     }
                 }
@@ -553,6 +590,14 @@ run_server (void)
                     goto error;
                 }
             }
+        }
+
+        t_diff = time (NULL) - t_last;
+        if (t_diff % 10) {
+            check_no_responding_endpoints (&the_server);
+        }
+        else if (t_diff % 5) {
+            check_dangling_endpoints (&the_server);
         }
     }
 
@@ -624,11 +669,11 @@ cleanup_bus_server (void)
         if (endpoint->type != ET_BUILTIN) {
             if (endpoint->type == ET_UNIX_SOCKET && endpoint->usc) {
                 endpoint->usc->priv_data = NULL;    // avoid re-entrance
-                us_client_cleanup (the_server.us_srv, endpoint->usc);
+                us_cleanup_client (the_server.us_srv, endpoint->usc);
             }
             else if (endpoint->type == ET_WEB_SOCKET && endpoint->wsc) {
                 endpoint->wsc->priv_data = NULL;    // avoid re-entrance
-                ws_handle_tcp_close (the_server.ws_srv, endpoint->wsc);
+                ws_cleanup_client (the_server.ws_srv, endpoint->wsc);
             }
         }
 

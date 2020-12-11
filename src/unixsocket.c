@@ -188,31 +188,6 @@ set_nonblocking (int sock)
     return 0;
 }
 
-void
-us_send_error_packet (USServer* us_srv, USClient* client, int err_code)
-{
-    int size;
-    char buff [1024];
-
-    size = snprintf (buff, 1024, 
-            "{"
-            "\"packetType\":\"error\","
-            "\"protocolName\":\"%s\","
-            "\"protocolVersion\":%d,"
-            "\"retCode\":%d,"
-            "\"retMsg\":\"%s\""
-            "}",
-            HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
-            err_code, hibus_get_error_message (err_code));
-
-    if (size >= sizeof (buff)) {
-        // should never reach here
-        assert (0);
-    }
-
-    us_send_data (us_srv, client, US_OPCODE_TEXT, buff, strlen (buff));
-}
-
 /* Handle a new UNIX socket connection. */
 USClient *
 us_handle_accept (USServer* server)
@@ -249,7 +224,7 @@ us_handle_accept (USServer* server)
 
     if (server->nr_clients > MAX_CLIENTS_EACH) {
         ULOG_WARN ("Too many clients (maximal clients allowed: %d)\n", MAX_CLIENTS_EACH);
-        us_send_error_packet (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
+        server->on_error (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
         goto cleanup;
     }
 
@@ -260,7 +235,7 @@ us_handle_accept (USServer* server)
             ULOG_WARN ("Internal error after accepted this client (%d): %d\n",
                     newfd, ret_code);
 
-            us_send_error_packet (server, usc, ret_code);
+            server->on_error (server, usc, ret_code);
             goto cleanup;
         }
     }
@@ -270,7 +245,7 @@ us_handle_accept (USServer* server)
     return usc;
 
 cleanup:
-    us_client_cleanup (server, usc);
+    us_cleanup_client (server, usc);
     return NULL;
 
 failed:
@@ -543,16 +518,11 @@ int us_handle_reads (USServer* server, USClient* usc)
 
 done:
     if (err_code) {
-        /* read and discard all payload
-        char buff [1024];
-        while (read (usc->fd, buff, sizeof (buff)) == sizeof (buff));
-        */
-
         if (sta_code) {
-            us_send_error_packet (server, usc, sta_code);
+            server->on_error (server, usc, sta_code);
         }
 
-        us_client_cleanup (server, usc);
+        us_cleanup_client (server, usc);
     }
 
     return err_code;
@@ -570,10 +540,10 @@ got_packet:
     if (sta_code != HIBUS_SC_OK) {
         ULOG_WARN ("Internal error after got a packet: %d\n", sta_code);
 
-        us_send_error_packet (server, usc, sta_code);
+        server->on_error (server, usc, sta_code);
         err_code = HIBUS_EC_UPPER;
 
-        us_client_cleanup (server, usc);
+        us_cleanup_client (server, usc);
     }
 
     return err_code;
@@ -592,7 +562,7 @@ int us_handle_writes (USServer *server, USClient *usc)
     }
 
     if ((usc->status & US_CLOSE) && !(usc->status & US_SENDING)) {
-        us_client_cleanup (server, usc);
+        us_cleanup_client (server, usc);
         return -1;
     }
 
@@ -623,7 +593,7 @@ int us_ping_client (USServer* server, USClient* usc)
  *
  * return zero on success; none-zero on error.
  */
-int us_send_data (USServer* server, USClient* usc,
+int us_send_packet (USServer* server, USClient* usc,
         USOpcode op, const void* data, unsigned int sz)
 {
     USFrameHeader header;
@@ -698,7 +668,7 @@ int us_remove_dangling_client (USServer *server, USClient *usc)
     return 0;
 }
 
-int us_client_cleanup (USServer *server, USClient *usc)
+int us_cleanup_client (USServer *server, USClient *usc)
 {
     server->on_close (server, usc);
 

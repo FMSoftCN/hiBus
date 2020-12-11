@@ -38,10 +38,11 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client);
 
 /* causes to delete endpoint */
 enum {
+    CDE_SOCKET = 0,
     CDE_INITIALIZING,
     CDE_EXITING,
     CDE_LOST_CONNECTION,
-    CDE_NOT_RESPONDING,
+    CDE_NO_RESPONDING,
 };
 
 int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause);
@@ -50,6 +51,9 @@ bool store_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint);
 bool remove_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint);
 bool make_endpoint_ready (BusServer* bus_srv,
         const char* endpoint_name, BusEndpoint* endpoint);
+
+int check_no_responding_endpoints (BusServer *bus_srv);
+int check_dangling_endpoints (BusServer *bus_srv);
 
 int send_packet_to_endpoint (BusServer* bus_srv,
         BusEndpoint* endpoint, const char* body, int len_body);

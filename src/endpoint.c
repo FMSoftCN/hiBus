@@ -46,6 +46,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
 
     clock_gettime (CLOCK_REALTIME, &ts);
     endpoint->t_created = ts.tv_sec;
+    endpoint->t_living = ts.tv_sec;
 
     switch (type) {
         case ET_BUILTIN:
@@ -103,9 +104,9 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
 
     if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
         ULOG_INFO ("Deleting an endpoint: %s (%p)\n", endpoint_name, endpoint);
-        if (cause == CDE_LOST_CONNECTION || cause == CDE_NOT_RESPONDING) {
+        if (cause == CDE_LOST_CONNECTION || cause == CDE_NO_RESPONDING) {
             fire_system_event (bus_srv, SBT_BROKEN_ENDPOINT, endpoint, NULL,
-                    (cause == CDE_LOST_CONNECTION) ? "lostConnection" : "notResponding");
+                    (cause == CDE_LOST_CONNECTION) ? "lostConnection" : "noResponding");
         }
     }
     else {
@@ -217,15 +218,78 @@ bool make_endpoint_ready (BusServer* bus_srv,
     return true;
 }
 
+static void cleanup_dangling_client (BusServer *bus_srv, BusEndpoint* endpoint)
+{
+    if (endpoint->type == ET_UNIX_SOCKET) {
+        endpoint->usc->priv_data = NULL;
+        us_cleanup_client (bus_srv->us_srv, endpoint->usc);
+    }
+    else if (endpoint->type == ET_WEB_SOCKET) {
+        endpoint->wsc->priv_data = NULL;
+        ws_cleanup_client (bus_srv->ws_srv, endpoint->wsc);
+    }
+
+    ULOG_WARN ("The dangling endpoint (@%s/%s/%s) removed\n",
+            endpoint->host_name, endpoint->app_name, endpoint->runner_name);
+}
+
+int check_no_responding_endpoints (BusServer *bus_srv)
+{
+    int n = 0;
+    struct timespec ts;
+    const char* name;
+    void *next, *data;
+
+    clock_gettime (CLOCK_REALTIME, &ts);
+
+    kvlist_for_each_safe (&bus_srv->endpoint_list, name, next, data) {
+        BusEndpoint* endpoint = *(BusEndpoint **)data;
+
+        if (endpoint->type != ET_BUILTIN &&
+                ts.tv_sec > endpoint->t_living + MAX_NO_RESPONDING_TIME) {
+            kvlist_delete (&bus_srv->endpoint_list, name);
+            cleanup_dangling_client (bus_srv, endpoint);
+            del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
+            n++;
+        }
+    }
+
+    return n;
+}
+
+int check_dangling_endpoints (BusServer *bus_srv)
+{
+    int n = 0;
+    struct timespec ts;
+    gs_list* node = bus_srv->dangling_endpoints;
+
+    clock_gettime (CLOCK_REALTIME, &ts);
+    while (node) {
+        gs_list *next = node->next;
+        BusEndpoint* endpoint = (BusEndpoint *)node->data;
+
+        if (ts.tv_sec > endpoint->t_created + MAX_NO_RESPONDING_TIME) {
+            gslist_remove_node (&bus_srv->dangling_endpoints, node);
+            cleanup_dangling_client (bus_srv, endpoint);
+            del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
+            n++;
+        }
+
+        node = next;
+    }
+
+    return n;
+}
+
 int send_packet_to_endpoint (BusServer* bus_srv,
         BusEndpoint* endpoint, const char* body, int len_body)
 {
     if (endpoint->type == ET_UNIX_SOCKET) {
-        return us_send_data (bus_srv->us_srv, endpoint->usc,
+        return us_send_packet (bus_srv->us_srv, endpoint->usc,
                 US_OPCODE_TEXT, body, len_body);
     }
     else if (endpoint->type == ET_WEB_SOCKET) {
-        return ws_send_data (bus_srv->ws_srv, endpoint->wsc,
+        return ws_send_packet (bus_srv->ws_srv, endpoint->wsc,
                 WS_OPCODE_TEXT, body, len_body);
     }
 
