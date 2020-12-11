@@ -35,18 +35,78 @@
 #include "websocket.h"
 
 static char *
-default_method_handler (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+default_method_handler (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
+    char buff_in_stack [DEF_PACKET_BUFF_SIZE];
+    int n = 0;
+    char* packet_buff = buff_in_stack;
+    const CallInfo *call_info = from->sta_data;
+    size_t len_param = strlen (method_param) * 2 + 1;
+    size_t sz_packet_buff = sizeof (buff_in_stack);
+    char* escaped_param;
+
+    if (len_param > MIN_PACKET_BUFF_SIZE) {
+        sz_packet_buff = MIN_PACKET_BUFF_SIZE + len_param;
+        packet_buff = malloc (MIN_PACKET_BUFF_SIZE + len_param);
+        if (packet_buff == NULL) {
+            *ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
+            return NULL;
+	    }
+    }
+
+    if (method_param)
+        escaped_param = hibus_escape_string_for_json (method_param);
+    else
+        escaped_param = NULL;
+
+    n = snprintf (packet_buff, sz_packet_buff, 
+            "{"
+            "\"packetType\":\"call\","
+            "\"callId\":\"%s\","
+            "\"resultId\":\"%s\","
+            "\"fromEndpoint\":\"@%s/%s/%s\","
+            "\"toMethod\":\"%s\","
+            "\"timeDiff\":%.9f,"
+            "\"parameter\":\"%s\""
+            "}",
+            call_info->call_id, call_info->result_id,
+            from->host_name, from->app_name, from->runner_name,
+            method_name,
+            call_info->time_diff,
+            escaped_param ? escaped_param : "");
+
+    if (escaped_param)
+        free (escaped_param);
+
+    if (n >= sz_packet_buff) {
+        ULOG_ERR ("The size of buffer for call packet is too small.\n");
+        *ret_code = HIBUS_SC_INTERNAL_SERVER_ERROR;
+    }
+    else {
+        if (send_packet_to_endpoint (bus_srv, to, packet_buff, n)) {
+            *ret_code = HIBUS_SC_BAD_CALLEE;
+        }
+        else {
+            *ret_code = HIBUS_SC_ACCEPTED;
+        }
+    }
+
+    if (packet_buff != NULL && packet_buff != buff_in_stack) {
+        free (packet_buff);
+    }
+
     return NULL;
 }
 
 static char *
-builtin_method_echo (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_echo (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "echo") == 0);
 
     if (method_param) {
@@ -57,15 +117,15 @@ builtin_method_echo (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
 }
 
 static char *
-builtin_method_register_procedure (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_register_procedure (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
     hibus_json *jo = NULL, *jo_tmp;
     const char *param_method_name, *param_for_host, *param_for_app;
-    BusServer *bus_srv = to_endpoint->sta_data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "registerProcedure") == 0);
 
     jo = hibus_json_object_from_string (method_param, strlen (method_param), 2);
@@ -97,7 +157,7 @@ builtin_method_register_procedure (BusEndpoint* from_endpoint, BusEndpoint* to_e
     if (jo)
         json_object_put (jo);
 
-    *ret_code = register_procedure (bus_srv, from_endpoint,
+    *ret_code = register_procedure (bus_srv, from,
             param_method_name, param_for_host, param_for_app,
             default_method_handler);
     return NULL;
@@ -111,15 +171,15 @@ failed:
 }
 
 static char *
-builtin_method_revoke_procedure (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_revoke_procedure (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
     hibus_json *jo = NULL, *jo_tmp;
     const char *param_method_name;
-    BusServer *bus_srv = to_endpoint->sta_data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "revokeProcedure") == 0);
 
     jo = hibus_json_object_from_string (method_param, strlen (method_param), 2);
@@ -136,7 +196,7 @@ builtin_method_revoke_procedure (BusEndpoint* from_endpoint, BusEndpoint* to_end
 
     json_object_put (jo);
 
-    *ret_code = revoke_procedure (bus_srv, from_endpoint, param_method_name);
+    *ret_code = revoke_procedure (bus_srv, from, param_method_name);
     return NULL;
 
 failed:
@@ -147,15 +207,15 @@ failed:
 }
 
 static char *
-builtin_method_register_event (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_register_event (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
     hibus_json *jo = NULL, *jo_tmp;
     const char *param_bubble_name, *param_for_host, *param_for_app;
-    BusServer *bus_srv = to_endpoint->sta_data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "registerEvent") == 0);
 
     jo = hibus_json_object_from_string (method_param, strlen (method_param), 2);
@@ -187,7 +247,7 @@ builtin_method_register_event (BusEndpoint* from_endpoint, BusEndpoint* to_endpo
     if (jo)
         json_object_put (jo);
 
-    *ret_code = register_event (bus_srv, from_endpoint,
+    *ret_code = register_event (bus_srv, from,
             param_bubble_name, param_for_host, param_for_app);
     return NULL;
 
@@ -200,17 +260,16 @@ failed:
 }
 
 static char *
-builtin_method_revoke_event (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_revoke_event (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
     hibus_json *jo = NULL, *jo_tmp;
     const char *param_bubble_name;
-    BusServer* bus_srv = to_endpoint->sta_data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "revokeEvent") == 0);
-    assert (bus_srv);
 
     jo = hibus_json_object_from_string (method_param, strlen (method_param), 2);
     if (jo == NULL) {
@@ -227,7 +286,7 @@ builtin_method_revoke_event (BusEndpoint* from_endpoint, BusEndpoint* to_endpoin
     if (jo)
         json_object_put (jo);
 
-    *ret_code = revoke_event (bus_srv, from_endpoint, param_bubble_name);
+    *ret_code = revoke_event (bus_srv, from, param_bubble_name);
     return NULL;
 
 failed:
@@ -239,18 +298,17 @@ failed:
 }
 
 static char *
-builtin_method_subscribe_event (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_subscribe_event (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
     hibus_json *jo = NULL, *jo_tmp;
     const char *param_endpoint_name, *param_bubble_name;
     BusEndpoint* target_endpoint = NULL;
-    BusServer* bus_srv = to_endpoint->sta_data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "subscribeEvent") == 0);
-    assert (bus_srv);
 
     *ret_code = HIBUS_SC_BAD_REQUEST;
 
@@ -287,7 +345,7 @@ builtin_method_subscribe_event (BusEndpoint* from_endpoint, BusEndpoint* to_endp
     if (jo)
         json_object_put (jo);
 
-    *ret_code = subscribe_event (bus_srv, target_endpoint, param_bubble_name, from_endpoint);
+    *ret_code = subscribe_event (bus_srv, target_endpoint, param_bubble_name, from);
     return NULL;
 
 failed:
@@ -298,18 +356,17 @@ failed:
 }
 
 static char *
-builtin_method_unsubscribe_event (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_unsubscribe_event (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
     hibus_json *jo = NULL, *jo_tmp;
     const char *param_endpoint_name, *param_bubble_name;
     BusEndpoint* target_endpoint = NULL;
-    BusServer* bus_srv = to_endpoint->sta_data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "unsubscribeEvent") == 0);
-    assert (bus_srv);
 
     *ret_code = HIBUS_SC_BAD_REQUEST;
 
@@ -346,7 +403,8 @@ builtin_method_unsubscribe_event (BusEndpoint* from_endpoint, BusEndpoint* to_en
     if (jo)
         json_object_put (jo);
 
-    *ret_code = unsubscribe_event (bus_srv, target_endpoint, param_bubble_name, from_endpoint);
+    *ret_code = unsubscribe_event (bus_srv, target_endpoint,
+            param_bubble_name, from);
     return NULL;
 
 failed:
@@ -357,18 +415,17 @@ failed:
 }
 
 static char *
-builtin_method_list_procedures (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_list_procedures (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
-    BusServer* bus_srv = to_endpoint->sta_data;
     struct printbuf my_buff, *pb = &my_buff;
     const char *endpoint_name;
     void *data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "listProcedures") == 0);
-    assert (bus_srv);
 
 	if (printbuf_init (pb)) {
         *ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
@@ -398,18 +455,17 @@ builtin_method_list_procedures (BusEndpoint* from_endpoint, BusEndpoint* to_endp
 }
 
 static char *
-builtin_method_list_events (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_list_events (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
-    BusServer* bus_srv = to_endpoint->sta_data;
     struct printbuf my_buff, *pb = &my_buff;
     const char *endpoint_name;
     void *data;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "listProcedures") == 0);
-    assert (bus_srv);
 
 	if (printbuf_init (pb)) {
         *ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
@@ -439,19 +495,18 @@ builtin_method_list_events (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint
 }
 
 static char *
-builtin_method_list_event_subscribers (BusEndpoint* from_endpoint, BusEndpoint* to_endpoint,
+builtin_method_list_event_subscribers (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
     hibus_json *jo = NULL, *jo_tmp;
     const char *param_endpoint_name, *param_bubble_name;
     BusEndpoint *target_endpoint = NULL;
-    BusServer *bus_srv = to_endpoint->sta_data;
     BubbleInfo *bubble = NULL;
 
-    assert (from_endpoint->type != ET_BUILTIN);
-    assert (to_endpoint->type == ET_BUILTIN);
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "subscribeEvent") == 0);
-    assert (bus_srv);
 
     struct printbuf my_buff, *pb = &my_buff;
 
@@ -609,8 +664,8 @@ bool fire_system_event (BusServer* bus_srv, int bubble_type,
 {
     const char* bubble_name;
     int n = 0;
-    char packet_buff [2048];
-    char bubble_data [1024];
+    char packet_buff [DEF_PACKET_BUFF_SIZE];
+    char bubble_data [MIN_PACKET_BUFF_SIZE];
     char* escaped_bubble_data = NULL;
 
     if (bubble_type == SBT_NEW_ENDPOINT) {
