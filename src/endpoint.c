@@ -105,7 +105,7 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
         }
     }
     else {
-        strcpy (endpoint_name, "@unknown/unknown/unknown");
+        strcpy (endpoint_name, "@endpoint/not/authenticated");
     }
 
     kvlist_for_each (&endpoint->method_list, method_name, data) {
