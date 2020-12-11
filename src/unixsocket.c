@@ -228,6 +228,9 @@ us_handle_accept (USServer* server)
         return NULL;
     }
 
+    INIT_LIST_HEAD (&usc->pending);
+    usc->sz_pending = 0;
+
     newfd = us_accept (server->listener, &pid, &uid);
     if (newfd < 0) {
         ULOG_ERR ("Failed to accept Unix socket: %d\n", newfd);
@@ -275,6 +278,147 @@ failed:
     return NULL;
 }
 
+/*
+ * Clear pending data.
+ */
+static void us_clear_pending_data (USClient *client)
+{
+    struct list_head *p, *n;
+
+    list_for_each_safe (p, n, &client->pending) {
+        list_del (p);
+        free (p);
+    }
+
+    client->sz_pending = 0;
+}
+
+/*
+ * Queue new data.
+ *
+ * On success, true is returned.
+ * On error, false is returned and the connection status is set.
+ */
+static bool us_queue_data (USClient *client, const char *buf, size_t len)
+{
+    USPendingData *pending_data;
+
+    if ((pending_data = malloc (sizeof (USPendingData) + len)) == NULL) {
+        us_clear_pending_data (client);
+        client->status = US_ERR | US_CLOSE;
+        return false;
+    }
+
+    memcpy (pending_data->data, buf, len);
+    pending_data->szdata = len;
+    pending_data->szsent = 0;
+    list_add_tail (&pending_data->list, &client->pending);
+    client->sz_pending += len;
+
+    /* client probably is too slow, so stop queueing until everything is
+     * sent */
+    if (client->sz_pending >= US_THROTTLE_THLD)
+        client->status |= US_THROTTLING;
+
+    return true;
+}
+
+/*
+ * Send the given buffer to the given socket.
+ *
+ * On error, -1 is returned and the connection status is set.
+ * On success, the number of bytes sent is returned.
+ */
+static ssize_t us_write_data (USServer *server, USClient *client,
+        const char *buffer, size_t len)
+{
+    ssize_t bytes = 0;
+
+    bytes = write (client->fd, buffer, len);
+    if (bytes == -1 && errno == EPIPE) {
+        client->status = US_ERR | US_CLOSE;
+        return -1;
+    }
+
+    /* did not send all of it... buffer it for a later attempt */
+    if (bytes < len || (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)))
+        us_queue_data (client, buffer + bytes, len - bytes);
+
+    return bytes;
+}
+
+/*
+ * Send the queued up client's data to the given socket.
+ *
+ * On error, -1 is returned and the connection status is set.
+ * On success, the number of bytes sent is returned.
+ */
+static ssize_t us_write_pending (USServer *server, USClient *client)
+{
+    ssize_t total_bytes = 0;
+    struct list_head *p, *n;
+
+    list_for_each_safe (p, n, &client->pending) {
+        ssize_t bytes;
+        USPendingData *pending = (USPendingData *)p;
+
+        bytes = write (client->fd,
+                pending->data + pending->szsent, pending->szdata - pending->szsent);
+
+        if (bytes > 0) {
+            pending->szsent += bytes;
+            if (pending->szsent >= pending->szdata) {
+                list_del (p);
+                free (p);
+            }
+            else {
+                break;
+            }
+
+            total_bytes += bytes;
+            client->sz_pending -= bytes;
+        }
+        else if (bytes == -1 && errno == EPIPE) {
+            client->status = US_ERR | US_CLOSE;
+            return -1;
+        }
+        else if (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            return -1;
+        }
+    }
+
+    return total_bytes;
+}
+
+/*
+ * A wrapper of the system call write or send.
+ *
+ * On error, -1 is returned and the connection status is set as error.
+ * On success, the number of bytes sent is returned.
+ */
+static ssize_t us_write (USServer *server, USClient *client,
+        const void *buffer, size_t len)
+{
+    ssize_t bytes = 0;
+
+    /* attempt to send the whole buffer */
+    if (list_empty (&client->pending)) {
+        bytes = us_write_data (server, client, buffer, len);
+    }
+    /* the pending list not empty, just append new data if we're not
+     * throttling the client */
+    else if (client->sz_pending < US_THROTTLE_THLD) {
+        if (us_queue_data (client, buffer, len))
+            return bytes;
+    }
+    /* send from cache buffer */
+    else {
+        bytes = us_write_pending (server, client);
+    }
+
+    return bytes;
+}
+
 int us_handle_reads (USServer* server, USClient* usc)
 {
     int err_code = 0, sta_code = 0;
@@ -294,7 +438,7 @@ int us_handle_reads (USServer* server, USClient* usc)
         header.op = US_OPCODE_PONG;
         header.fragmented = 0;
         header.sz_payload = 0;
-        n = write (usc->fd, &header, sizeof (USFrameHeader));
+        n = us_write (server, usc, &header, sizeof (USFrameHeader));
         if (n != (sizeof (USFrameHeader))) {
             ULOG_ERR ("Error when wirting socket: %s\n", strerror (errno));
             err_code = HIBUS_EC_IO;
@@ -435,63 +579,129 @@ got_packet:
     return err_code;
 }
 
-/* return zero on success; none-zero on error */
-int us_ping_client (USServer* server, USClient* us_client)
+/*
+ * Handle write.
+ * 0: ok;
+ * <0: socket closed
+*/
+int us_handle_writes (USServer *server, USClient *usc)
 {
-    ssize_t n = 0;
+    us_write_pending (server, usc);
+    if (list_empty (&usc->pending)) {
+        usc->status &= ~US_SENDING;
+    }
+
+    if ((usc->status & US_CLOSE) && !(usc->status & US_SENDING)) {
+        us_client_cleanup (server, usc);
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+ * Ping a specific client.
+ *
+ * return zero on success; none-zero on error.
+ */
+int us_ping_client (USServer* server, USClient* usc)
+{
     USFrameHeader header;
 
     header.op = US_OPCODE_PING;
     header.fragmented = 0;
     header.sz_payload = 0;
-    n = write (us_client->fd, &header, sizeof (USFrameHeader));
-    if (n != sizeof (USFrameHeader)) {
-        return 1;
-    }
+    us_write (server, usc, &header, sizeof (USFrameHeader));
 
+    if (usc->status & US_ERR)
+        return -1;
     return 0;
 }
 
-/* return zero on success; none-zero on error
- * TODO: handle fragments */
-int us_send_data (USServer* server, USClient* us_client,
-        USOpcode op, const char* data, int sz)
+/*
+ * Send a packet
+ *
+ * return zero on success; none-zero on error.
+ */
+int us_send_data (USServer* server, USClient* usc,
+        USOpcode op, const void* data, unsigned int sz)
 {
-    ssize_t n = 0;
     USFrameHeader header;
 
-    header.op = op;
-    header.fragmented = 0;
-    header.sz_payload = sz;
-    n = write (us_client->fd, &header, sizeof (USFrameHeader));
-    n += write (us_client->fd, data, sz);
-    if (n != (sizeof (USFrameHeader) + sz)) {
-        ULOG_ERR ("Error when wirting socket: %ld\n", n);
-        return 1;
+    switch (op) {
+        case US_OPCODE_TEXT:
+        case US_OPCODE_BIN:
+            break;
+        case US_OPCODE_PING:
+            return us_ping_client (server, usc);
+        default:
+            return -1;
+    }
+
+    if (sz > MAX_PAYLOAD_SIZE) {
+        unsigned int left = sz;
+
+        do {
+            if (left == sz) {
+                header.op = op;
+                header.fragmented = sz;
+                header.sz_payload = MAX_PAYLOAD_SIZE;
+                left -= MAX_PAYLOAD_SIZE;
+            }
+            else if (left > MAX_PAYLOAD_SIZE) {
+                header.op = US_OPCODE_CONTINUATION;
+                header.fragmented = 0;
+                header.sz_payload = MAX_PAYLOAD_SIZE;
+                left -= MAX_PAYLOAD_SIZE;
+            }
+            else {
+                header.op = US_OPCODE_END;
+                header.fragmented = 0;
+                header.sz_payload = left;
+                left = 0;
+            }
+
+            us_write (server, usc, &header, sizeof (USFrameHeader));
+            us_write (server, usc, data, header.sz_payload);
+
+        } while (left > 0);
+    }
+    else {
+        header.fragmented = sz;
+        header.sz_payload = sz;
+        us_write (server, usc, &header, sizeof (USFrameHeader));
+        us_write (server, usc, data, sz);
+    }
+
+    if (usc->status & US_ERR) {
+        ULOG_ERR ("Error when sending data to client: fd (%d), pid (%d)\n",
+                usc->fd, usc->pid);
+        return -1;
     }
 
     return 0;
 }
 
-int us_remove_dangling_client (USServer * server, USClient *us_client)
+int us_remove_dangling_client (USServer *server, USClient *usc)
 {
-    if (us_client->fd >= 0) {
-        close (us_client->fd);
+    us_clear_pending_data (usc);
+
+    if (usc->fd >= 0) {
+        close (usc->fd);
     }
 
-    us_client->fd = -1;
-
+    usc->fd = -1;
     server->nr_clients--;
     assert (server->nr_clients >= 0);
 
-    free (us_client);
+    free (usc);
     return 0;
 }
 
-int us_client_cleanup (USServer* server, USClient* us_client)
+int us_client_cleanup (USServer *server, USClient *usc)
 {
-    server->on_close (server, us_client);
+    server->on_close (server, usc);
 
-    return us_remove_dangling_client (server, us_client);
+    return us_remove_dangling_client (server, usc);
 }
 

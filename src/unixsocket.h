@@ -27,6 +27,30 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <hibox/list.h>
+
+#define US_THROTTLE_THLD      2097152   /* 2 MiB throttle threshold */
+
+typedef enum USSTATUS {
+  US_OK = 0,
+  US_ERR = (1 << 0),
+  US_CLOSE = (1 << 1),
+  US_READING = (1 << 2),
+  US_SENDING = (1 << 3),
+  US_THROTTLING = (1 << 4),
+} USStatus;
+
+typedef struct USPendingData_ {
+    struct list_head list;
+
+    /* the size of data */
+    size_t  szdata;
+    /* the size of sent */
+    size_t  szsent;
+    /* pointer to the pending data */
+    unsigned char data[0];
+} USPendingData;
+
 /* A UnixSocket Client */
 typedef struct USClient_
 {
@@ -34,6 +58,12 @@ typedef struct USClient_
     int         fd;         /* UNIX socket FD */
     pid_t       pid;        /* client PID */
     uid_t       uid;        /* client UID */
+
+    unsigned int status;
+
+    /* fields for pending frames */
+    size_t              sz_pending;
+    struct list_head    pending;
 
     /* fields for current packet */
     struct timespec ts;     /* time got the first frame of the current packet */
@@ -66,14 +96,15 @@ void us_stop (USServer *server);
 
 int us_listen (USServer* server);
 USClient *us_handle_accept (USServer *server);
-int us_handle_reads (USServer *server, USClient* us_client);
-int us_remove_dangling_client (USServer * server, USClient *us_client);
-int us_client_cleanup (USServer* server, USClient* us_client);
+int us_handle_reads (USServer *server, USClient* usc);
+int us_handle_writes (USServer *server, USClient *usc);
+int us_remove_dangling_client (USServer * server, USClient *usc);
+int us_client_cleanup (USServer* server, USClient* usc);
 
-void us_send_error_packet (USServer* us_srv, USClient* client, int err_code);
-int us_ping_client (USServer* server, USClient* us_client);
-int us_send_data (USServer* server, USClient* us_client,
-        USOpcode op, const char *data, int sz);
+void us_send_error_packet (USServer* us_srv, USClient* usc, int err_code);
+int us_ping_client (USServer* server, USClient* usc);
+int us_send_data (USServer* server, USClient* usc,
+        USOpcode op, const void *data, unsigned int sz);
 
 #endif // for #ifndef _HIBUS_UNIXSOCKET_H
 
