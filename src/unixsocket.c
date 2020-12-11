@@ -414,7 +414,7 @@ int us_handle_reads (USServer* server, USClient* usc)
         header.fragmented = 0;
         header.sz_payload = 0;
         n = us_write (server, usc, &header, sizeof (USFrameHeader));
-        if (n != (sizeof (USFrameHeader))) {
+        if (n < 0) {
             ULOG_ERR ("Error when wirting socket: %s\n", strerror (errno));
             err_code = HIBUS_EC_IO;
             sta_code = HIBUS_SC_IOERR;
@@ -605,6 +605,7 @@ int us_send_packet (USServer* server, USClient* usc,
         case US_OPCODE_PING:
             return us_ping_client (server, usc);
         default:
+            ULOG_WARN ("Unknown UnixSocket op code: %d\n", op);
             return -1;
     }
 
@@ -637,7 +638,8 @@ int us_send_packet (USServer* server, USClient* usc,
         } while (left > 0);
     }
     else {
-        header.fragmented = sz;
+        header.op = op;
+        header.fragmented = 0;
         header.sz_payload = sz;
         us_write (server, usc, &header, sizeof (USFrameHeader));
         us_write (server, usc, data, sz);

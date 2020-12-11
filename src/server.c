@@ -384,6 +384,7 @@ on_close_us (USServer* us_srv, USClient* client)
     if (epoll_ctl (the_server.epollfd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
         ULOG_ERR ("Failed to call epoll_ctl to delete the client fd (%d): %s\n",
                 client->fd, strerror (errno));
+        assert (0);
     }
 
     if (client->priv_data) {
@@ -556,6 +557,7 @@ run_server (void)
             else {
                 USClient *usc = (USClient *)events[n].data.ptr;
                 struct timespec ts;
+                int retv = 0;
 
                 clock_gettime (CLOCK_REALTIME, &ts);
 
@@ -565,9 +567,9 @@ run_server (void)
                     endpoint->t_living = ts.tv_sec;
 
                     if (events[n].events & EPOLLIN) {
-                        us_handle_reads (the_server.us_srv, usc);
+                        retv = us_handle_reads (the_server.us_srv, usc);
                     }
-                    if (events[n].events & EPOLLOUT) {
+                    if (retv == 0 && events[n].events & EPOLLOUT) {
                         us_handle_writes (the_server.us_srv, usc);
                     }
                 }
@@ -578,9 +580,9 @@ run_server (void)
                     endpoint->t_living = ts.tv_sec;
 
                     if (events[n].events & EPOLLIN) {
-                        ws_handle_reads (the_server.ws_srv, wsc);
+                        retv = ws_handle_reads (the_server.ws_srv, wsc);
                     }
-                    if (events[n].events & EPOLLOUT) {
+                    if (retv == 0 && events[n].events & EPOLLOUT) {
                         ws_handle_writes (the_server.ws_srv, wsc);
                     }
                 }
