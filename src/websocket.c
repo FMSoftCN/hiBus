@@ -322,6 +322,9 @@ ws_free_message (WSClient * client)
   if (client->message)
     free (client->message);
   client->message = NULL;
+
+  update_upper_entity_stats (client->entity,
+          client->sockqueue ? client->sockqueue->qlen : 0, 0);
 }
 
 /* Free all HTTP handshake headers data for the given client. */
@@ -379,6 +382,10 @@ ws_clear_queue (WSClient * client)
   /* done sending, close connection if set to close */
   if ((client->status & WS_CLOSE) && (client->status & WS_SENDING))
     client->status = WS_CLOSE;
+
+  update_upper_entity_stats (client->entity,
+          client->sockqueue ? client->sockqueue->qlen : 0,
+          client->message ? client->message->payloadsz : 0);
 }
 
 /* Free all HTTP handshake headers and structure. */
@@ -1064,6 +1071,10 @@ ws_queue_sockbuf (WSClient * client, const char *buffer, int len, int bytes)
   queue->qlen = len - bytes;
   client->sockqueue = queue;
 
+  update_upper_entity_stats (client->entity,
+          client->sockqueue ? client->sockqueue->qlen : 0,
+          client->message ? client->message->payloadsz : 0);
+
   client->status |= WS_SENDING;
 }
 
@@ -1189,6 +1200,10 @@ ws_realloc_send_buf (WSClient * client, const char *buf, int len)
   queue->queued = tmp;
   memcpy (queue->queued + queue->qlen, buf, len);
   queue->qlen += len;
+
+  update_upper_entity_stats (client->entity,
+          client->sockqueue ? client->sockqueue->qlen : 0,
+          client->message ? client->message->payloadsz : 0);
 
   /* client probably  too slow, so stop queueing until everything is
    * sent */
@@ -1656,6 +1671,9 @@ ws_handle_ping (WSServer * server, WSClient * client)
 
     (*msg)->payload = NULL;
     client->status = WS_ERR | WS_CLOSE;
+
+    update_upper_entity_stats (client->entity,
+          client->sockqueue ? client->sockqueue->qlen : 0, 0);
     return;
   }
 
@@ -1905,7 +1923,7 @@ ws_get_frm_header (WSServer * server, WSClient *client)
  * On error, 1 is returned.
  * On success, 0 is returned. */
 static int
-ws_realloc_frm_payload (WSFrame * frm, WSMessage * msg)
+ws_realloc_frm_payload (WSClient * client, WSFrame * frm, WSMessage * msg)
 {
   char *tmp = NULL;
   uint64_t newlen = 0;
@@ -1915,19 +1933,25 @@ ws_realloc_frm_payload (WSFrame * frm, WSMessage * msg)
   if (newlen >= MAX_INMEM_PACKET_SIZE) {
     free (msg->payload);
     msg->payload = NULL;
-    return 1;
+    goto failed;
   }
 
   tmp = realloc (msg->payload, newlen);
   if (tmp == NULL && newlen > 0) {
     free (msg->payload);
     msg->payload = NULL;
-    return 1;
+    goto failed;
   }
 
   msg->payload = tmp;
-
+  update_upper_entity_stats (client->entity,
+          client->sockqueue ? client->sockqueue->qlen : 0, newlen);
   return 0;
+
+failed:
+    update_upper_entity_stats (client->entity,
+          client->sockqueue ? client->sockqueue->qlen : 0, 0);
+    return 1;
 }
 
 /* Attempt to read the frame's payload and set the relavant data into
@@ -1950,11 +1974,16 @@ ws_get_frm_payload (WSServer * server, WSClient * client)
   msg = &client->message;
 
   /* message within the same frame */
-  if ((*msg)->payload == NULL && (*frm)->payloadlen)
-    (*msg)->payload = calloc ((*frm)->payloadlen, sizeof (char));
+  if ((*msg)->payload == NULL && (*frm)->payloadlen) {
+    size_t sz = (*frm)->payloadlen;
+    (*msg)->payload = calloc (sz, sizeof (char));
+
+    update_upper_entity_stats (client->entity,
+              client->sockqueue ? client->sockqueue->qlen : 0, sz);
+  }
   /* handle a new frame */
   else if ((*msg)->buflen == 0 && (*frm)->payloadlen) {
-    if (ws_realloc_frm_payload ((*frm), (*msg)) == 1)
+    if (ws_realloc_frm_payload (client, (*frm), (*msg)) == 1)
       return ws_set_status (client, WS_ERR | WS_CLOSE, 0);
   }
 

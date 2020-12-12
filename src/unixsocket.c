@@ -266,6 +266,7 @@ static void us_clear_pending_data (USClient *client)
     }
 
     client->sz_pending = 0;
+    update_upper_entity_stats (client->entity, client->sz_pending, client->sz_packet);
 }
 
 /*
@@ -287,8 +288,10 @@ static bool us_queue_data (USClient *client, const char *buf, size_t len)
     memcpy (pending_data->data, buf, len);
     pending_data->szdata = len;
     pending_data->szsent = 0;
+
     list_add_tail (&pending_data->list, &client->pending);
     client->sz_pending += len;
+    update_upper_entity_stats (client->entity, client->sz_pending, client->sz_packet);
 
     /* client probably is too slow, so stop queueing until everything is
      * sent */
@@ -352,6 +355,8 @@ static ssize_t us_write_pending (USServer *server, USClient *client)
 
             total_bytes += bytes;
             client->sz_pending -= bytes;
+            update_upper_entity_stats (client->entity,
+                    client->sz_pending, client->sz_packet);
         }
         else if (bytes == -1 && errno == EPIPE) {
             client->status = US_ERR | US_CLOSE;
@@ -456,6 +461,7 @@ int us_handle_reads (USServer* server, USClient* usc)
             sta_code = HIBUS_SC_INSUFFICIENT_STORAGE;
             break;
         }
+        update_upper_entity_stats (usc->entity, usc->sz_pending, usc->sz_packet);
 
         if ((n = read (usc->fd, usc->packet, header.sz_payload))
                 < header.sz_payload) {
@@ -536,6 +542,7 @@ got_packet:
     usc->packet = NULL;
     usc->sz_packet = 0;
     usc->sz_read = 0;
+    update_upper_entity_stats (usc->entity, usc->sz_pending, usc->sz_packet);
 
     if (sta_code != HIBUS_SC_OK) {
         ULOG_WARN ("Internal error after got a packet: %d\n", sta_code);
