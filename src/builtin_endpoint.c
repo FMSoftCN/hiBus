@@ -415,6 +415,72 @@ failed:
 }
 
 static char *
+builtin_method_list_endpoints (BusServer *bus_srv,
+        BusEndpoint* from, BusEndpoint* to,
+        const char* method_name, const char* method_param, int* ret_code)
+{
+    struct printbuf my_buff, *pb = &my_buff;
+    const char *endpoint_name;
+    void *data;
+    int nr_endpoints;
+
+    assert (from->type != ET_BUILTIN);
+    assert (to->type == ET_BUILTIN);
+    assert (strcasecmp (method_name, "listEndpoints") == 0);
+
+	if (printbuf_init (pb)) {
+        *ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
+		return NULL;
+	}
+
+    printbuf_strappend (pb, "[");
+
+    nr_endpoints = 0;
+    kvlist_for_each (&bus_srv->endpoint_list, endpoint_name, data) {
+        const char *sub_name;
+        void *sub_data;
+        BusEndpoint* endpoint = *(BusEndpoint **)data;
+        int n;
+
+        printbuf_strappend (pb, "{ \"endpointName\":");
+        sprintbuf (pb, "{ \"livingSeconds\":%lu,",
+                time (NULL) - endpoint->t_created);
+
+        n = 0;
+        printbuf_strappend (pb, "\"methods\":[");
+        kvlist_for_each (&endpoint->method_list, sub_name, sub_data) {
+            sprintbuf (pb, "\"%s\",", sub_name);
+            n++;
+        }
+        if (n > 0)
+            printbuf_memset (pb, -1, '\0', 1);
+        printbuf_strappend (pb, "],");
+
+        n = 0;
+        printbuf_strappend (pb, "\"bubbles\":[");
+        kvlist_for_each (&endpoint->bubble_list, sub_name, sub_data) {
+            sprintbuf (pb, "\"%s\",", sub_name);
+            n++;
+        }
+        if (n > 0)
+            printbuf_memset (pb, -1, '\0', 1);
+        printbuf_strappend (pb, "]");
+
+        sprintbuf (pb, "\"memUsed\":%lu,", endpoint->entity.sz_sock_mem);
+        sprintbuf (pb, "\"peakMemUsed\":%lu", endpoint->entity.peak_sz_sock_mem);
+        printbuf_strappend (pb, "},");
+        nr_endpoints++;
+    }
+    if (nr_endpoints)
+        printbuf_memset (pb, -1, '\0', 1);
+
+    printbuf_strappend (pb, "]");
+
+    *ret_code = HIBUS_SC_OK;
+    return pb->buf;
+}
+
+static char *
 builtin_method_list_procedures (BusServer *bus_srv,
         BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
@@ -422,6 +488,7 @@ builtin_method_list_procedures (BusServer *bus_srv,
     struct printbuf my_buff, *pb = &my_buff;
     const char *endpoint_name;
     void *data;
+    int n;
 
     assert (from->type != ET_BUILTIN);
     assert (to->type == ET_BUILTIN);
@@ -432,8 +499,8 @@ builtin_method_list_procedures (BusServer *bus_srv,
 		return NULL;
 	}
 
-    printbuf_memappend (pb, "[", 1);
-
+    n = 0;
+    printbuf_strappend (pb, "[");
     kvlist_for_each (&bus_srv->endpoint_list, endpoint_name, data) {
         const char *method_name;
         void *sub_data;
@@ -441,14 +508,18 @@ builtin_method_list_procedures (BusServer *bus_srv,
 
         kvlist_for_each (&endpoint->method_list, method_name, sub_data) {
 
-            printbuf_memappend (pb, "\"", 1);
-            printbuf_memappend (pb, endpoint_name, strlen (endpoint_name));
-            printbuf_memappend (pb, method_name, strlen (method_name));
-            printbuf_memappend (pb, "\",", 2);
+            printbuf_strappend (pb, "\"");
+            printbuf_memappend (pb, endpoint_name, 0);
+            printbuf_memappend (pb, method_name, 0);
+            printbuf_strappend (pb, "\",");
         }
+        n++;
+    }
+    if (n > 0) {
+        printbuf_memset (pb, -1, '\0', 1);
     }
 
-    printbuf_memappend (pb, "]", 1);
+    printbuf_strappend (pb, "]");
 
     *ret_code = HIBUS_SC_OK;
     return pb->buf;
@@ -462,6 +533,7 @@ builtin_method_list_events (BusServer *bus_srv,
     struct printbuf my_buff, *pb = &my_buff;
     const char *endpoint_name;
     void *data;
+    int n;
 
     assert (from->type != ET_BUILTIN);
     assert (to->type == ET_BUILTIN);
@@ -472,8 +544,8 @@ builtin_method_list_events (BusServer *bus_srv,
 		return NULL;
 	}
 
-    printbuf_memappend (pb, "[", 1);
-
+    n = 0;
+    printbuf_strappend (pb, "[");
     kvlist_for_each (&bus_srv->endpoint_list, endpoint_name, data) {
         const char *bubble_name;
         void *sub_data;
@@ -481,14 +553,19 @@ builtin_method_list_events (BusServer *bus_srv,
 
         kvlist_for_each (&endpoint->bubble_list, bubble_name, sub_data) {
 
-            printbuf_memappend (pb, "\"", 1);
-            printbuf_memappend (pb, endpoint_name, strlen (endpoint_name));
-            printbuf_memappend (pb, bubble_name, strlen (bubble_name));
-            printbuf_memappend (pb, "\",", 2);
+            printbuf_strappend (pb, "\"");
+            printbuf_memappend (pb, endpoint_name, 0);
+            printbuf_memappend (pb, bubble_name, 0);
+            printbuf_strappend (pb, "\",");
         }
+
+        n++;
+    }
+    if (n > 0) {
+        printbuf_memset (pb, -1, '\0', 1);
     }
 
-    printbuf_memappend (pb, "]", 1);
+    printbuf_strappend (pb, "]");
 
     *ret_code = HIBUS_SC_OK;
     return pb->buf;
@@ -557,18 +634,27 @@ builtin_method_list_event_subscribers (BusServer *bus_srv,
     if (bubble) {
         const char* name;
         void* data;
+        int n;
 
-        printbuf_memappend (pb, "[", 1);
+        printbuf_strappend (pb, "[");
+
+        n = 0;
         kvlist_for_each (&bubble->subscriber_list, name, data) {
             void *sub_data = kvlist_get (&bus_srv->endpoint_list, name);
 
             if (sub_data) {
-                printbuf_memappend (pb, "\"", 1);
-                printbuf_memappend (pb, name, strlen (name));
-                printbuf_memappend (pb, "\",", 2);
+                printbuf_strappend (pb, "\"");
+                printbuf_memappend (pb, name, 0);
+                printbuf_strappend (pb, "\",");
             }
+
+            n++;
         }
-        printbuf_memappend (pb, "]", 1);
+        if (n > 0) {
+            printbuf_memset (pb, -1, '\0', 1);
+        }
+
+        printbuf_strappend (pb, "]");
 
         *ret_code = HIBUS_SC_OK;
         return pb->buf;
@@ -611,6 +697,7 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
             builtin_method_register_event) != HIBUS_SC_OK) {
         return false;
     }
+
     if (register_procedure (bus_srv, builtin, "revokeEvent",
             HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
             builtin_method_revoke_event) != HIBUS_SC_OK) {
@@ -622,9 +709,16 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
             builtin_method_subscribe_event) != HIBUS_SC_OK) {
         return false;
     }
+
     if (register_procedure (bus_srv, builtin, "unsubscribeEvent",
             HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
             builtin_method_unsubscribe_event) != HIBUS_SC_OK) {
+        return false;
+    }
+
+    if (register_procedure (bus_srv, builtin, "listEndpoints",
+            HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
+            builtin_method_list_endpoints) != HIBUS_SC_OK) {
         return false;
     }
 
@@ -633,6 +727,7 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
             builtin_method_list_procedures) != HIBUS_SC_OK) {
         return false;
     }
+
     if (register_procedure (bus_srv, builtin, "listEvents",
             HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
             builtin_method_list_events) != HIBUS_SC_OK) {
@@ -649,6 +744,7 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
             HIBUS_PATTERN_ANY, HIBUS_SYS_APPS) != HIBUS_SC_OK) {
         return false;
     }
+
     if (register_event (bus_srv, builtin, "BROKENENDPOINT",
             HIBUS_PATTERN_ANY, HIBUS_SYS_APPS) != HIBUS_SC_OK) {
         return false;
