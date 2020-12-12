@@ -23,6 +23,7 @@
 #ifndef _HIBUS_SERVER_H_
 #define _HIBUS_SERVER_H_
 
+#include <hibox/list.h>
 #include <hibox/gslist.h>
 #include <hibox/kvlist.h>
 
@@ -31,8 +32,8 @@
 /* max clients for each web socket and unix socket */
 #define MAX_CLIENTS_EACH    512
 
-struct WSClient_;
-struct USClient_;
+/* 1 MiB throttle threshold per client */
+#define SOCK_THROTTLE_THLD  (1024 * 1024)
 
 /* Endpoint types */
 enum {
@@ -50,16 +51,48 @@ enum {
     ES_BUSY,            // the endpoint is busy for a call to procedure.
 };
 
+struct SockClient_;
+
+/* A upper entity */
+typedef struct UpperEntity_ {
+    /* the size of memory used by the socket layer */
+    size_t                  sz_sock_mem;
+
+    /* the peak size of memory used by the socket layer */
+    size_t                  peak_sz_sock_mem;
+
+    /* the pointer to the socket client */
+    struct SockClient_     *client;
+} UpperEntity;
+
+/* A socket client */
+typedef struct SockClient_ {
+    /* the connection type of the socket */
+    int                     ct;
+
+    /* the file descriptor of the socket */
+    int                     fd;
+
+    /* time got the first frame of the current reading packet/message */
+    struct timespec         ts;
+
+    /* the pointer to the upper entity */
+    struct UpperEntity_    *entity;
+} SockClient;
+
 /* A hiBus Endpoint */
 typedef struct BusEndpoint_
 {
-    int     type;
-    int     status;
-
+    int             type;
+    unsigned int    status;
+    UpperEntity     entity;
+#if 0
+    SockClient         *client;
     union {
         struct WSClient_ *wsc;
         struct USClient_ *usc;
     };
+#endif
 
     time_t  t_created;
     time_t  t_living;

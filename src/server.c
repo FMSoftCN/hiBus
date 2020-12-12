@@ -47,7 +47,6 @@
 static BusServer the_server;
 
 static ServerConfig srvcfg = { 0 };
-// static USServer *us_srv = NULL;
 
 static inline void
 srv_set_config_websocket (int websocket)
@@ -340,10 +339,10 @@ srv_daemon (void)
     return 0;
 }
 
-/* callbacks for Unix socket */
+/* callbacks for socket servers */
 // Allocate a BusEndpoint structure for a new client and send `auth` packet.
 static int
-on_accepted_us (USServer* us_srv, USClient* client)
+on_accepted (void* sock_srv, SockClient* client)
 {
     int ret_code;
     BusEndpoint* endpoint;
@@ -361,14 +360,16 @@ on_accepted_us (USServer* us_srv, USClient* client)
 }
 
 static int
-on_packet_us (USServer* us_srv, USClient* client,
+on_packet (void* sock_srv, SockClient* client,
             const char* body, unsigned int sz_body, int type)
 {
-    assert (client->priv_data);
+    assert (client->entity);
 
     if (type == PT_TEXT) {
 
-        handle_json_packet (&the_server, client->priv_data, &client->ts, body, sz_body);
+        handle_json_packet (&the_server,
+                container_of (client->entity, BusEndpoint, entity),
+                &client->ts, body, sz_body);
     }
     else {
         /* discard all packet in binary */
@@ -379,7 +380,7 @@ on_packet_us (USServer* us_srv, USClient* client,
 }
 
 static int
-on_close_us (USServer* us_srv, USClient* client)
+on_close (void* sock_srv, SockClient* client)
 {
     if (epoll_ctl (the_server.epollfd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
         ULOG_ERR ("Failed to call epoll_ctl to delete the client fd (%d): %s\n",
@@ -387,8 +388,8 @@ on_close_us (USServer* us_srv, USClient* client)
         assert (0);
     }
 
-    if (client->priv_data) {
-        BusEndpoint *endpoint = (BusEndpoint *)client->priv_data;
+    if (client->entity) {
+        BusEndpoint *endpoint = container_of (client->entity, BusEndpoint, entity);
         char endpoint_name [LEN_ENDPOINT_NAME + 1];
 
         if (endpoint->status == ES_AUTHING) {
@@ -406,14 +407,14 @@ on_close_us (USServer* us_srv, USClient* client)
         }
         del_endpoint (&the_server, endpoint, CDE_LOST_CONNECTION);
 
-        client->priv_data = NULL;
+        client->entity = NULL;
     }
 
     return 0;
 }
 
 static void
-on_error_us (USServer* us_srv, USClient* client, int err_code)
+on_error (void* sock_srv, SockClient* client, int err_code)
 {
     int size;
     char buff [MIN_PACKET_BUFF_SIZE];
@@ -434,7 +435,12 @@ on_error_us (USServer* us_srv, USClient* client, int err_code)
         assert (0);
     }
 
-    us_send_packet (us_srv, client, US_OPCODE_TEXT, buff, strlen (buff));
+    if (client->ct == CT_UNIX_SOCKET) {
+        us_send_packet (sock_srv, (USClient *)client, US_OPCODE_TEXT, buff, size);
+    }
+    else {
+        ws_send_packet (sock_srv, (WSClient *)client, WS_OPCODE_TEXT, buff, size);
+    }
 }
 
 /* max events for epoll */
@@ -458,10 +464,10 @@ run_server (void)
     }
     ULOG_NOTE ("Listening on Unix Socket (%s)...\n", srvcfg.unixsocket);
 
-    the_server.us_srv->on_accepted = on_accepted_us;
-    the_server.us_srv->on_packet = on_packet_us;
-    the_server.us_srv->on_close = on_close_us;
-    the_server.us_srv->on_error = on_error_us;
+    the_server.us_srv->on_accepted = on_accepted;
+    the_server.us_srv->on_packet = on_packet;
+    the_server.us_srv->on_close = on_close;
+    the_server.us_srv->on_error = on_error;
 
     // create web socket listener if enabled
     if (the_server.ws_srv) {
@@ -483,6 +489,11 @@ run_server (void)
                     srvcfg.host, srvcfg.port);
             goto error;
         }
+
+        the_server.ws_srv->on_accepted = on_accepted;
+        the_server.ws_srv->on_packet = on_packet;
+        the_server.ws_srv->on_close = on_close;
+        the_server.ws_srv->on_error = on_error;
     }
     ULOG_NOTE ("Listening on Web Socket (%s, %s) %s SSL...\n",
             srvcfg.host, srvcfg.port, srvcfg.sslcert ? "with" : "without");
@@ -561,34 +572,35 @@ run_server (void)
 
                 clock_gettime (CLOCK_REALTIME, &ts);
 
-                if (usc->type == ET_UNIX_SOCKET) {
-                    BusEndpoint *endpoint = usc->priv_data;
+                if (usc->ct == CT_UNIX_SOCKET) {
+                    BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
 
                     endpoint->t_living = ts.tv_sec;
 
                     if (events[n].events & EPOLLIN) {
                         retv = us_handle_reads (the_server.us_srv, usc);
                     }
-                    if (retv == 0 && events[n].events & EPOLLOUT) {
+                    if (retv == 0 && usc->sz_pending > 0 && events[n].events & EPOLLOUT) {
                         us_handle_writes (the_server.us_srv, usc);
                     }
                 }
-                else if (usc->type == ET_WEB_SOCKET) {
+                else if (usc->ct == CT_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
-                    BusEndpoint *endpoint = wsc->priv_data;
+                    BusEndpoint *endpoint = container_of (wsc->entity, BusEndpoint, entity);
 
                     endpoint->t_living = ts.tv_sec;
 
                     if (events[n].events & EPOLLIN) {
                         retv = ws_handle_reads (the_server.ws_srv, wsc);
                     }
-                    if (retv == 0 && events[n].events & EPOLLOUT) {
+                    if (retv == 0 && wsc->sockqueue->qlen > 0 &&
+                            events[n].events & EPOLLOUT) {
                         ws_handle_writes (the_server.ws_srv, wsc);
                     }
                 }
                 else {
                     ULOG_ERR ("Bad socket type (%d): %s\n",
-                            usc->type, strerror (errno));
+                            usc->ct, strerror (errno));
                     goto error;
                 }
             }
@@ -669,13 +681,15 @@ cleanup_bus_server (void)
         ULOG_INFO ("Deleting endpoint: %s (%p) in cleanup_bus_server\n", name, endpoint);
 
         if (endpoint->type != ET_BUILTIN) {
-            if (endpoint->type == ET_UNIX_SOCKET && endpoint->usc) {
-                endpoint->usc->priv_data = NULL;    // avoid re-entrance
-                us_cleanup_client (the_server.us_srv, endpoint->usc);
+            if (endpoint->type == ET_UNIX_SOCKET && endpoint->entity.client) {
+                // avoid a duplicated call of del_endpoint
+                endpoint->entity.client->entity = NULL;
+                us_cleanup_client (the_server.us_srv, (USClient *)endpoint->entity.client);
             }
-            else if (endpoint->type == ET_WEB_SOCKET && endpoint->wsc) {
-                endpoint->wsc->priv_data = NULL;    // avoid re-entrance
-                ws_cleanup_client (the_server.ws_srv, endpoint->wsc);
+            else if (endpoint->type == ET_WEB_SOCKET && endpoint->entity.client) {
+                // avoid a duplicated call of del_endpoint
+                endpoint->entity.client->entity = NULL;
+                ws_cleanup_client (the_server.ws_srv, (WSClient *)endpoint->entity.client);
             }
         }
 
@@ -694,11 +708,11 @@ cleanup_bus_server (void)
                     endpoint, endpoint->type, endpoint->status);
 
             if (endpoint->type == ET_UNIX_SOCKET) {
-                USClient* usc = endpoint->usc;
+                USClient* usc = (USClient *)endpoint->entity.client;
                 us_remove_dangling_client (the_server.us_srv, usc);
             }
             else if (endpoint->type == ET_WEB_SOCKET) {
-                WSClient* wsc = endpoint->wsc;
+                WSClient* wsc = (WSClient *)endpoint->entity.client;
                 ws_remove_dangling_client (the_server.ws_srv, wsc);
             }
             else {

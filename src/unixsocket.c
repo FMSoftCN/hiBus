@@ -216,7 +216,7 @@ us_handle_accept (USServer* server)
         goto cleanup;
     }
 
-    usc->type = ET_UNIX_SOCKET;
+    usc->ct = CT_UNIX_SOCKET;
     usc->fd = newfd;
     usc->pid = pid;
     usc->uid = uid;
@@ -224,18 +224,18 @@ us_handle_accept (USServer* server)
 
     if (server->nr_clients > MAX_CLIENTS_EACH) {
         ULOG_WARN ("Too many clients (maximal clients allowed: %d)\n", MAX_CLIENTS_EACH);
-        server->on_error (server, usc, HIBUS_SC_SERVICE_UNAVAILABLE);
+        server->on_error (server, (SockClient *)usc, HIBUS_SC_SERVICE_UNAVAILABLE);
         goto cleanup;
     }
 
     if (server->on_accepted) {
         int ret_code;
-        ret_code = server->on_accepted (server, usc);
+        ret_code = server->on_accepted (server, (SockClient *)usc);
         if (ret_code != HIBUS_SC_OK) {
             ULOG_WARN ("Internal error after accepted this client (%d): %d\n",
                     newfd, ret_code);
 
-            server->on_error (server, usc, ret_code);
+            server->on_error (server, (SockClient *)usc, ret_code);
             goto cleanup;
         }
     }
@@ -292,7 +292,7 @@ static bool us_queue_data (USClient *client, const char *buf, size_t len)
 
     /* client probably is too slow, so stop queueing until everything is
      * sent */
-    if (client->sz_pending >= US_THROTTLE_THLD)
+    if (client->sz_pending >= SOCK_THROTTLE_THLD)
         client->status |= US_THROTTLING;
 
     return true;
@@ -382,7 +382,7 @@ static ssize_t us_write (USServer *server, USClient *client,
     }
     /* the pending list not empty, just append new data if we're not
      * throttling the client */
-    else if (client->sz_pending < US_THROTTLE_THLD) {
+    else if (client->sz_pending < SOCK_THROTTLE_THLD) {
         if (us_queue_data (client, buffer, len))
             return bytes;
     }
@@ -500,7 +500,7 @@ int us_handle_reads (USServer* server, USClient* usc)
         break;
 
     case US_OPCODE_PONG: {
-        BusEndpoint *endpoint = usc->priv_data;
+        BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
 
         assert (endpoint);
 
@@ -519,7 +519,7 @@ int us_handle_reads (USServer* server, USClient* usc)
 done:
     if (err_code) {
         if (sta_code) {
-            server->on_error (server, usc, sta_code);
+            server->on_error (server, (SockClient*)usc, sta_code);
         }
 
         us_cleanup_client (server, usc);
@@ -529,7 +529,7 @@ done:
 
 got_packet:
     usc->packet [usc->sz_read] = '\0';
-    sta_code = server->on_packet (server, usc, usc->packet,
+    sta_code = server->on_packet (server, (SockClient *)usc, usc->packet,
             (usc->t_packet == PT_TEXT) ? (usc->sz_read + 1) : usc->sz_read,
             usc->t_packet);
     free (usc->packet);
@@ -540,7 +540,7 @@ got_packet:
     if (sta_code != HIBUS_SC_OK) {
         ULOG_WARN ("Internal error after got a packet: %d\n", sta_code);
 
-        server->on_error (server, usc, sta_code);
+        server->on_error (server, (SockClient*)usc, sta_code);
         err_code = HIBUS_EC_UPPER;
 
         us_cleanup_client (server, usc);
@@ -672,7 +672,7 @@ int us_remove_dangling_client (USServer *server, USClient *usc)
 
 int us_cleanup_client (USServer *server, USClient *usc)
 {
-    server->on_close (server, usc);
+    server->on_close (server, (SockClient *)usc);
 
     return us_remove_dangling_client (server, usc);
 }

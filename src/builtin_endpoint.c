@@ -672,10 +672,12 @@ bool fire_system_event (BusServer* bus_srv, int bubble_type,
         char peer_info [64] = "";
 
         if (cause->type == ET_UNIX_SOCKET) {
-            snprintf (peer_info, sizeof (peer_info), "%d", cause->usc->pid);
+            USClient* usc = (USClient *)cause->entity.client;
+            snprintf (peer_info, sizeof (peer_info), "%d", usc->pid);
         }
         else {
-            strncpy (peer_info, cause->wsc->remote_ip, sizeof (peer_info));
+            WSClient* wsc = (WSClient *)cause->entity.client;
+            strncpy (peer_info, wsc->remote_ip, sizeof (peer_info));
         }
 
         n = snprintf (bubble_data, sizeof (bubble_data), 
@@ -695,10 +697,12 @@ bool fire_system_event (BusServer* bus_srv, int bubble_type,
         char peer_info [64] = "";
 
         if (cause->type == ET_UNIX_SOCKET) {
-            snprintf (peer_info, sizeof (peer_info), "%d", cause->usc->pid);
+            USClient* usc = (USClient *)cause->entity.client;
+            snprintf (peer_info, sizeof (peer_info), "%d", usc->pid);
         }
         else {
-            strncpy (peer_info, cause->wsc->remote_ip, sizeof (peer_info));
+            WSClient* wsc = (WSClient *)cause->entity.client;
+            strncpy (peer_info, wsc->remote_ip, sizeof (peer_info));
         }
 
         n = snprintf (bubble_data, sizeof (bubble_data), 

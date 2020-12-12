@@ -29,8 +29,6 @@
 
 #include <hibox/list.h>
 
-#define US_THROTTLE_THLD      2097152   /* 2 MiB throttle threshold */
-
 typedef enum USSTATUS {
   US_OK = 0,
   US_ERR = (1 << 0),
@@ -54,27 +52,30 @@ typedef struct USPendingData_ {
 /* A UnixSocket Client */
 typedef struct USClient_
 {
-    int         type;       /* the type of the client */
-    int         fd;         /* UNIX socket FD */
-    pid_t       pid;        /* client PID */
-    uid_t       uid;        /* client UID */
+    /* the following fields are same as struct SocketClient_ */
+    int             ct;         /* the connection type of the client */
+    int             fd;         /* UNIX socket FD */
+    struct timespec ts;         /* time got the first frame of the current packet */
+    UpperEntity    *entity;     /* pointer to the uppper entity */
 
-    unsigned int status;
+    unsigned int    status;     /* the status of the client */
+    pid_t           pid;        /* client PID */
+    uid_t           uid;        /* client UID */
 
-    /* fields for pending frames */
+    /* fields for pending data to write */
     size_t              sz_pending;
     struct list_head    pending;
 
-    /* fields for current packet */
-    struct timespec ts;     /* time got the first frame of the current packet */
+    /* fields for current reading packet */
     int         t_packet;   /* type of packet */
     int         padding_;
     uint32_t    sz_packet;  /* total size of current packet */
     uint32_t    sz_read;    /* read size of current packet */
     char*       packet;     /* packet data */
 
-    void*       priv_data;  /* private data, used by the higher level */
 } USClient;
+
+struct SockClient_;
 
 /* The UnixSocket Server */
 typedef struct USServer_
@@ -83,11 +84,11 @@ typedef struct USServer_
     int nr_clients;
 
     /* Callbacks */
-    int (*on_accepted) (struct USServer_* server, USClient* client);
-    int (*on_packet) (struct USServer_* server, USClient* client,
+    int (*on_accepted) (void *server, struct SockClient_ *client);
+    int (*on_packet) (void *server, struct SockClient_ *client,
             const char* body, unsigned int sz_body, int type);
-    int (*on_close) (struct USServer_* server, USClient* client);
-    void (*on_error) (struct USServer_* server, USClient* client, int err_code);
+    int (*on_close) (void *server, struct SockClient_ *client);
+    void (*on_error) (void *server, struct SockClient_ *client, int err_code);
 
     const ServerConfig* config;
 } USServer;

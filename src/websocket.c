@@ -179,7 +179,7 @@ new_wsclient (void)
 
     ws_client = calloc (1, sizeof (WSClient));
 
-    ws_client->type = ET_WEB_SOCKET;
+    ws_client->ct = CT_WEB_SOCKET;
     ws_client->status = WS_OK;
 
     return ws_client;
@@ -1192,7 +1192,7 @@ ws_realloc_send_buf (WSClient * client, const char *buf, int len)
 
   /* client probably  too slow, so stop queueing until everything is
    * sent */
-  if (queue->qlen >= WS_THROTTLE_THLD)
+  if (queue->qlen >= SOCK_THROTTLE_THLD)
     client->status |= WS_THROTTLING;
 
   return 0;
@@ -1727,7 +1727,7 @@ ws_handle_text_bin (WSServer * server, WSClient * client)
   }
 
   if ((*msg)->opcode != WS_OPCODE_CONTINUATION && server->on_packet) {
-    server->on_packet (server, client, (*msg)->payload, (*msg)->payloadsz,
+    server->on_packet (server, (SockClient *)client, (*msg)->payload, (*msg)->payloadsz,
             (client->message->opcode == WS_OPCODE_TEXT) ? PT_TEXT : PT_BINARY);
   }
   ws_free_message (client);
@@ -1754,7 +1754,7 @@ ws_manage_payload_opcode (WSServer * server, WSClient * client)
   case WS_OPCODE_BIN:
     ULOG_NOTE ("TEXT\n");
     client->message->opcode = (*frm)->opcode;
-    clock_gettime (CLOCK_REALTIME, &client->message->ts);
+    clock_gettime (CLOCK_REALTIME, &client->ts);
     ws_handle_text_bin (server, client);
     break;
   case WS_OPCODE_PONG:
@@ -2018,7 +2018,7 @@ ws_cleanup_client (WSServer * server, WSClient * client)
   shutdown (client->fd, SHUT_RDWR);
   /* upon close, call on_close() callback */
   if (server->on_close)
-    (*server->on_close) (server, client);
+    (*server->on_close) (server, (SockClient *)client);
 
   /* do access logging */
   gettimeofday (&client->end_proc, NULL);
@@ -2084,12 +2084,12 @@ ws_handle_accept (WSServer * server, int listener)
   /* TODO: call on_accepted */
   if (server->on_accepted) {
       int ret_code;
-      ret_code = server->on_accepted (server, client);
+      ret_code = server->on_accepted (server, (SockClient *)client);
       if (ret_code != HIBUS_SC_OK) {
           ULOG_WARN ("Internal error after accepted this WebSocket client (%d): %d\n",
                   client->fd, ret_code);
 
-          server->on_error (server, client, ret_code);
+          server->on_error (server, (SockClient *)client, ret_code);
           handle_ws_read_close (server, client);
           return NULL;
       }

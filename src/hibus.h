@@ -121,6 +121,12 @@
 
 #define MAX_NO_RESPONDING_TIME  90  /* 90 seconds */
 
+/* connection types */
+enum {
+    CT_UNIX_SOCKET = 1,
+    CT_WEB_SOCKET,
+};
+
 typedef enum USOpcode_ {
     US_OPCODE_CONTINUATION = 0x00,
     US_OPCODE_TEXT = 0x01,
@@ -138,12 +144,6 @@ typedef struct USFrameHeader_ {
     unsigned char payload[0];
 } USFrameHeader;
 
-/* connection types */
-enum {
-    CT_UNIX_SOCKET = 1,
-    CT_WEB_SOCKET,
-};
-
 /* packet body types */
 enum {
     PT_TEXT = 0,
@@ -160,7 +160,9 @@ enum {
     JPT_AUTH_FAILED,
     JPT_CALL,
     JPT_RESULT,
+    JPT_RESULT_SENT,
     JPT_EVENT,
+    JPT_EVENT_SENT,
 };
 
 struct _hibus_conn;

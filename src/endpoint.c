@@ -52,7 +52,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
         case ET_BUILTIN:
             endpoint->type = ET_BUILTIN;
             endpoint->status = ES_READY;
-            endpoint->usc = NULL;
+            endpoint->entity.client = NULL;
 
             endpoint->host_name = strdup (bus_srv->server_name);
             endpoint->app_name = strdup (HIBUS_APP_HIBUS);
@@ -63,7 +63,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
         case ET_WEB_SOCKET:
             endpoint->type = type;
             endpoint->status = ES_AUTHING;
-            endpoint->usc = client;
+            endpoint->entity.client = client;
 
             endpoint->host_name = NULL;
             endpoint->app_name = NULL;
@@ -83,11 +83,11 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
 
     if (type == ET_UNIX_SOCKET) {
         USClient* usc = (USClient*)client;
-        usc->priv_data = endpoint;
+        usc->entity = &endpoint->entity;
     }
     else if (type == ET_WEB_SOCKET) {
         WSClient* wsc = (WSClient*)client;
-        wsc->priv_data = endpoint;
+        wsc->entity = &endpoint->entity;
     }
 
     kvlist_init (&endpoint->method_list, NULL);
@@ -221,12 +221,12 @@ bool make_endpoint_ready (BusServer* bus_srv,
 static void cleanup_dangling_client (BusServer *bus_srv, BusEndpoint* endpoint)
 {
     if (endpoint->type == ET_UNIX_SOCKET) {
-        endpoint->usc->priv_data = NULL;
-        us_cleanup_client (bus_srv->us_srv, endpoint->usc);
+        endpoint->entity.client->entity = NULL;
+        us_cleanup_client (bus_srv->us_srv, (USClient*)endpoint->entity.client);
     }
     else if (endpoint->type == ET_WEB_SOCKET) {
-        endpoint->wsc->priv_data = NULL;
-        ws_cleanup_client (bus_srv->ws_srv, endpoint->wsc);
+        endpoint->entity.client->entity = NULL;
+        ws_cleanup_client (bus_srv->ws_srv, (WSClient*)endpoint->entity.client);
     }
 
     ULOG_WARN ("The dangling endpoint (@%s/%s/%s) removed\n",
@@ -285,11 +285,11 @@ int send_packet_to_endpoint (BusServer* bus_srv,
         BusEndpoint* endpoint, const char* body, int len_body)
 {
     if (endpoint->type == ET_UNIX_SOCKET) {
-        return us_send_packet (bus_srv->us_srv, endpoint->usc,
+        return us_send_packet (bus_srv->us_srv, (USClient *)endpoint->entity.client,
                 US_OPCODE_TEXT, body, len_body);
     }
     else if (endpoint->type == ET_WEB_SOCKET) {
-        return ws_send_packet (bus_srv->ws_srv, endpoint->wsc,
+        return ws_send_packet (bus_srv->ws_srv, (WSClient *)endpoint->entity.client,
                 WS_OPCODE_TEXT, body, len_body);
     }
 

@@ -100,7 +100,6 @@
 
 /* packet header is 3 unit32_t : type, size, listener */
 #define HDR_SIZE              3 * 4
-#define WS_THROTTLE_THLD      2097152   /* 2 MiB throttle threshold */
 #define WS_MAX_HEAD_SZ        8192 /* a reasonable size for request headers */
 
 #define WS_MAGIC_STR "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -155,24 +154,6 @@ typedef struct WSQueue_
   int qlen;                     /* queue length */
 } WSQueue;
 
-#if 0   /* deprecated */
-typedef struct WSPacket_
-{
-  uint32_t type;                /* packet type (fixed-size) */
-  uint32_t size;                /* payload size in bytes (fixed-size) */
-  char *data;                   /* payload */
-  int len;                      /* payload buffer len */
-} WSPacket;
-
-/* FD event states */
-typedef struct WSEState_
-{
-  fd_set master;
-  fd_set rfds;
-  fd_set wfds;
-} WSEState;
-#endif
-
 /* WS HTTP Headers */
 typedef struct WSHeaders_
 {
@@ -226,19 +207,20 @@ typedef struct WSMessage_
   char *payload;                /* payload message */
   int payloadsz;                /* total payload size (whole message) */
   int buflen;                   /* recv'd buf length so far (for each frame) */
-  struct timespec ts;           /* time got the first frame of the message */
 } WSMessage;
 
 /* A WebSocket Client */
 typedef struct WSClient_
 {
-  /* socket data */
-  int type;
-  int fd;                       /* Websocket fd */
+  /* the following fields are same as struct SocketClient_ */
+  int             ct;         /* the connection type of the client */
+  int             fd;         /* WebSocket fd */
+  struct timespec ts;         /* time got the first frame of the current message */
+  UpperEntity    *entity;     /* pointer to the uppper entity */
+
   char remote_ip[INET6_ADDRSTRLEN];     /* client IP */
 
   WSQueue *sockqueue;           /* sending buffer */
-  //WSEState *state;              /* FDs states */
   WSHeaders *headers;           /* HTTP headers */
   WSFrame *frame;               /* frame headers */
   WSMessage *message;           /* message */
@@ -251,9 +233,9 @@ typedef struct WSClient_
   SSL *ssl;
   WSStatus sslstatus;           /* ssl connection status */
 #endif
-
-  void*   priv_data;            /* private data */
 } WSClient;
+
+struct SockClient_;
 
 /* A WebSocket Instance */
 typedef struct WSServer_
@@ -263,11 +245,11 @@ typedef struct WSServer_
   int nr_clients;
 
   /* Callbacks */
-  int (*on_accepted) (struct WSServer_* server, WSClient * client);
-  int (*on_packet) (struct WSServer_* server, WSClient * client,
+  int (*on_accepted) (void *server, struct SockClient_* client);
+  int (*on_packet) (void *server, struct SockClient_ * client,
           const char* body, unsigned int sz_body, int type);
-  int (*on_close) (struct WSServer_* server, WSClient * client);
-  void (*on_error) (struct WSServer_* server, WSClient* client, int err_code);
+  int (*on_close) (void *server, struct SockClient_ * client);
+  void (*on_error) (void *server, struct SockClient_* client, int err_code);
 
 #ifdef HAVE_LIBSSL
   SSL_CTX *ctx;
