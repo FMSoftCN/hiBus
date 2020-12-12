@@ -94,12 +94,14 @@
 #define HIBUS_SC_CALLEE_TIMEOUT         504
 #define HIBUS_SC_INSUFFICIENT_STORAGE   507
 
-#define HIBUS_EC_IO         (-1)
-#define HIBUS_EC_CLOSED     (-2)
-#define HIBUS_EC_NOMEM      (-3)
-#define HIBUS_EC_TOO_LARGE  (-4)
-#define HIBUS_EC_PROTOCOL   (-5)
-#define HIBUS_EC_UPPER      (-6)
+#define HIBUS_EC_IO                     (-1)
+#define HIBUS_EC_CLOSED                 (-2)
+#define HIBUS_EC_NOMEM                  (-3)
+#define HIBUS_EC_TOO_LARGE              (-4)
+#define HIBUS_EC_PROTOCOL               (-5)
+#define HIBUS_EC_UPPER                  (-6)
+#define HIBUS_EC_NOT_IMPLEMENTED        (-7)
+#define HIBUS_EC_INVALID_VALUE          (-8)
 
 #define LEN_HOST_NAME       127
 #define LEN_APP_NAME        127
@@ -249,6 +251,7 @@ char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
 
 int hibus_conn_socket_fd (hibus_conn* conn);
 int hibus_conn_socket_type (hibus_conn* conn);
+int hibus_conn_err_code (hibus_conn* conn);
 
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
 void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len);

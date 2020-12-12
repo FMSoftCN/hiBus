@@ -45,6 +45,7 @@
 struct _hibus_conn {
     int type;
     int fd;
+    int err_code;
 
     char* srv_host_name;
     char* own_host_name;
@@ -298,14 +299,14 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     if ((*conn = calloc (1, sizeof (hibus_conn))) == NULL) {
         ULOG_ERR ("Failed to callocate space for connection: %s\n",
                 strerror (errno));
-        return -1;
+        return HIBUS_EC_NOMEM;
     }
 
     /* create a Unix domain stream socket */
     if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
         ULOG_ERR ("Failed to call `socket` in hibus_connect_via_unix_socket: %s\n",
                 strerror (errno));
-        return -1;
+        return HIBUS_EC_IO;
     }
 
     {
@@ -385,7 +386,7 @@ error:
     free (*conn);
     *conn = NULL;
 
-    return -1;
+    return HIBUS_EC_PROTOCOL;
 }
 
 int hibus_connect_via_web_socket (const char* host_name, int port,
@@ -438,18 +439,42 @@ int hibus_conn_socket_type (hibus_conn* conn)
     return conn->type;
 }
 
+int hibus_conn_err_code (hibus_conn* conn)
+{
+    return conn->err_code;
+}
+
+static inline int conn_read (int fd, void *buff, ssize_t sz)
+{
+    if (read (fd, buff, sz) == sz) {
+        return 0;
+    }
+
+    return HIBUS_EC_IO;
+}
+
+static inline int conn_write (int fd, const void *data, ssize_t sz)
+{
+    if (write (fd, data, sz) == sz) {
+        return 0;
+    }
+
+    return HIBUS_EC_IO;
+}
+
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len)
 {
     unsigned int offset;
+
+    conn->err_code = 0;
     if (conn->type == CT_UNIX_SOCKET) {
         while (1) {
-            ssize_t n = 0;
             USFrameHeader header;
 
-            n = read (conn->fd, &header, sizeof (USFrameHeader));
-            if (n < sizeof (USFrameHeader)) {
+            if (conn_read (conn->fd, &header, sizeof (USFrameHeader))) {
                 ULOG_ERR ("Failed to read frame header from Unix socket\n");
-                return -1;
+                conn->err_code = HIBUS_EC_IO;
+                goto done;
             }
 
             if (header.op == US_OPCODE_PONG) {
@@ -459,15 +484,24 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
             else if (header.op == US_OPCODE_PING) {
                 header.op = US_OPCODE_PONG;
                 header.sz_payload = 0;
-                n = write (conn->fd, &header, sizeof (USFrameHeader));
+                if (conn_write (conn->fd, &header, sizeof (USFrameHeader))) {
+                    conn->err_code = HIBUS_EC_IO;
+                    goto done;
+                }
                 continue;
             }
             else if (header.op == US_OPCODE_CLOSE) {
                 ULOG_WARN ("Peer closed\n");
-                return -1;
+                conn->err_code = HIBUS_EC_CLOSED;
+                goto done;
             }
             else if (header.op == US_OPCODE_TEXT ||
                     header.op == US_OPCODE_BIN) {
+
+                if (header.fragmented > MAX_PAYLOAD_SIZE) {
+                    conn->err_code = HIBUS_EC_TOO_LARGE;
+                    goto done;
+                }
 
                 int is_text;
                 if (header.op == US_OPCODE_TEXT) {
@@ -477,18 +511,18 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
                     is_text = 0;
                 }
 
-                if (read (conn->fd, packet_buf, header.sz_payload)
-                        < header.sz_payload) {
+                if (conn_read (conn->fd, packet_buf, header.sz_payload)) {
                     ULOG_ERR ("Failed to read packet from Unix socket\n");
-                    return -1;
+                    conn->err_code = HIBUS_EC_IO;
+                    goto done;
                 }
 
                 offset = header.sz_payload;
                 while (header.fragmented) {
-                    n = read (conn->fd, &header, sizeof (USFrameHeader));
-                    if (n < sizeof (USFrameHeader)) {
+                    if (conn_read (conn->fd, &header, sizeof (USFrameHeader))) {
                         ULOG_ERR ("Failed to read frame header from Unix socket\n");
-                        return -1;
+                        conn->err_code = HIBUS_EC_IO;
+                        goto done;
                     }
 
                     if (header.op == US_OPCODE_END) {
@@ -496,13 +530,14 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
                     }
                     else if (header.op != US_OPCODE_CONTINUATION ) {
                         ULOG_ERR ("Not a continuation frame\n");
-                        return -1;
+                        conn->err_code = HIBUS_EC_PROTOCOL;
+                        goto done;
                     }
 
-                    if (read (conn->fd, packet_buf + offset, header.sz_payload)
-                            < header.sz_payload) {
+                    if (conn_read (conn->fd, packet_buf + offset, header.sz_payload)) {
                         ULOG_ERR ("Failed to read packet from Unix socket\n");
-                        return -1;
+                        conn->err_code = HIBUS_EC_IO;
+                        goto done;
                     }
 
                     offset += header.sz_payload;
@@ -515,23 +550,23 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
                 else {
                     *packet_len = offset;
                 }
-
-                return 0;
             }
             else {
                 ULOG_ERR ("Bad packet op code: %d\n", header.op);
-                return -1;
+                conn->err_code = HIBUS_EC_PROTOCOL;
             }
         }
     }
     else if (conn->type == CT_WEB_SOCKET) {
         /* TODO */
-        return -2;
+        conn->err_code = HIBUS_EC_NOT_IMPLEMENTED;
     }
-    else
-        return -3;
+    else {
+        conn->err_code = HIBUS_EC_INVALID_VALUE;
+    }
 
-    return 0;
+done:
+    return conn->err_code;
 }
 
 void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
@@ -539,16 +574,16 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
     void* packet_buf = NULL;
     unsigned int offset;
 
+    conn->err_code = 0;
     if (conn->type == CT_UNIX_SOCKET) {
 
         while (1) {
-            ssize_t n = 0;
             USFrameHeader header;
 
-            n = read (conn->fd, &header, sizeof (USFrameHeader));
-            if (n < sizeof (USFrameHeader)) {
+            if (conn_read (conn->fd, &header, sizeof (USFrameHeader))) {
                 ULOG_ERR ("Failed to read frame header from Unix socket\n");
-                break;
+                conn->err_code = HIBUS_EC_IO;
+                goto failed;
             }
 
             if (header.op == US_OPCODE_PONG) {
@@ -558,17 +593,26 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
             else if (header.op == US_OPCODE_PING) {
                 header.op = US_OPCODE_PONG;
                 header.sz_payload = 0;
-                n = write (conn->fd, &header, sizeof (USFrameHeader));
+                if (conn_write (conn->fd, &header, sizeof (USFrameHeader))) {
+                    conn->err_code = HIBUS_EC_IO;
+                    goto failed;
+                }
                 continue;
             }
             else if (header.op == US_OPCODE_CLOSE) {
                 ULOG_WARN ("Peer closed\n");
-                return NULL;
+                conn->err_code = HIBUS_EC_CLOSED;
+                goto failed;
             }
             else if (header.op == US_OPCODE_TEXT ||
                     header.op == US_OPCODE_BIN) {
-
                 int is_text;
+
+                if (header.fragmented > MAX_PAYLOAD_SIZE) {
+                    conn->err_code = HIBUS_EC_TOO_LARGE;
+                    goto failed;
+                }
+
                 if (header.op == US_OPCODE_TEXT) {
                     is_text = 1;
                 }
@@ -577,23 +621,22 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
                 }
 
                 if ((packet_buf = malloc (header.sz_payload + 1)) == NULL) {
-                    return NULL;
+                    conn->err_code = HIBUS_EC_NOMEM;
+                    goto failed;
                 }
 
-                if (read (conn->fd, packet_buf, header.sz_payload)
-                        < header.sz_payload) {
+                if (conn_read (conn->fd, packet_buf, header.sz_payload)) {
                     ULOG_ERR ("Failed to read packet from Unix socket\n");
-                    free (packet_buf);
-                    return NULL;
+                    conn->err_code = HIBUS_EC_IO;
+                    goto failed;
                 }
 
                 offset = header.sz_payload;
                 while (header.fragmented) {
-                    n = read (conn->fd, &header, sizeof (USFrameHeader));
-                    if (n < sizeof (USFrameHeader)) {
+                    if (conn_read (conn->fd, &header, sizeof (USFrameHeader))) {
                         ULOG_ERR ("Failed to read frame header from Unix socket\n");
-                        free (packet_buf);
-                        return NULL;
+                        conn->err_code = HIBUS_EC_IO;
+                        goto failed;
                     }
 
                     if (header.op == US_OPCODE_END) {
@@ -601,21 +644,20 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
                     }
                     else if (header.op != US_OPCODE_CONTINUATION ) {
                         ULOG_ERR ("Not a continuation frame\n");
-                        free (packet_buf);
-                        return NULL;
+                        conn->err_code = HIBUS_EC_PROTOCOL;
+                        goto failed;
                     }
 
                     if ((packet_buf = realloc (packet_buf, offset + header.sz_payload + 1))
                             == NULL) {
-                        // free?
-                        return NULL;
+                        conn->err_code = HIBUS_EC_NOMEM;
+                        goto failed;
                     }
 
-                    if (read (conn->fd, packet_buf + offset, header.sz_payload)
-                            < header.sz_payload) {
+                    if (conn_read (conn->fd, packet_buf + offset, header.sz_payload)) {
                         ULOG_ERR ("Failed to read packet from Unix socket\n");
-                        free (packet_buf);
-                        return NULL;
+                        conn->err_code = HIBUS_EC_IO;
+                        goto failed;
                     }
 
                     offset += header.sz_payload;
@@ -628,75 +670,115 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
                 else {
                     *packet_len = offset;
                 }
+
                 return packet_buf;
             }
             else {
                 ULOG_ERR ("Bad packet op code: %d\n", header.op);
-                return NULL;
+                conn->err_code = HIBUS_EC_PROTOCOL;
+                goto failed;
             }
         }
     }
     else if (conn->type == CT_WEB_SOCKET) {
         /* TODO */
+        conn->err_code = HIBUS_EC_NOT_IMPLEMENTED;
         return NULL;
     }
     else {
         assert (0);
+        conn->err_code = HIBUS_EC_INVALID_VALUE;
+        return NULL;
+    }
+
+failed:
+    if (conn->err_code) {
+        if (packet_buf)
+            free (packet_buf);
         return NULL;
     }
 
     return packet_buf;
 }
 
-/* TODO: fragment if the text is too long */
 int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int len)
 {
+    int retv = 0;
+
     if (conn->type == CT_UNIX_SOCKET) {
-        ssize_t n = 0;
         USFrameHeader header;
 
-        header.op = US_OPCODE_TEXT;
-        header.fragmented = 0;
-        header.sz_payload = len;
-        n = write (conn->fd, &header, sizeof (USFrameHeader));
-        n += write (conn->fd, text, len);
-        if (n != (sizeof (USFrameHeader) + len)) {
-            ULOG_ERR ("Error when wirting to Unix Socket: %s\n", strerror (errno));
-            return -1;
+        if (len > MAX_PAYLOAD_SIZE) {
+            unsigned int left = len;
+
+            do {
+                if (left == len) {
+                    header.op = US_OPCODE_TEXT;
+                    header.fragmented = len;
+                    header.sz_payload = MAX_PAYLOAD_SIZE;
+                    left -= MAX_PAYLOAD_SIZE;
+                }
+                else if (left > MAX_PAYLOAD_SIZE) {
+                    header.op = US_OPCODE_CONTINUATION;
+                    header.fragmented = 0;
+                    header.sz_payload = MAX_PAYLOAD_SIZE;
+                    left -= MAX_PAYLOAD_SIZE;
+                }
+                else {
+                    header.op = US_OPCODE_END;
+                    header.fragmented = 0;
+                    header.sz_payload = left;
+                    left = 0;
+                }
+
+                if (conn_write (conn->fd, &header, sizeof (USFrameHeader)) == 0) {
+                    retv = conn_write (conn->fd, text, header.sz_payload);
+                    text += header.sz_payload;
+                }
+
+            } while (left > 0 && retv == 0);
+        }
+        else {
+            header.op = US_OPCODE_TEXT;
+            header.fragmented = 0;
+            header.sz_payload = len;
+            if (conn_write (conn->fd, &header, sizeof (USFrameHeader)) == 0)
+                retv = conn_write (conn->fd, text, len);
         }
     }
     else if (conn->type == CT_WEB_SOCKET) {
         /* TODO */
-        return -2;
+        retv = HIBUS_EC_NOT_IMPLEMENTED;
     }
     else
-        return -3;
+        retv = HIBUS_EC_INVALID_VALUE;
 
-    return 0;
+    return retv;
 }
 
 int hibus_ping_server (hibus_conn* conn)
 {
+    conn->err_code = 0;
+
     if (conn->type == CT_UNIX_SOCKET) {
-        ssize_t n = 0;
         USFrameHeader header;
 
         header.op = US_OPCODE_PING;
         header.fragmented = 0;
         header.sz_payload = 0;
-        n = write (conn->fd, &header, sizeof (USFrameHeader));
-        if (n < sizeof (USFrameHeader)) {
+        if (conn_write (conn->fd, &header, sizeof (USFrameHeader))) {
             ULOG_ERR ("Error when wirting to Unix Socket: %s\n", strerror (errno));
-            return -1;
+            conn->err_code = HIBUS_EC_IO;
         }
     }
     else if (conn->type == CT_WEB_SOCKET) {
         /* TODO */
-        return -2;
+        conn->err_code = HIBUS_EC_NOT_IMPLEMENTED;
     }
-    else
-        return -3;
+    else {
+        conn->err_code = HIBUS_EC_INVALID_VALUE;
+    }
 
-    return 0;
+    return conn->err_code;
 }
 
