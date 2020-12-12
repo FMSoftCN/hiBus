@@ -102,6 +102,8 @@
 #define HIBUS_EC_UPPER                  (-6)
 #define HIBUS_EC_NOT_IMPLEMENTED        (-7)
 #define HIBUS_EC_INVALID_VALUE          (-8)
+#define HIBUS_EC_DUPLICATED             (-9)
+#define HIBUS_EC_TOO_SMALL_BUFF         (-10)
 
 #define LEN_HOST_NAME       127
 #define LEN_APP_NAME        127
@@ -113,6 +115,7 @@
 #define LEN_UNIQUE_ID       63
 #define MIN_PACKET_BUFF_SIZE    512
 #define DEF_PACKET_BUFF_SIZE    1024
+#define DEF_TIME_EXPECTED       5   /* 5 seconds */
 
 /* the maximal size of a payload in a frame */
 #define MAX_PAYLOAD_SIZE    4096    /* 4 KiB max frame payload size */
@@ -167,6 +170,9 @@ enum {
     JPT_EVENT_SENT,
 };
 
+#define PT_CALL     "call"
+#define PT_RESULT   "result"
+
 struct _hibus_conn;
 typedef struct _hibus_conn hibus_conn;
 
@@ -189,6 +195,7 @@ hibus_json *hibus_json_object_from_string (const char* json, int len, int in_dep
 bool hibus_is_valid_token (const char* token, int max_len);
 bool hibus_is_valid_host_name (const char* host_name);
 bool hibus_is_valid_app_name (const char* app_name);
+bool hibus_is_valid_endpoint_name (const char* endpoint_name);
 
 int hibus_extract_host_name (const char* endpoint, char* buff);
 int hibus_extract_app_name (const char* endpoint, char* buff);
@@ -259,23 +266,24 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len);
 int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt_len);
 int hibus_ping_server (hibus_conn* conn);
 
-typedef hibus_json* (*hibus_method_handler)(hibus_conn* conn,
+typedef char* (*hibus_method_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,
-        const hibus_json* method_param);
+        const char* method_param);
 
 int hibus_register_procedure (hibus_conn* conn, const char* method_name,
+        const char* for_host, const char* for_app,
         hibus_method_handler method_handler);
 int hibus_revoke_procedure (hibus_conn* conn, const char* method_name);
 
 int hibus_register_event (hibus_conn* conn, const char* bubble_name,
-        const char* to_host, const char* to_app);
+        const char* for_host, const char* for_app);
 int hibus_revoke_event (hibus_conn* conn, const char* bubble_name);
 int hibus_fire_event (hibus_conn* conn,
-        const char* bubble_name, const hibus_json* bubble_data);
+        const char* bubble_name, const char* bubble_data);
 
 typedef void (*hibus_event_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* bubble_name,
-        const hibus_json* bubble_data);
+        const char* bubble_data);
 
 int hibus_subscribe_event (hibus_conn* conn,
         const char* endpoint, const char* bubble_name,
@@ -286,16 +294,18 @@ int hibus_unsubscribe_event (hibus_conn* conn,
 
 typedef void (*hibus_result_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* method_name,
-        int ret_code, const hibus_json* ret_value);
+        int ret_code, const char* ret_value);
 
 int hibus_call_procedure (hibus_conn* conn,
         const char* endpoint, const char* method_name,
-        const hibus_json* method_praram,
-        time_t ret_time_expected, hibus_result_handler result_handler);
+        const char* method_param,
+        int time_expected, hibus_result_handler result_handler);
 
 int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
-        const char* method_name, const hibus_json* method_praram,
-        time_t ret_time_expected, hibus_json** ret_value);
+        const char* method_name, const char* method_param,
+        int time_expected, char** ret_value);
+
+int hibus_wait_and_dispatch_packet (hibus_conn* conn, struct timeval *timeout);
 
 #ifdef __cplusplus
 }

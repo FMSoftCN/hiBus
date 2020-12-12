@@ -191,6 +191,26 @@ bool hibus_is_valid_token (const char* token, int max_len)
     return true;
 }
 
+bool hibus_is_valid_endpoint_name (const char* endpoint_name)
+{
+    char host_name [LEN_HOST_NAME + 1];
+    char app_name [LEN_APP_NAME + 1];
+    char runner_name [LEN_RUNNER_NAME + 1];
+
+    if (hibus_extract_host_name (endpoint_name, host_name) <= 0)
+        return false;
+
+    if (hibus_extract_app_name (endpoint_name, app_name) <= 0)
+        return false;
+
+    if (hibus_extract_runner_name (endpoint_name, runner_name) <= 0)
+        return false;
+
+    return hibus_is_valid_host_name (host_name) &&
+        hibus_is_valid_app_name (app_name) &&
+        hibus_is_valid_runner_name (runner_name);
+}
+
 /* @<host_name>/<app_name>/<runner_name> */
 int hibus_extract_host_name (const char* endpoint, char* host_name)
 {
