@@ -68,11 +68,12 @@ typedef struct UpperEntity_ {
 static inline void update_upper_entity_stats (UpperEntity *entity,
         size_t sz_pending_data, size_t sz_reading_data)
 {
-    entity->sz_sock_mem = sz_pending_data + sz_reading_data;
-    if (entity->sz_sock_mem > entity->peak_sz_sock_mem)
-        entity->peak_sz_sock_mem = entity->sz_sock_mem;
+    if (entity) {
+        entity->sz_sock_mem = sz_pending_data + sz_reading_data;
+        if (entity->sz_sock_mem > entity->peak_sz_sock_mem)
+            entity->peak_sz_sock_mem = entity->sz_sock_mem;
+    }
 }
-
 
 /* A socket client */
 typedef struct SockClient_ {

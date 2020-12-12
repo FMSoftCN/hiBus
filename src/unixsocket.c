@@ -266,6 +266,7 @@ static void us_clear_pending_data (USClient *client)
     }
 
     client->sz_pending = 0;
+
     update_upper_entity_stats (client->entity, client->sz_pending, client->sz_packet);
 }
 
@@ -617,6 +618,7 @@ int us_send_packet (USServer* server, USClient* usc,
     }
 
     if (sz > MAX_PAYLOAD_SIZE) {
+        const char* buff = data;
         unsigned int left = sz;
 
         do {
@@ -640,7 +642,8 @@ int us_send_packet (USServer* server, USClient* usc,
             }
 
             us_write (server, usc, &header, sizeof (USFrameHeader));
-            us_write (server, usc, data, header.sz_payload);
+            us_write (server, usc, buff, header.sz_payload);
+            buff += header.sz_payload;
 
         } while (left > 0);
     }
