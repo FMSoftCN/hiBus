@@ -428,7 +428,7 @@ on_error (void* sock_srv, SockClient* client, int err_code)
             "\"retMsg\":\"%s\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
-            err_code, hibus_get_error_message (err_code));
+            err_code, hibus_get_ret_message (err_code));
 
     if (size >= sizeof (buff)) {
         // should never reach here
@@ -772,7 +772,7 @@ main (int argc, char **argv)
 
     if ((retval = init_bus_server ())) {
         ULOG_ERR ("Error during init_bus_server: %s\n",
-                hibus_get_error_message (retval));
+                hibus_get_ret_message (retval));
         goto error;
     }
 

@@ -34,13 +34,13 @@
 
 #include "hibus.h"
 
-/* Error Codes and Error Messages */
-#define UNKNOWN_ERR_CODE    "Unknown Error Code"
+/* Status Codes and Messages */
+#define UNKNOWN_RET_CODE    "Unknown Status Code"
 
 static struct  {
-    int err_code;
-    const char* err_msg;
-} err_code_2_messages[] = {
+    int ret_code;
+    const char* ret_msg;
+} ret_code_2_messages[] = {
     { HIBUS_SC_IOERR,               /* 1 */
         "I/O Error" },
     { HIBUS_SC_OK,                  /* 200 */
@@ -109,29 +109,75 @@ static struct  {
 
 #define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
 
-const char* hibus_get_error_message (int err_code)
+const char* hibus_get_ret_message (int ret_code)
 {
     unsigned int lower = 0;
-    unsigned int upper = TABLESIZE (err_code_2_messages) - 1;
-    int mid = TABLESIZE (err_code_2_messages) / 2;
+    unsigned int upper = TABLESIZE (ret_code_2_messages) - 1;
+    int mid = TABLESIZE (ret_code_2_messages) / 2;
 
-    if (err_code < err_code_2_messages[lower].err_code ||
-            err_code > err_code_2_messages[upper].err_code)
-        return UNKNOWN_ERR_CODE;
+    if (ret_code < ret_code_2_messages[lower].ret_code ||
+            ret_code > ret_code_2_messages[upper].ret_code)
+        return UNKNOWN_RET_CODE;
 
     do {
-        if (err_code < err_code_2_messages[mid].err_code)
+        if (ret_code < ret_code_2_messages[mid].ret_code)
             upper = mid - 1;
-        else if (err_code > err_code_2_messages[mid].err_code)
+        else if (ret_code > ret_code_2_messages[mid].ret_code)
             lower = mid + 1;
         else
-            return err_code_2_messages [mid].err_msg;
+            return ret_code_2_messages [mid].ret_msg;
 
         mid = (lower + upper) / 2;
 
     } while (lower <= upper);
 
-    return UNKNOWN_ERR_CODE;
+    return UNKNOWN_RET_CODE;
+}
+
+int hibus_errcode_to_retcode (int err_code)
+{
+    switch (err_code) {
+        case 0:
+            return HIBUS_SC_OK;
+        case HIBUS_EC_IO:
+            return HIBUS_SC_IOERR;
+        case HIBUS_EC_CLOSED:
+            return HIBUS_SC_SERVICE_UNAVAILABLE;
+        case HIBUS_EC_NOMEM:
+            return HIBUS_SC_INSUFFICIENT_STORAGE;
+        case HIBUS_EC_TOO_LARGE:
+            return HIBUS_SC_PACKET_TOO_LARGE;
+        case HIBUS_EC_PROTOCOL:
+            return HIBUS_SC_UNPROCESSABLE_PACKET;
+        case HIBUS_EC_UPPER:
+            return HIBUS_SC_INTERNAL_SERVER_ERROR;
+        case HIBUS_EC_NOT_IMPLEMENTED:
+            return HIBUS_SC_NOT_IMPLEMENTED;
+        case HIBUS_EC_INVALID_VALUE:
+            return HIBUS_SC_BAD_REQUEST;
+        case HIBUS_EC_DUPLICATED:
+            return HIBUS_SC_CONFLICT;
+        case HIBUS_EC_TOO_SMALL_BUFF:
+            return HIBUS_SC_INSUFFICIENT_STORAGE;
+        case HIBUS_EC_BAD_SYSTEM_CALL:
+            return HIBUS_SC_INTERNAL_SERVER_ERROR;
+        case HIBUS_EC_AUTH_FAILED:
+            return HIBUS_SC_UNAUTHORIZED;
+        case HIBUS_EC_SERVER_ERROR:
+            return HIBUS_SC_INTERNAL_SERVER_ERROR;
+        case HIBUS_EC_TIMEOUT:
+            return HIBUS_SC_CALLEE_TIMEOUT;
+        case HIBUS_EC_UNKNOWN_EVENT:
+            return HIBUS_SC_NOT_FOUND;
+        case HIBUS_EC_UNKNOWN_RESULT:
+            return HIBUS_SC_NOT_FOUND;
+        case HIBUS_EC_UNKNOWN_METHOD:
+            return HIBUS_SC_NOT_FOUND;
+        default:
+            break;
+    }
+
+    return HIBUS_SC_INTERNAL_SERVER_ERROR;
 }
 
 hibus_json *hibus_json_object_from_string (const char* json, int len, int in_depth)
@@ -454,8 +500,14 @@ int hibus_json_packet_to_object (const char* json, unsigned int json_len,
         else if (strcasecmp (pack_type, "result") == 0) {
             jpt = JPT_RESULT;
         }
+        else if (strcasecmp (pack_type, "resultSent") == 0) {
+            jpt = JPT_RESULT_SENT;
+        }
         else if (strcasecmp (pack_type, "event") == 0) {
             jpt = JPT_EVENT;
+        }
+        else if (strcasecmp (pack_type, "eventSent") == 0) {
+            jpt = JPT_EVENT_SENT;
         }
         else {
             jpt = JPT_UNKNOWN;

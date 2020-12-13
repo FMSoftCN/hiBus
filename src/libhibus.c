@@ -47,6 +47,7 @@ struct _hibus_conn {
     int type;
     int fd;
     int err_code;
+    int pt;
 
     char* srv_host_name;
     char* own_host_name;
@@ -799,9 +800,8 @@ int hibus_ping_server (hibus_conn* conn)
     return conn->err_code;
 }
 
-static int wait_for_specific_packet (hibus_conn* conn, const char* pt,
-        const char* match_key, const char* match_value, int time_expected,
-        char** ret_value);
+static int wait_for_specific_call_result_packet (hibus_conn* conn, 
+        const char* call_id, int time_expected, char** ret_value);
 
 int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         const char* method_name, const char* method_param,
@@ -845,8 +845,8 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         return HIBUS_EC_IO;
     }
 
-    return wait_for_specific_packet (conn, PT_RESULT,
-                    "callId", call_id, time_expected, ret_value);
+    return wait_for_specific_call_result_packet (conn,
+            call_id, time_expected, ret_value);
 }
 
 int hibus_register_procedure (hibus_conn* conn, const char* method_name,
@@ -1032,7 +1032,7 @@ int hibus_subscribe_event (hibus_conn* conn,
     int n, ret_code;
     char builtin_name [LEN_ENDPOINT_NAME + 1];
     char param_buff [MIN_PACKET_BUFF_SIZE];
-    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 1];
+    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 2];
     char* ret_value;
 
     if (!hibus_is_valid_endpoint_name (endpoint))
@@ -1042,6 +1042,8 @@ int hibus_subscribe_event (hibus_conn* conn,
         return HIBUS_EC_INVALID_VALUE;
 
     n = hibus_name_tolower_copy (endpoint, event_name, LEN_ENDPOINT_NAME);
+    event_name [n++] = '/';
+    event_name [n + 1] = '\0';
     hibus_name_toupper_copy (bubble_name, event_name + n, LEN_BUBBLE_NAME);
     if (kvlist_get (&conn->subscribed_list, event_name))
         return HIBUS_EC_INVALID_VALUE;
@@ -1080,7 +1082,7 @@ int hibus_unsubscribe_event (hibus_conn* conn,
     int n, ret_code;
     char builtin_name [LEN_ENDPOINT_NAME + 1];
     char param_buff [MIN_PACKET_BUFF_SIZE];
-    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 1];
+    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 2];
     char* ret_value;
 
     if (!hibus_is_valid_endpoint_name (endpoint))
@@ -1090,6 +1092,8 @@ int hibus_unsubscribe_event (hibus_conn* conn,
         return HIBUS_EC_INVALID_VALUE;
 
     n = hibus_name_tolower_copy (endpoint, event_name, LEN_ENDPOINT_NAME);
+    event_name [n++] = '/';
+    event_name [n + 1] = '\0';
     hibus_name_toupper_copy (bubble_name, event_name + n, LEN_BUBBLE_NAME);
     if (!kvlist_get (&conn->subscribed_list, event_name))
         return HIBUS_EC_INVALID_VALUE;
@@ -1180,7 +1184,7 @@ int hibus_fire_event (hibus_conn* conn,
 
     char buff_in_stack [DEF_PACKET_BUFF_SIZE];
     char* packet_buff = buff_in_stack;
-    size_t len_data = strlen (bubble_data) * 2 + 1;
+    size_t len_data = bubble_data ? (strlen (bubble_data) * 2 + 1) : 0;
     size_t sz_packet_buff = sizeof (buff_in_stack);
     char* escaped_data;
 
@@ -1242,15 +1246,478 @@ int hibus_fire_event (hibus_conn* conn,
     return conn->err_code;
 }
 
-static int wait_for_specific_packet (hibus_conn* conn, const char* pt,
-        const char* match_key, const char* match_value, int time_expected,
-        char** ret_value)
+static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
 {
+    hibus_json *jo_tmp;
+    const char* from_endpoint, *call_id, *result_id;
+    const char* to_method;
+    const char* parameter;
+    char *ret_value = NULL;
+    char normalized_name [LEN_METHOD_NAME + 1];
+    hibus_method_handler method_handler;
+    int err_code = 0;
+    char buff_in_stack [DEF_PACKET_BUFF_SIZE];
+    char* packet_buff = buff_in_stack;
+    size_t sz_packet_buff = sizeof (buff_in_stack);
+    char* escaped_value = NULL;
+    int n, ret_code;
+    double time_consumed;
+
+    if (json_object_object_get_ex (jo, "fromEndpoint", &jo_tmp) &&
+            (from_endpoint = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        err_code = HIBUS_EC_PROTOCOL;
+        goto done;
+    }
+
+    if (json_object_object_get_ex (jo, "toMethod", &jo_tmp) &&
+            (to_method = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        err_code = HIBUS_EC_PROTOCOL;
+        goto done;
+    }
+
+    if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
+            (call_id = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        err_code = HIBUS_EC_PROTOCOL;
+        goto done;
+    }
+
+    if (json_object_object_get_ex (jo, "resultId", &jo_tmp) &&
+            (result_id = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        err_code = HIBUS_EC_PROTOCOL;
+        goto done;
+    }
+
+    if (json_object_object_get_ex (jo, "parameter", &jo_tmp) &&
+            (parameter = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        parameter = "";
+    }
+
+    hibus_name_tolower_copy (to_method, normalized_name, LEN_METHOD_NAME);
+    if ((method_handler = kvlist_get (&conn->method_list, normalized_name)) == NULL) {
+        err_code = HIBUS_EC_UNKNOWN_METHOD;
+        goto done;
+    }
+    else {
+        struct timespec ts;
+
+        clock_gettime (CLOCK_REALTIME, &ts);
+        ret_value = method_handler (conn, from_endpoint,
+                normalized_name, parameter, &err_code);
+        time_consumed = hibus_get_elapsed_seconds (&ts, NULL);
+
+        if (err_code == 0) {
+            size_t len_value = ret_value ? (strlen (ret_value) * 2 + 1) : 0;
+
+            if (len_value > MIN_PACKET_BUFF_SIZE) {
+                sz_packet_buff = MIN_PACKET_BUFF_SIZE + len_value;
+                packet_buff = malloc (MIN_PACKET_BUFF_SIZE + len_value);
+                if (packet_buff == NULL) {
+                    err_code = HIBUS_EC_NOMEM;
+                    goto done;
+                }
+            }
+
+            if (ret_value) {
+                escaped_value = hibus_escape_string_for_json (ret_value);
+                if (escaped_value == NULL) {
+                    err_code = HIBUS_EC_NOMEM;
+                    goto done;
+                }
+            }
+            else
+                escaped_value = NULL;
+        }
+    }
+
+done:
+    ret_code = hibus_errcode_to_retcode (err_code);
+    n = snprintf (packet_buff, sz_packet_buff, 
+            "{"
+            "\"packetType\": \"result\","
+            "\"resultId\": \"%s\","
+            "\"callId\": \"%s\","
+            "\"fromMethod\": \"%s\","
+            "\"timeConsumed\": %.9f,"
+            "\"retCode\": %d,"
+            "\"retMsg\": \"%s\","
+            "\"retValue\": \"%s\""
+            "}",
+            result_id, call_id,
+            normalized_name,
+            time_consumed,
+            ret_code,
+            hibus_get_ret_message (ret_code),
+            escaped_value ? escaped_value : "");
+    if (escaped_value)
+        free (escaped_value);
+
+    if (n >= sz_packet_buff) {
+        err_code = HIBUS_EC_TOO_SMALL_BUFF;
+    }
+    else
+        hibus_send_text_packet (conn, packet_buff, n);
+
+    if (packet_buff && packet_buff != buff_in_stack) {
+        free (packet_buff);
+    }
+
+    return err_code;
+}
+
+static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
+{
+    hibus_json *jo_tmp;
+    const char* result_id = NULL, *call_id = NULL;
+    const char* from_endpoint = NULL;
+    const char* from_method = NULL;
+    const char* ret_value;
+    hibus_result_handler result_handler;
+    int ret_code;
+    double time_consumed;
+
+    if (json_object_object_get_ex (jo, "resultId", &jo_tmp) &&
+            (result_id = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        ULOG_WARN ("No resultId\n");
+    }
+
+    if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
+            (call_id = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    result_handler = kvlist_get (&conn->call_list, call_id);
+    if (result_handler == NULL) {
+        ULOG_ERR ("Not found result handler for callId: %s\n", call_id);
+        return HIBUS_EC_INVALID_VALUE;
+    }
+    else {
+        kvlist_delete (&conn->call_list, call_id);
+    }
+
+    if (json_object_object_get_ex (jo, "fromEndpoint", &jo_tmp) &&
+            (from_endpoint = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    if (json_object_object_get_ex (jo, "fromMethod", &jo_tmp) &&
+            (from_method = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    if (json_object_object_get_ex (jo, "timeConsumed", &jo_tmp) &&
+            (time_consumed = json_object_get_double (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    if (json_object_object_get_ex (jo, "retCode", &jo_tmp) &&
+            (ret_code = json_object_get_int (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    if (json_object_object_get_ex (jo, "retValue", &jo_tmp) &&
+            (ret_value = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    result_handler (conn, from_endpoint, from_method, ret_code, ret_value);
+
     return 0;
 }
 
-int hibus_wait_and_dispatch_packet (hibus_conn* conn, struct timeval *timeout)
+static int dispatch_event_packet (hibus_conn* conn, const hibus_json *jo)
 {
+    hibus_json *jo_tmp;
+    const char* from_endpoint = NULL;
+    const char* from_bubble = NULL;
+    const char* bubble_data;
+    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 2];
+    hibus_event_handler event_handler;
+    int n;
+
+    if (json_object_object_get_ex (jo, "fromEndpoint", &jo_tmp) &&
+            (from_endpoint = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    if (json_object_object_get_ex (jo, "fromBubble", &jo_tmp) &&
+            (from_bubble = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    if (json_object_object_get_ex (jo, "bubbleData", &jo_tmp) &&
+            (bubble_data = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        bubble_data = "";
+    }
+
+    n = hibus_name_tolower_copy (from_endpoint, event_name, LEN_ENDPOINT_NAME);
+    event_name [n++] = '/';
+    event_name [n + 1] = '\0';
+    hibus_name_toupper_copy (from_bubble, event_name + n + 1, LEN_BUBBLE_NAME);
+    if ((event_handler = kvlist_get (&conn->subscribed_list, event_name)) == NULL) {
+        // TODO handle system events here.
+        return HIBUS_EC_UNKNOWN_EVENT;
+    }
+    else {
+        event_handler (conn, from_endpoint, from_bubble, bubble_data);
+    }
+
     return 0;
+}
+
+static int wait_for_specific_call_result_packet (hibus_conn* conn, 
+        const char* call_id, int time_expected, char** ret_value)
+{
+    fd_set rfds;
+    struct timeval tv;
+    int retval;
+    char* packet;
+    unsigned int data_len;
+    hibus_json* jo;
+    time_t time_to_return;
+
+    *ret_value = NULL;
+
+    if (time_expected <= 0) {
+        time_to_return = time (NULL) + DEF_TIME_EXPECTED;
+    }
+    else {
+        time_to_return = time (NULL) + time_expected;
+    }
+
+    while (time (NULL) < time_to_return) {
+        FD_ZERO (&rfds);
+        FD_SET (conn->fd, &rfds);
+
+        tv.tv_sec = time_to_return - time (NULL);
+        tv.tv_usec = 0;
+        retval = select (conn->fd + 1, &rfds, NULL, NULL, &tv);
+
+        if (retval == -1) {
+            ULOG_ERR ("Failed to call select(): %s\n", strerror (errno));
+            conn->err_code = HIBUS_EC_BAD_SYSTEM_CALL;
+        }
+        else if (retval) {
+            packet = hibus_read_packet_alloc (conn, &data_len);
+
+            if (packet == NULL) {
+                ULOG_ERR ("Failed to read packet\n");
+                // err_code is set by `hibus_read_packet_alloc`
+                break;
+            }
+
+            ULOG_INFO ("got a packet (%u bytes long):\n%s\n", data_len, packet);
+            retval = hibus_json_packet_to_object (packet, data_len, &jo);
+            free (packet);
+
+            if (retval < 0) {
+                ULOG_ERR ("Failed to parse JSON packet;\n");
+                conn->err_code = HIBUS_EC_PROTOCOL;
+            }
+            else if (retval == JPT_RESULT) {
+                hibus_json *jo_tmp;
+                const char* str_tmp;
+                if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
+                        (str_tmp = json_object_get_string (jo_tmp)) &&
+                        strcasecmp (str_tmp, call_id) == 0) {
+
+                    ULOG_INFO ("Got the packet we are wait for\n");
+                    if (json_object_object_get_ex (jo, "retValue", &jo_tmp)) {
+                        str_tmp = json_object_get_string (jo_tmp);
+                        if (str_tmp) {
+                            *ret_value = strdup (str_tmp);
+                        }
+                    }
+
+                    json_object_put (jo);
+                    conn->err_code = 0;
+                    break;
+                }
+                else {
+                    ULOG_INFO ("Got another result packet\n");
+                    conn->err_code = dispatch_result_packet (conn, jo);
+                }
+            }
+            else if (retval == JPT_ERROR) {
+                ULOG_WARN ("Got a `error` packet\n");
+                conn->err_code = HIBUS_EC_SERVER_ERROR;
+            }
+            else if (retval == JPT_AUTH) {
+                ULOG_WARN ("Should not be here for packetType `auth`\n");
+                conn->err_code = 0;
+            }
+            else if (retval == JPT_AUTH_PASSED) {
+                ULOG_WARN ("I passed the authentication; go on\n");
+                conn->err_code = 0;
+            }
+            else if (retval == JPT_AUTH_FAILED) {
+                ULOG_WARN ("I failed the authentication; quit...\n");
+                conn->err_code = HIBUS_EC_AUTH_FAILED;
+            }
+            else if (retval == JPT_CALL) {
+                ULOG_INFO ("Sombody called me\n");
+                conn->err_code = dispatch_call_packet (conn, jo);
+            }
+            else if (retval == JPT_RESULT_SENT) {
+                ULOG_INFO ("Got a `resultSent` packet\n");
+                conn->err_code = 0;
+            }
+            else if (retval == JPT_EVENT) {
+                ULOG_INFO ("Got en `event` packet\n");
+                conn->err_code = dispatch_event_packet (conn, jo);
+            }
+            else if (retval == JPT_EVENT_SENT) {
+                ULOG_INFO ("Got an `eventSent` packet\n");
+                conn->err_code = 0;
+            }
+            else {
+                ULOG_ERR ("Unknown packet type; quit...\n");
+                conn->err_code = HIBUS_EC_PROTOCOL;
+            }
+
+            json_object_put (jo);
+        }
+        else {
+            ULOG_INFO ("Timeout\n");
+            conn->err_code = HIBUS_EC_TIMEOUT;
+            break;
+        }
+    }
+
+    if (jo)
+        json_object_put (jo);
+
+    return conn->err_code;
+}
+
+int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms,
+        hibus_error_handler error_handler)
+{
+    fd_set rfds;
+    struct timeval tv;
+    int retval;
+    char* packet;
+    unsigned int data_len;
+    hibus_json* jo = NULL;
+
+    FD_ZERO (&rfds);
+    FD_SET (conn->fd, &rfds);
+
+    conn->err_code = 0;
+
+    if (timeout_ms >= 0) {
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout_ms * 1000;
+        retval = select (conn->fd + 1, &rfds, NULL, NULL, &tv);
+    }
+    else {
+        retval = select (conn->fd + 1, &rfds, NULL, NULL, NULL);
+    }
+
+    if (retval == -1) {
+        ULOG_ERR ("Failed to call select(): %s\n", strerror (errno));
+        conn->err_code = HIBUS_EC_BAD_SYSTEM_CALL;
+    }
+    else if (retval) {
+        packet = hibus_read_packet_alloc (conn, &data_len);
+
+        if (packet == NULL) {
+            ULOG_ERR ("Failed to read packet\n");
+            goto done;
+        }
+
+        ULOG_INFO ("got a packet (%u bytes long):\n%s\n", data_len, packet);
+        retval = hibus_json_packet_to_object (packet, data_len, &jo);
+        free (packet);
+
+        if (retval < 0) {
+            ULOG_ERR ("Failed to parse JSON packet; quit...\n");
+            conn->err_code = HIBUS_EC_PROTOCOL;
+        }
+        else if (retval == JPT_ERROR) {
+            ULOG_ERR ("The server refused my request\n");
+            if (error_handler) {
+                conn->err_code = error_handler (conn, jo);
+            }
+            else {
+                conn->err_code = HIBUS_EC_SERVER_ERROR;
+            }
+        }
+        else if (retval == JPT_AUTH) {
+            ULOG_WARN ("Should not be here for packetType `auth`; quit...\n");
+            conn->err_code = 0;
+        }
+        else if (retval == JPT_AUTH_PASSED) {
+            ULOG_WARN ("I passed the authentication; go on\n");
+            conn->err_code = 0;
+        }
+        else if (retval == JPT_AUTH_FAILED) {
+            ULOG_WARN ("I failed the authentication; quit...\n");
+            conn->err_code = HIBUS_EC_AUTH_FAILED;
+        }
+        else if (retval == JPT_CALL) {
+            ULOG_INFO ("Sombody called me\n");
+            conn->err_code = dispatch_call_packet (conn, jo);
+        }
+        else if (retval == JPT_RESULT) {
+            ULOG_INFO ("I get a result packet\n");
+            conn->err_code = dispatch_result_packet (conn, jo);
+        }
+        else if (retval == JPT_RESULT_SENT) {
+            ULOG_INFO ("I get a resultSent packet\n");
+            conn->err_code = 0;
+        }
+        else if (retval == JPT_EVENT) {
+            ULOG_INFO ("I get en event\n");
+            conn->err_code = dispatch_event_packet (conn, jo);
+        }
+        else if (retval == JPT_EVENT_SENT) {
+            ULOG_INFO ("I get an eventSent packet\n");
+            conn->err_code = 0;
+        }
+        else {
+            ULOG_ERR ("Unknown packet type; quit...\n");
+            conn->err_code = HIBUS_EC_PROTOCOL;
+        }
+    }
+    else {
+        ULOG_INFO ("Timeout\n");
+        conn->err_code = 0;
+    }
+
+done:
+    if (jo)
+        json_object_put (jo);
+
+    return conn->err_code;
 }
 

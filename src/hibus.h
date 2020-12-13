@@ -104,6 +104,13 @@
 #define HIBUS_EC_INVALID_VALUE          (-8)
 #define HIBUS_EC_DUPLICATED             (-9)
 #define HIBUS_EC_TOO_SMALL_BUFF         (-10)
+#define HIBUS_EC_BAD_SYSTEM_CALL        (-11)
+#define HIBUS_EC_AUTH_FAILED            (-12)
+#define HIBUS_EC_SERVER_ERROR           (-13)
+#define HIBUS_EC_TIMEOUT                (-14)
+#define HIBUS_EC_UNKNOWN_EVENT          (-15)
+#define HIBUS_EC_UNKNOWN_RESULT         (-16)
+#define HIBUS_EC_UNKNOWN_METHOD         (-17)
 
 #define LEN_HOST_NAME       127
 #define LEN_APP_NAME        127
@@ -188,7 +195,8 @@ extern "C" {
 /*
  * helper functions - implemented in helpers.c, for both server and clients.
  */
-const char* hibus_get_error_message (int err_code);
+const char* hibus_get_ret_message (int err_code);
+int hibus_errcode_to_retcode (int err_code);
 
 hibus_json *hibus_json_object_from_string (const char* json, int len, int in_depth);
 
@@ -267,8 +275,8 @@ int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt
 int hibus_ping_server (hibus_conn* conn);
 
 typedef char* (*hibus_method_handler)(hibus_conn* conn,
-        const char* from_endpoint, const char* method_name,
-        const char* method_param);
+        const char* from_endpoint, const char* to_method,
+        const char* method_param, int *err_code);
 
 int hibus_register_procedure (hibus_conn* conn, const char* method_name,
         const char* for_host, const char* for_app,
@@ -282,7 +290,7 @@ int hibus_fire_event (hibus_conn* conn,
         const char* bubble_name, const char* bubble_data);
 
 typedef void (*hibus_event_handler)(hibus_conn* conn,
-        const char* from_endpoint, const char* bubble_name,
+        const char* from_endpoint, const char* from_bubble,
         const char* bubble_data);
 
 int hibus_subscribe_event (hibus_conn* conn,
@@ -293,11 +301,11 @@ int hibus_unsubscribe_event (hibus_conn* conn,
         const char* endpoint, const char* bubble_name);
 
 typedef void (*hibus_result_handler)(hibus_conn* conn,
-        const char* from_endpoint, const char* method_name,
+        const char* from_endpoint, const char* from_method,
         int ret_code, const char* ret_value);
 
 int hibus_call_procedure (hibus_conn* conn,
-        const char* endpoint, const char* method_name,
+        const char* from_endpoint, const char* from_method,
         const char* method_param,
         int time_expected, hibus_result_handler result_handler);
 
@@ -305,7 +313,11 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         const char* method_name, const char* method_param,
         int time_expected, char** ret_value);
 
-int hibus_wait_and_dispatch_packet (hibus_conn* conn, struct timeval *timeout);
+typedef int (*hibus_error_handler)(hibus_conn* conn,
+        const hibus_json *jo);
+
+int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms,
+        hibus_error_handler error_handler);
 
 #ifdef __cplusplus
 }

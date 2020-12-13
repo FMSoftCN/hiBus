@@ -505,7 +505,7 @@ static int handle_auth_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                     "\"retCode\":%d,"
                     "\"retMsg\":\"%s\","
                     "}",
-                    retv, hibus_get_error_message (retv));
+                    retv, hibus_get_ret_message (retv));
 
             if (n < sizeof (buff))
                 send_packet_to_endpoint (bus_srv, endpoint, buff, n);
@@ -695,7 +695,7 @@ done:
             to_method_name,
             time_diff, time_consumed,
             ret_code,
-            hibus_get_error_message (ret_code),
+            hibus_get_ret_message (ret_code),
             escaped_result ? escaped_result : "");
 
     }
@@ -724,7 +724,7 @@ done:
                 result_id, call_id,
                 time_diff, time_consumed,
                 ret_code,
-                hibus_get_error_message (ret_code));
+                hibus_get_ret_message (ret_code));
         }
     }
 
@@ -742,7 +742,7 @@ done:
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             call_id,
             ret_code,
-            hibus_get_error_message (ret_code));
+            hibus_get_ret_message (ret_code));
 
     }
 
@@ -902,7 +902,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         result_id, call_id,
         endpoint->host_name, endpoint->app_name, endpoint->runner_name,
         from_method_name, time_consumed, time_diff,
-        real_ret_code, hibus_get_error_message (real_ret_code),
+        real_ret_code, hibus_get_ret_message (real_ret_code),
         escaped_ret_value ? escaped_ret_value : "");
 
     if (n < sz_packet_buff) {
@@ -928,7 +928,7 @@ failed:
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             result_id,
-            ret_code, hibus_get_error_message (ret_code));
+            ret_code, hibus_get_ret_message (ret_code));
 
         if (n < sz_packet_buff) {
             send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
@@ -1121,7 +1121,7 @@ failed:
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             event_id,
             ret_code,
-            hibus_get_error_message (ret_code));
+            hibus_get_ret_message (ret_code));
 
         if (n < sz_packet_buff) {
             send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
