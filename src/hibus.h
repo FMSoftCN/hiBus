@@ -195,9 +195,47 @@ extern "C" {
 /*
  * helper functions - implemented in helpers.c, for both server and clients.
  */
-const char* hibus_get_ret_message (int err_code);
+
+/**
+ * hibus_get_ret_message:
+ * @ret_code: the return code.
+ *
+ * Returns the pointer to the message string of the specific return code.
+ *
+ * Returns: a pointer to the message string.
+ *
+ * Since: 1.0
+ */
+const char* hibus_get_ret_message (int ret_code);
+
+/**
+ * hibus_errcode_to_retcode:
+ * @err_code: the internal error code of hiBus.
+ *
+ * Returns the return code of the hiBus protocol according to
+ * the internal error code.
+ *
+ * Returns: the return code of hiBus protocol.
+ *
+ * Since: 1.0
+ */
 int hibus_errcode_to_retcode (int err_code);
 
+/**
+ * hibus_json_object_from_string:
+ * @json: the pointer to the JSON string.
+ * @len: the length of the JSON string. If it is equal to or less then 0,
+ *      the function will get the whole length of the string by calling @strlen.
+ * @in_depth: 
+ *
+ * Parses a JSON string and returns a JSON object.
+ *
+ * Returns: A valid JSON object if success, NULL otherwisze.
+ *
+ * Note that the caller should release the JSON object by calling @json_object_put().
+ *
+ * Since: 1.0
+ */
 hibus_json *hibus_json_object_from_string (const char* json, int len, int in_depth);
 
 bool hibus_is_valid_token (const char* token, int max_len);
