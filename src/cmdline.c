@@ -56,7 +56,7 @@ int main (int argc, char **argv)
         fd_set rfds;
         struct timeval tv;
         int retval;
-        char* packet;
+        void* packet;
         unsigned int data_len;
         hibus_json* jo;
 
@@ -72,14 +72,14 @@ int main (int argc, char **argv)
             break;
         }
         else if (retval) {
-            packet = hibus_read_packet_alloc (conn, &data_len);
+            retval = hibus_read_packet_alloc (conn, &packet, &data_len);
 
-            if (packet == NULL) {
+            if (retval) {
                 ULOG_ERR ("Failed to read packet\n");
                 break;
             }
             else {
-                ULOG_INFO ("got a packet (%u long):\n%s\n", data_len, packet);
+                ULOG_INFO ("got a packet (%u long):\n%s\n", data_len, (char *)packet);
             }
 
             retval = hibus_json_packet_to_object (packet, data_len, &jo);

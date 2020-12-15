@@ -31,7 +31,7 @@
 
 #include <hibox/json.h>
 
-/* Contants */
+/* Constants */
 #define HIBUS_PROTOCOL_NAME             "HIBUS"
 #define HIBUS_PROTOCOL_VERSION          90
 #define HIBUS_MINIMAL_PROTOCOL_VERSION  90
@@ -111,6 +111,7 @@
 #define HIBUS_EC_UNKNOWN_EVENT          (-15)
 #define HIBUS_EC_UNKNOWN_RESULT         (-16)
 #define HIBUS_EC_UNKNOWN_METHOD         (-17)
+#define HIBUS_EC_UNEXPECTED             (-18)
 
 #define HIBUS_LEN_HOST_NAME             127
 #define HIBUS_LEN_APP_NAME              127
@@ -134,12 +135,13 @@
 /* the maximal no responding time (90 seconds) */
 #define HIBUS_MAX_NO_RESPONDING_TIME    90
 
-/* connection types */
+/* Connection types */
 enum {
     CT_UNIX_SOCKET = 1,
     CT_WEB_SOCKET,
 };
 
+/* The frame operation codes for UnixSocket */
 typedef enum USOpcode_ {
     US_OPCODE_CONTINUATION = 0x00,
     US_OPCODE_TEXT = 0x01,
@@ -150,6 +152,7 @@ typedef enum USOpcode_ {
     US_OPCODE_PONG = 0x0A,
 } USOpcode;
 
+/* The frame header for UnixSocket */
 typedef struct USFrameHeader_ {
     int op;
     unsigned int fragmented;
@@ -163,7 +166,7 @@ enum {
     PT_BINARY,
 };
 
-/* JSON packet type */
+/* JSON packet types */
 enum {
     JPT_BAD_JSON = -1,
     JPT_UNKNOWN = 0,
@@ -177,9 +180,6 @@ enum {
     JPT_EVENT,
     JPT_EVENT_SENT,
 };
-
-#define PT_CALL     "call"
-#define PT_RESULT   "result"
 
 struct _hibus_conn;
 typedef struct _hibus_conn hibus_conn;
@@ -486,7 +486,7 @@ int hibus_conn_socket_type (hibus_conn* conn);
 int hibus_conn_err_code (hibus_conn* conn);
 
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
-void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len);
+int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *packet_len);
 
 int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt_len);
 int hibus_ping_server (hibus_conn* conn);
