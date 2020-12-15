@@ -112,6 +112,8 @@
 #define HIBUS_EC_UNKNOWN_RESULT         (-16)
 #define HIBUS_EC_UNKNOWN_METHOD         (-17)
 #define HIBUS_EC_UNEXPECTED             (-18)
+#define HIBUS_EC_SERVER_REFUSED         (-19)
+#define HIBUS_EC_BAD_PACKET             (-20)
 
 #define HIBUS_LEN_HOST_NAME             127
 #define HIBUS_LEN_APP_NAME              127
@@ -208,6 +210,18 @@ extern "C" {
  * Since: 1.0
  */
 const char* hibus_get_ret_message (int ret_code);
+
+/**
+ * hibus_get_err_message:
+ * @err_code: the error code.
+ *
+ * Returns the pointer to the message string of the specific error code.
+ *
+ * Returns: a pointer to the message string.
+ *
+ * Since: 1.0
+ */
+const char* hibus_get_err_message (int err_code);
 
 /**
  * hibus_errcode_to_retcode:
@@ -474,6 +488,10 @@ int hibus_connect_via_web_socket (const char* host_name, int port,
         const char* app_name, const char* runner_name, hibus_conn** conn);
 int hibus_disconnect (hibus_conn* conn);
 
+typedef int (*hibus_error_handler)(hibus_conn* conn, const hibus_json *jo);
+hibus_error_handler hibus_conn_set_error_handler (hibus_conn* conn,
+        hibus_error_handler error_handler);
+
 const char* hibus_conn_srv_host_name (hibus_conn* conn);
 const char* hibus_conn_own_host_name (hibus_conn* conn);
 const char* hibus_conn_app_name (hibus_conn* conn);
@@ -483,7 +501,6 @@ char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
 
 int hibus_conn_socket_fd (hibus_conn* conn);
 int hibus_conn_socket_type (hibus_conn* conn);
-int hibus_conn_err_code (hibus_conn* conn);
 
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
 int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *packet_len);
@@ -530,11 +547,7 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         const char* method_name, const char* method_param,
         int time_expected, char** ret_value);
 
-typedef int (*hibus_error_handler)(hibus_conn* conn,
-        const hibus_json *jo);
-
-int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms,
-        hibus_error_handler error_handler);
+int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms);
 
 #ifdef __cplusplus
 }

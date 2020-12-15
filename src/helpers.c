@@ -34,8 +34,8 @@
 
 #include "hibus.h"
 
-/* Status Codes and Messages */
-#define UNKNOWN_RET_CODE    "Unknown Status Code"
+/* Return Codes and Messages */
+#define UNKNOWN_RET_CODE    "Unknown Return Code"
 
 static struct  {
     int ret_code;
@@ -132,6 +132,66 @@ const char* hibus_get_ret_message (int ret_code)
     } while (lower <= upper);
 
     return UNKNOWN_RET_CODE;
+}
+
+/* Error Codes and Messages */
+#define UNKNOWN_ERR_CODE    "Unknown Error Code"
+
+static const char* err_messages [] = {
+    /* 0 */
+    "Everything Ok"
+    /* HIBUS_EC_IO (-1) */
+    "IO Error",
+    /* HIBUS_EC_CLOSED (-2) */
+    "Peer Closed",
+    /* HIBUS_EC_NOMEM (-3) */
+    "No Enough Memory",
+    /* HIBUS_EC_TOO_LARGE (-4) */
+    "Tool Large",
+    /* HIBUS_EC_PROTOCOL (-5) */
+    "Protocol",
+    /* HIBUS_EC_UPPER (-6) */
+    "Upper",
+    /* HIBUS_EC_NOT_IMPLEMENTED (-7) */
+    "Not Implemented",
+    /* HIBUS_EC_INVALID_VALUE (-8) */
+    "Invalid Value",
+    /* HIBUS_EC_DUPLICATED (-9) */
+    "Duplicated",
+    /* HIBUS_EC_TOO_SMALL_BUFF (-10) */
+    "Too Small Buffer",
+    /* HIBUS_EC_BAD_SYSTEM_CALL (-11) */
+    "Bad System Call",
+    /* HIBUS_EC_AUTH_FAILED (-12) */
+    "Authentication Failed",
+    /* HIBUS_EC_SERVER_ERROR (-13) */
+    "Server Error",
+    /* HIBUS_EC_TIMEOUT (-14) */
+    "Timeout",
+    /* HIBUS_EC_UNKNOWN_EVENT (-15) */
+    "Unknown Event",
+    /* HIBUS_EC_UNKNOWN_RESULT (-16) */
+    "Unknown Result",
+    /* HIBUS_EC_UNKNOWN_METHOD (-17) */
+    "Unknown Method",
+    /* HIBUS_EC_UNEXPECTED (-18) */
+    "Unexpected",
+    /* HIBUS_EC_SERVER_REFUSED (-19) */
+    "Server Refused",
+    /* HIBUS_EC_BAD_PACKET (-20) */
+    "Bad Packet",
+};
+
+const char* hibus_get_err_message (int err_code)
+{
+    if (err_code > 0)
+        return UNKNOWN_ERR_CODE;
+
+    err_code = -err_code;
+    if (err_code > TABLESIZE (err_messages))
+        return UNKNOWN_ERR_CODE;
+
+    return err_messages [err_code];
 }
 
 int hibus_errcode_to_retcode (int err_code)

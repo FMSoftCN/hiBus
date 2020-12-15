@@ -46,82 +46,15 @@ int main (int argc, char **argv)
             HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE, &conn);
 
     if (fd < 0) {
-        ULOG_ERR ("Failed to connect to hiBus server\n");
+        ULOG_ERR ("Failed to connect to hiBus server: %s\n",
+                hibus_get_err_message (fd));
         goto failed;
     }
 
     ULOG_NOTE ("fd (%d)\n", fd);
 
     while (nr_loops--) {
-        fd_set rfds;
-        struct timeval tv;
-        int retval;
-        void* packet;
-        unsigned int data_len;
-        hibus_json* jo;
-
-        FD_ZERO (&rfds);
-        FD_SET (fd, &rfds);
-
-        tv.tv_sec = 0;
-        tv.tv_usec = 500 * 1000;
-        retval = select (fd + 1, &rfds, NULL, NULL, &tv);
-
-        if (retval == -1) {
-            ULOG_ERR ("Failed to call select(): %s\n", strerror (errno));
-            break;
-        }
-        else if (retval) {
-            retval = hibus_read_packet_alloc (conn, &packet, &data_len);
-
-            if (retval) {
-                ULOG_ERR ("Failed to read packet\n");
-                break;
-            }
-            else {
-                ULOG_INFO ("got a packet (%u long):\n%s\n", data_len, (char *)packet);
-            }
-
-            retval = hibus_json_packet_to_object (packet, data_len, &jo);
-            free (packet);
-
-            if (retval < 0) {
-                ULOG_ERR ("Failed to parse JSON packet; quit...\n");
-                break;
-            }
-            else if (retval == JPT_ERROR) {
-                ULOG_ERR ("The server refused my request; quit...\n");
-                break;
-            }
-            else if (retval == JPT_AUTH) {
-                ULOG_WARN ("Should not be here for packetType `auth`; quit...\n");
-                break;
-            }
-            else if (retval == JPT_AUTH_PASSED) {
-                ULOG_WARN ("I passed the authentication; go on\n");
-            }
-            else if (retval == JPT_AUTH_FAILED) {
-                ULOG_WARN ("I failed the authentication; quit...\n");
-                break;
-            }
-            else if (retval == JPT_CALL) {
-                ULOG_INFO ("Sombody called me\n");
-            }
-            else if (retval == JPT_RESULT) {
-                ULOG_INFO ("I get a result\n");
-            }
-            else if (retval == JPT_EVENT) {
-                ULOG_INFO ("I get en event\n");
-            }
-            else {
-                ULOG_ERR ("Unknown packet type; quit...\n");
-                break;
-            }
-
-        }
-        else {
-            ULOG_INFO ("Timeout\n");
-        }
+        hibus_wait_and_dispatch_packet (conn, 500);
     }
 
     hibus_disconnect (conn);
