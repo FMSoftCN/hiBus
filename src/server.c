@@ -390,7 +390,7 @@ on_close (void* sock_srv, SockClient* client)
 
     if (client->entity) {
         BusEndpoint *endpoint = container_of (client->entity, BusEndpoint, entity);
-        char endpoint_name [LEN_ENDPOINT_NAME + 1];
+        char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
         if (endpoint->status == ES_AUTHING) {
             remove_dangling_endpoint (&the_server, endpoint);
@@ -417,7 +417,7 @@ static void
 on_error (void* sock_srv, SockClient* client, int err_code)
 {
     int size;
-    char buff [MIN_PACKET_BUFF_SIZE];
+    char buff [HIBUS_MIN_PACKET_BUFF_SIZE];
 
     size = snprintf (buff, sizeof (buff), 
             "{"
@@ -631,7 +631,7 @@ static int
 init_bus_server (void)
 {
     BusEndpoint* builtin;
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
     /* TODO for host name */
     the_server.running = true;
@@ -746,7 +746,7 @@ main (int argc, char **argv)
     srv_set_config_host ("localhost");
     srv_set_config_port (HIBUS_WS_PORT);
     srv_set_config_unixsocket (HIBUS_US_PATH);
-    srv_set_config_frame_size (MAX_FRAME_SIZE);
+    srv_set_config_frame_size (HIBUS_MAX_FRAME_PAYLOAD_SIZE);
     srv_set_config_backlog (SOMAXCONN);
 
     retval = read_option_args (argc, argv);

@@ -442,7 +442,7 @@ int us_handle_reads (USServer* server, USClient* usc)
             usc->sz_packet = header.sz_payload;
         }
 
-        if (usc->sz_packet > MAX_INMEM_PACKET_SIZE) {
+        if (usc->sz_packet > HIBUS_MAX_INMEM_PAYLOAD_SIZE) {
             err_code = HIBUS_EC_PROTOCOL;
             sta_code = HIBUS_SC_PACKET_TOO_LARGE;
             break;
@@ -617,7 +617,7 @@ int us_send_packet (USServer* server, USClient* usc,
             return -1;
     }
 
-    if (sz > MAX_PAYLOAD_SIZE) {
+    if (sz > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
         const char* buff = data;
         unsigned int left = sz;
 
@@ -625,14 +625,14 @@ int us_send_packet (USServer* server, USClient* usc,
             if (left == sz) {
                 header.op = op;
                 header.fragmented = sz;
-                header.sz_payload = MAX_PAYLOAD_SIZE;
-                left -= MAX_PAYLOAD_SIZE;
+                header.sz_payload = HIBUS_MAX_FRAME_PAYLOAD_SIZE;
+                left -= HIBUS_MAX_FRAME_PAYLOAD_SIZE;
             }
-            else if (left > MAX_PAYLOAD_SIZE) {
+            else if (left > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
                 header.op = US_OPCODE_CONTINUATION;
                 header.fragmented = 0;
-                header.sz_payload = MAX_PAYLOAD_SIZE;
-                left -= MAX_PAYLOAD_SIZE;
+                header.sz_payload = HIBUS_MAX_FRAME_PAYLOAD_SIZE;
+                left -= HIBUS_MAX_FRAME_PAYLOAD_SIZE;
             }
             else {
                 header.op = US_OPCODE_END;

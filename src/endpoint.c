@@ -98,7 +98,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
 
 int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
 {
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     const char *method_name, *bubble_name;
     void *data;
 
@@ -246,7 +246,7 @@ int check_no_responding_endpoints (BusServer *bus_srv)
         BusEndpoint* endpoint = *(BusEndpoint **)data;
 
         if (endpoint->type != ET_BUILTIN &&
-                ts.tv_sec > endpoint->t_living + MAX_NO_RESPONDING_TIME) {
+                ts.tv_sec > endpoint->t_living + HIBUS_MAX_NO_RESPONDING_TIME) {
             kvlist_delete (&bus_srv->endpoint_list, name);
             cleanup_dangling_client (bus_srv, endpoint);
             del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
@@ -268,7 +268,7 @@ int check_dangling_endpoints (BusServer *bus_srv)
         gs_list *next = node->next;
         BusEndpoint* endpoint = (BusEndpoint *)node->data;
 
-        if (ts.tv_sec > endpoint->t_created + MAX_NO_RESPONDING_TIME) {
+        if (ts.tv_sec > endpoint->t_created + HIBUS_MAX_NO_RESPONDING_TIME) {
             gslist_remove_node (&bus_srv->dangling_endpoints, node);
             cleanup_dangling_client (bus_srv, endpoint);
             del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
@@ -302,7 +302,7 @@ int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint)
     char key [32];
     unsigned char ch_code_bin [SHA256_DIGEST_SIZE];
     char *ch_code;
-    char buff [DEF_PACKET_BUFF_SIZE];
+    char buff [HIBUS_DEF_PACKET_BUFF_SIZE];
 
     if ((endpoint->sta_data = malloc (SHA256_DIGEST_SIZE * 2 + 1)) == NULL) {
         return HIBUS_SC_INSUFFICIENT_STORAGE;
@@ -357,10 +357,10 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
     unsigned char *sig;
     unsigned int sig_len = 0;
     int prot_ver = 0, retv;
-    char norm_host_name [LEN_HOST_NAME + 1];
-    char norm_app_name [LEN_APP_NAME + 1];
-    char norm_runner_name [LEN_RUNNER_NAME + 1];
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+    char norm_host_name [HIBUS_LEN_HOST_NAME + 1];
+    char norm_app_name [HIBUS_LEN_APP_NAME + 1];
+    char norm_runner_name [HIBUS_LEN_RUNNER_NAME + 1];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
     if (json_object_object_get_ex (jo, "protocolName", &jo_tmp)) {
         prot_name = json_object_get_string (jo_tmp);
@@ -399,14 +399,14 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
 
     if (!hibus_is_valid_host_name (host_name) ||
             !hibus_is_valid_app_name (app_name) ||
-            !hibus_is_valid_token (runner_name, LEN_RUNNER_NAME)) {
+            !hibus_is_valid_token (runner_name, HIBUS_LEN_RUNNER_NAME)) {
         ULOG_WARN ("Bad endpoint name: @%s/%s/%s\n", host_name, app_name, runner_name);
         return HIBUS_SC_NOT_ACCEPTABLE;
     }
 
-    hibus_name_tolower_copy (host_name, norm_host_name, LEN_HOST_NAME);
-    hibus_name_tolower_copy (app_name, norm_app_name, LEN_APP_NAME);
-    hibus_name_tolower_copy (runner_name, norm_runner_name, LEN_RUNNER_NAME);
+    hibus_name_tolower_copy (host_name, norm_host_name, HIBUS_LEN_HOST_NAME);
+    hibus_name_tolower_copy (app_name, norm_app_name, HIBUS_LEN_APP_NAME);
+    hibus_name_tolower_copy (runner_name, norm_runner_name, HIBUS_LEN_RUNNER_NAME);
     host_name = norm_host_name;
     app_name = norm_app_name;
     runner_name = norm_runner_name;
@@ -487,7 +487,7 @@ static int handle_auth_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         const hibus_json* jo)
 {
     if (endpoint->status == ES_AUTHING) {
-        char buff [MIN_PACKET_BUFF_SIZE];
+        char buff [HIBUS_MIN_PACKET_BUFF_SIZE];
         int retv, n;
 
         assert (endpoint->sta_data);
@@ -537,8 +537,8 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 {
     hibus_json *jo_tmp;
     const char *str_tmp;
-    char to_endpoint_name [LEN_ENDPOINT_NAME + 1];
-    char to_method_name [LEN_METHOD_NAME + 1];
+    char to_endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char to_method_name [HIBUS_LEN_METHOD_NAME + 1];
     BusEndpoint *to_endpoint;
     MethodInfo *to_method;
     const char *call_id;
@@ -548,15 +548,15 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     const char *parameter;
     CallInfo call_info;
 
-    char buff_in_stack [MAX_PAYLOAD_SIZE];
+    char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n = 0;
-    char result_id [LEN_UNIQUE_ID + 1], *result, *escaped_result = NULL;
+    char result_id [HIBUS_LEN_UNIQUE_ID + 1], *result, *escaped_result = NULL;
     char* packet_buff = NULL;
 
     if (json_object_object_get_ex (jo, "toEndpoint", &jo_tmp)) {
         if ((str_tmp = json_object_get_string (jo_tmp))) {
             void *data;
-            hibus_name_tolower_copy (str_tmp, to_endpoint_name, LEN_ENDPOINT_NAME);
+            hibus_name_tolower_copy (str_tmp, to_endpoint_name, HIBUS_LEN_ENDPOINT_NAME);
             if ((data = kvlist_get (&bus_srv->endpoint_list, to_endpoint_name))) {
                 to_endpoint = *(BusEndpoint **)data;
             }
@@ -578,7 +578,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     if (json_object_object_get_ex (jo, "toMethod", &jo_tmp)) {
         if ((str_tmp = json_object_get_string (jo_tmp))) {
             void *data;
-            hibus_name_tolower_copy (str_tmp, to_method_name, LEN_METHOD_NAME);
+            hibus_name_tolower_copy (str_tmp, to_method_name, HIBUS_LEN_METHOD_NAME);
             if ((data = kvlist_get (&to_endpoint->method_list, to_method_name))) {
                 to_method = *(MethodInfo **)data;
             }
@@ -655,7 +655,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
         }
         else {
-            sz_packet_buff = strlen (escaped_result) + MIN_PACKET_BUFF_SIZE;
+            sz_packet_buff = strlen (escaped_result) + HIBUS_MIN_PACKET_BUFF_SIZE;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
                 sz_packet_buff = sizeof (buff_in_stack);
@@ -772,7 +772,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     void* data;
     BusEndpoint *to_endpoint;
 
-    char buff_in_stack [MAX_PAYLOAD_SIZE];
+    char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
     char* escaped_ret_value = NULL, *packet_buff = NULL;
 
@@ -865,7 +865,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             goto failed;
         }
         else {
-            sz_packet_buff = strlen (escaped_ret_value) + MIN_PACKET_BUFF_SIZE;
+            sz_packet_buff = strlen (escaped_ret_value) + HIBUS_MIN_PACKET_BUFF_SIZE;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
                 sz_packet_buff = sizeof (buff_in_stack);
@@ -967,12 +967,12 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 {
     hibus_json *jo_tmp;
     const char *str_tmp;
-    char bubble_name [LEN_BUBBLE_NAME + 1];
+    char bubble_name [HIBUS_LEN_BUBBLE_NAME + 1];
     BubbleInfo *bubble;
     const char *event_id;
     const char *bubble_data;
 
-    char buff_in_stack [MAX_PAYLOAD_SIZE];
+    char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
     char* escaped_data = NULL, *packet_buff = NULL;
     struct timespec ts_start;
@@ -982,7 +982,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     if (json_object_object_get_ex (jo, "bubbleName", &jo_tmp)) {
         if ((str_tmp = json_object_get_string (jo_tmp))) {
             void *data;
-            hibus_name_toupper_copy (str_tmp, bubble_name, LEN_BUBBLE_NAME);
+            hibus_name_toupper_copy (str_tmp, bubble_name, HIBUS_LEN_BUBBLE_NAME);
             if ((data = kvlist_get (&endpoint->bubble_list, bubble_name))) {
                 bubble = *(BubbleInfo **)data;
             }
@@ -1025,7 +1025,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             goto failed;
         }
         else {
-            sz_packet_buff = strlen (escaped_data) + MIN_PACKET_BUFF_SIZE;
+            sz_packet_buff = strlen (escaped_data) + HIBUS_MIN_PACKET_BUFF_SIZE;
             if (sz_packet_buff <= sizeof (buff_in_stack)) {
                 packet_buff = buff_in_stack;
                 sz_packet_buff = sizeof (buff_in_stack);
@@ -1212,7 +1212,7 @@ int register_procedure (BusServer *bus_srv, BusEndpoint* endpoint, const char* m
 {
     int retv = HIBUS_SC_OK;
     MethodInfo *info;
-    char normalized_name [LEN_METHOD_NAME + 1];
+    char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
 
     if (!hibus_is_valid_method_name (method_name))
         return HIBUS_SC_BAD_REQUEST;
@@ -1269,7 +1269,7 @@ int revoke_procedure (BusServer *bus_srv, BusEndpoint* endpoint, const char* met
 {
     void *data;
     MethodInfo *info;
-    char normalized_name [LEN_METHOD_NAME + 1];
+    char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
 
     if (!hibus_is_valid_method_name (method_name))
         return HIBUS_SC_BAD_REQUEST;
@@ -1295,7 +1295,7 @@ int register_event (BusServer *bus_srv, BusEndpoint* endpoint, const char* bubbl
 {
     int retv = HIBUS_SC_OK;
     BubbleInfo *info;
-    char normalized_name [LEN_BUBBLE_NAME + 1];
+    char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_SC_BAD_REQUEST;
@@ -1353,7 +1353,7 @@ int revoke_event (BusServer *bus_srv, BusEndpoint *endpoint, const char* bubble_
     const char* name;
     void *data;
     BubbleInfo *bubble;
-    char normalized_name [LEN_BUBBLE_NAME + 1];
+    char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_SC_BAD_REQUEST;
@@ -1393,8 +1393,8 @@ int subscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
 {
     void *data;
     BubbleInfo *info;
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
-    char normalized_name [LEN_BUBBLE_NAME + 1];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_SC_BAD_REQUEST;
@@ -1422,8 +1422,8 @@ int unsubscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
 {
     void *data;
     BubbleInfo *info;
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
-    char normalized_name [LEN_BUBBLE_NAME + 1];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_SC_BAD_REQUEST;

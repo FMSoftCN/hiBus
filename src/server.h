@@ -131,7 +131,7 @@ typedef struct BusWaitingInfo_
     unsigned int    expected_time;
 
     /* the name of the waiting endpoint */
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 } BusWaitingInfo;
 
 struct WSServer_;

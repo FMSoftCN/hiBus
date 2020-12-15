@@ -1930,7 +1930,7 @@ ws_realloc_frm_payload (WSClient * client, WSFrame * frm, WSMessage * msg)
 
   newlen = msg->payloadsz + frm->payloadlen;
   /* check the maximal size of the message body here. */
-  if (newlen >= MAX_INMEM_PACKET_SIZE) {
+  if (newlen >= HIBUS_MAX_INMEM_PAYLOAD_SIZE) {
     free (msg->payload);
     msg->payload = NULL;
     goto failed;

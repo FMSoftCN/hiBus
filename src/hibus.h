@@ -112,26 +112,27 @@
 #define HIBUS_EC_UNKNOWN_RESULT         (-16)
 #define HIBUS_EC_UNKNOWN_METHOD         (-17)
 
-#define LEN_HOST_NAME       127
-#define LEN_APP_NAME        127
-#define LEN_RUNNER_NAME     63
-#define LEN_METHOD_NAME     63
-#define LEN_BUBBLE_NAME     63
-#define LEN_ENDPOINT_NAME   (LEN_HOST_NAME + LEN_APP_NAME + LEN_RUNNER_NAME + 3)
+#define HIBUS_LEN_HOST_NAME             127
+#define HIBUS_LEN_APP_NAME              127
+#define HIBUS_LEN_RUNNER_NAME           63
+#define HIBUS_LEN_METHOD_NAME           63
+#define HIBUS_LEN_BUBBLE_NAME           63
+#define HIBUS_LEN_ENDPOINT_NAME         \
+    (HIBUS_LEN_HOST_NAME + HIBUS_LEN_APP_NAME + HIBUS_LEN_RUNNER_NAME + 3)
+#define HIBUS_LEN_UNIQUE_ID             63
 
-#define LEN_UNIQUE_ID       63
-#define MIN_PACKET_BUFF_SIZE    512
-#define DEF_PACKET_BUFF_SIZE    1024
-#define DEF_TIME_EXPECTED       5   /* 5 seconds */
+#define HIBUS_MIN_PACKET_BUFF_SIZE      512
+#define HIBUS_DEF_PACKET_BUFF_SIZE      1024
+#define HIBUS_DEF_TIME_EXPECTED         5   /* 5 seconds */
 
-/* the maximal size of a payload in a frame */
-#define MAX_PAYLOAD_SIZE    4096    /* 4 KiB max frame payload size */
-#define MAX_FRAME_SIZE      MAX_PAYLOAD_SIZE
+/* the maximal size of a payload in a frame (4KiB) */
+#define HIBUS_MAX_FRAME_PAYLOAD_SIZE    4096 
 
-/* the maximal size of a packet which will be held in memory */
-#define MAX_INMEM_PACKET_SIZE   40960
+/* the maximal size of a payload which will be held in memory (40KiB) */
+#define HIBUS_MAX_INMEM_PAYLOAD_SIZE    40960
 
-#define MAX_NO_RESPONDING_TIME  90  /* 90 seconds */
+/* the maximal no responding time (90 seconds) */
+#define HIBUS_MAX_NO_RESPONDING_TIME    90
 
 /* connection types */
 enum {
@@ -225,35 +226,213 @@ int hibus_errcode_to_retcode (int err_code);
  * hibus_json_object_from_string:
  * @json: the pointer to the JSON string.
  * @len: the length of the JSON string. If it is equal to or less then 0,
- *      the function will get the whole length of the string by calling @strlen.
- * @in_depth: 
+ *      the function will get the whole length of the string by calling
+ *      strlen().
+ * @depth: the maximal nesting depth for the JSON tokenzer.
  *
  * Parses a JSON string and returns a JSON object.
  *
- * Returns: A valid JSON object if success, NULL otherwisze.
+ * Returns: A valid JSON object if success, NULL otherwise.
  *
- * Note that the caller should release the JSON object by calling @json_object_put().
+ * Note that the caller should release the JSON object by calling
+ * json_object_put().
  *
  * Since: 1.0
  */
-hibus_json *hibus_json_object_from_string (const char* json, int len, int in_depth);
+hibus_json *hibus_json_object_from_string (const char* json, int len, int depth);
 
+/**
+ * hibus_is_valid_token:
+ * @token: the pointer to the token string.
+ * @max_len: The maximal possible length of the token string.
+ *
+ * Checks whether a token string is valid. According to hiBus protocal,
+ * the runner name, method name, bubble name should be a valid token.
+ *
+ * Note that a string with a length longer than @max_len will
+ * be considered as an invalid token.
+ *
+ * Returns: true for a valid token, otherwise false.
+ *
+ * Since: 1.0
+ */
 bool hibus_is_valid_token (const char* token, int max_len);
+
+/**
+ * hibus_is_valid_host_name:
+ * @host_name: the pointer to a string contains a host name.
+ *
+ * Checks whether a host name is valid.
+ *
+ * Returns: true for a valid host name, otherwise false.
+ *
+ * Since: 1.0
+ */
 bool hibus_is_valid_host_name (const char* host_name);
+
+/**
+ * hibus_is_valid_app_name:
+ * @app_name: the pointer to a string contains an app name.
+ *
+ * Checks whether an app name is valid.
+ *
+ * Returns: true for a valid app name, otherwise false.
+ *
+ * Since: 1.0
+ */
 bool hibus_is_valid_app_name (const char* app_name);
+
+/**
+ * hibus_is_valid_endpoint_name:
+ * @endpoint_name: the pointer to a string contains an endpoint name.
+ *
+ * Checks whether an enpoint name is valid. According to hiBus
+ * protocol, a valid endpoint name should having the following pattern:
+ *
+ *  @<host_name>/<app_name>/<runner_name>
+ *
+ * Returns: true for a valid endpoint name, otherwise false.
+ *
+ * Since: 1.0
+ */
 bool hibus_is_valid_endpoint_name (const char* endpoint_name);
 
+/**
+ * hibus_extract_host_name:
+ * @endpoint: the pointer to a string contains an endpoint name.
+ * @buff: the buffer used to return the host name in the endpoint name.
+ *
+ * Extracts the part of host name from an endpoint name.
+ *
+ * Note that the buffer should be large enough to contain a host name.
+ * See @HIBUS_LEN_HOST_NAME.
+ *
+ * Returns: the length of the host name; <= 0 means @endpoint contains
+ * an invalid endpoint name.
+ *
+ * Since: 1.0
+ */
 int hibus_extract_host_name (const char* endpoint, char* buff);
+
+/**
+ * hibus_extract_app_name:
+ * @endpoint: the pointer to a string contains an endpoint name.
+ * @buff: the buffer used to return the sub-string of app name in
+ * the endpoint name.
+ *
+ * Extracts the part of app name from an endpoint name.
+ *
+ * Returns: the length of the app name; <= 0 means @endpoint contains
+ * an invalid endpoint name.
+ *
+ * Since: 1.0
+ */
 int hibus_extract_app_name (const char* endpoint, char* buff);
+
+/**
+ * hibus_extract_runner_name:
+ * @endpoint: the pointer to a string contains an endpoint name.
+ * @buff: the buffer used to return the sub-string of runner name in
+ * the endpoint name.
+ *
+ * Extracts the part of runner name from an endpoint name.
+ *
+ * Returns: the length of the runner name; <= 0 means @endpoint contains
+ * an invalid endpoint name.
+ *
+ * Since: 1.0
+ */
 int hibus_extract_runner_name (const char* endpoint, char* buff);
 
+/**
+ * hibus_extract_host_name_alloc:
+ * @endpoint: the pointer to a string contains an endpoint name.
+ *
+ * Extracts the part of host name from an endpoint name,
+ * allocates a new buffer, copies the host name to the buffer,
+ * and returns the pointer to the buffer.
+ * 
+ * Note that the caller is responsible for releasing the buffer.
+ *
+ * Returns: the pointer to the new buffer contains the host name if success;
+ * NULL for an invalid endpoint name.
+ *
+ * Since: 1.0
+ */
 char* hibus_extract_host_name_alloc (const char* endpoint);
+
+/**
+ * hibus_extract_app_name_alloc:
+ * @endpoint: the pointer to a string contains an endpoint name.
+ *
+ * Extracts the part of app name from an endpoint name,
+ * allocates a new buffer, copies the app name to the buffer,
+ * and returns the pointer to the buffer.
+ * 
+ * Note that the caller is responsible for releasing the buffer.
+ *
+ * Returns: the pointer to the new buffer contains the app name if success;
+ * NULL for an invalid endpoint name.
+ *
+ * Since: 1.0
+ */
 char* hibus_extract_app_name_alloc (const char* endpoint);
+
+/**
+ * hibus_extract_runner_name_alloc:
+ * @endpoint: the pointer to a string contains an endpoint name.
+ *
+ * Extracts the part of runner name from an endpoint name,
+ * allocates a new buffer, copies the runner name to the buffer,
+ * and returns the pointer to the buffer.
+ * 
+ * Note that the caller is responsible for releasing the buffer.
+ *
+ * Returns: the pointer to the new buffer contains the runner name if success;
+ * NULL for an invalid endpoint name.
+ *
+ * Since: 1.0
+ */
 char* hibus_extract_runner_name_alloc (const char* endpoint);
 
-/* return the length of the endpoint name if success, <= 0 otherwise */
+/**
+ * hibus_assemble_endpoint_name:
+ * @host_name: the pointer to a string contains the host name.
+ * @app_name: the pointer to a string contains the app name.
+ * @runner_name: the pointer to a string contains the runner name.
+ * @buff: the buffer used to return the endpoint name string.
+ *
+ * Assembles an endpoint name from a host name, app name, and
+ * runner name.
+ * 
+ * Note that the caller should prepare the buffer (@buff) to
+ * return the assembled endpoint name.
+ *
+ * Returns: the lenght of the endpoint name if succes; <= 0
+ * if one of the host name, the app name, and the runner name
+ * is invalid.
+ *
+ * Since: 1.0
+ */
 int hibus_assemble_endpoint_name (const char *host_name, const char *app_name,
         const char *runner_name, char *buff);
+
+/**
+ * hibus_assemble_endpoint_name_alloc:
+ * @host_name: the pointer to a string contains the host name.
+ * @app_name: the pointer to a string contains the app name.
+ * @runner_name: the pointer to a string contains the runner name.
+ *
+ * Assembles an endpoint name from a host name, app name, and
+ * runner name, and returns it in a new allocated buffer.
+ * 
+ * Note that the caller is responsible for releasing the buffer.
+ *
+ * Returns: the pointer to the new buffer contains the endpoint name
+ * if success; NULL otherwise.
+ *
+ * Since: 1.0
+ */
 char* hibus_assemble_endpoint_name_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
 
@@ -364,19 +543,19 @@ int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms,
 static inline bool
 hibus_is_valid_runner_name (const char* runner_name)
 {
-    return hibus_is_valid_token (runner_name, LEN_RUNNER_NAME);
+    return hibus_is_valid_token (runner_name, HIBUS_LEN_RUNNER_NAME);
 }
 
 static inline bool
 hibus_is_valid_method_name (const char* method_name)
 {
-    return hibus_is_valid_token (method_name, LEN_METHOD_NAME);
+    return hibus_is_valid_token (method_name, HIBUS_LEN_METHOD_NAME);
 }
 
 static inline bool
 hibus_is_valid_bubble_name (const char* bubble_name)
 {
-    return hibus_is_valid_token (bubble_name, LEN_BUBBLE_NAME);
+    return hibus_is_valid_token (bubble_name, HIBUS_LEN_BUBBLE_NAME);
 }
 
 static inline int

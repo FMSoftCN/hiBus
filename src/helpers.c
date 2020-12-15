@@ -239,9 +239,9 @@ bool hibus_is_valid_token (const char* token, int max_len)
 
 bool hibus_is_valid_endpoint_name (const char* endpoint_name)
 {
-    char host_name [LEN_HOST_NAME + 1];
-    char app_name [LEN_APP_NAME + 1];
-    char runner_name [LEN_RUNNER_NAME + 1];
+    char host_name [HIBUS_LEN_HOST_NAME + 1];
+    char app_name [HIBUS_LEN_APP_NAME + 1];
+    char runner_name [HIBUS_LEN_RUNNER_NAME + 1];
 
     if (hibus_extract_host_name (endpoint_name, host_name) <= 0)
         return false;
@@ -268,7 +268,7 @@ int hibus_extract_host_name (const char* endpoint, char* host_name)
 
     endpoint++;
     len = (uintptr_t)slash - (uintptr_t)endpoint;
-    if (len <= 0 || len > LEN_APP_NAME)
+    if (len <= 0 || len > HIBUS_LEN_APP_NAME)
         return 0;
 
     strncpy (host_name, endpoint, len);
@@ -280,7 +280,7 @@ int hibus_extract_host_name (const char* endpoint, char* host_name)
 char* hibus_extract_host_name_alloc (const char* endpoint)
 {
     char* host_name;
-    if ((host_name = malloc (LEN_HOST_NAME + 1)) == NULL)
+    if ((host_name = malloc (HIBUS_LEN_HOST_NAME + 1)) == NULL)
         return NULL;
 
     if (hibus_extract_host_name (endpoint, host_name) > 0)
@@ -303,7 +303,7 @@ int hibus_extract_app_name (const char* endpoint, char* app_name)
 
     first_slash++;
     len = (uintptr_t)second_slash - (uintptr_t)first_slash;
-    if (len <= 0 || len > LEN_APP_NAME)
+    if (len <= 0 || len > HIBUS_LEN_APP_NAME)
         return 0;
 
     strncpy (app_name, first_slash, len);
@@ -316,7 +316,7 @@ char* hibus_extract_app_name_alloc (const char* endpoint)
 {
     char* app_name;
 
-    if ((app_name = malloc (LEN_APP_NAME + 1)) == NULL)
+    if ((app_name = malloc (HIBUS_LEN_APP_NAME + 1)) == NULL)
         return NULL;
 
     if (hibus_extract_app_name (endpoint, app_name) > 0)
@@ -337,7 +337,7 @@ int hibus_extract_runner_name (const char* endpoint, char* runner_name)
 
     second_slash++;
     len = strlen (second_slash);
-    if (len > LEN_RUNNER_NAME)
+    if (len > HIBUS_LEN_RUNNER_NAME)
         return 0;
 
     strcpy (runner_name, second_slash);
@@ -350,7 +350,7 @@ char* hibus_extract_runner_name_alloc (const char* endpoint)
 {
     char* runner_name;
 
-    if ((runner_name = malloc (LEN_RUNNER_NAME + 1)) == NULL)
+    if ((runner_name = malloc (HIBUS_LEN_RUNNER_NAME + 1)) == NULL)
         return NULL;
 
     if (hibus_extract_runner_name (endpoint, runner_name) > 0)
@@ -365,13 +365,13 @@ int hibus_assemble_endpoint_name (const char* host_name, const char* app_name,
 {
     int host_len, app_len, runner_len;
 
-    if ((host_len = strlen (host_name)) > LEN_HOST_NAME)
+    if ((host_len = strlen (host_name)) > HIBUS_LEN_HOST_NAME)
         return 0;
 
-    if ((app_len = strlen (app_name)) > LEN_APP_NAME)
+    if ((app_len = strlen (app_name)) > HIBUS_LEN_APP_NAME)
         return 0;
 
-    if ((runner_len = strlen (runner_name)) > LEN_RUNNER_NAME)
+    if ((runner_len = strlen (runner_name)) > HIBUS_LEN_RUNNER_NAME)
         return 0;
 
     buff [0] = '@';
@@ -395,13 +395,13 @@ char* hibus_assemble_endpoint_name_alloc (const char* host_name, const char* app
     char* endpoint;
     int host_len, app_len, runner_len;
 
-    if ((host_len = strlen (host_name)) > LEN_HOST_NAME)
+    if ((host_len = strlen (host_name)) > HIBUS_LEN_HOST_NAME)
         return NULL;
 
-    if ((app_len = strlen (app_name)) > LEN_APP_NAME)
+    if ((app_len = strlen (app_name)) > HIBUS_LEN_APP_NAME)
         return NULL;
 
-    if ((runner_len = strlen (runner_name)) > LEN_RUNNER_NAME)
+    if ((runner_len = strlen (runner_name)) > HIBUS_LEN_RUNNER_NAME)
         return NULL;
 
     if ((endpoint = malloc (host_len + app_len + runner_len + 4)) == NULL)
@@ -430,7 +430,7 @@ bool hibus_is_valid_host_name (const char* host_name)
 /* cn.fmsoft.hybridos.aaa */
 bool hibus_is_valid_app_name (const char* app_name)
 {
-    int len, max_len = LEN_APP_NAME;
+    int len, max_len = HIBUS_LEN_APP_NAME;
     const char *start;
     char *end;
 
@@ -539,7 +539,7 @@ void hibus_generate_unique_id (char* id_buff, const char* prefix)
     }
 
     clock_gettime (CLOCK_REALTIME, &tp);
-    snprintf (id_buff, LEN_UNIQUE_ID + 1,
+    snprintf (id_buff, HIBUS_LEN_UNIQUE_ID + 1,
             "%8s-%016lX-%016lX-%016lX",
             my_prefix, tp.tv_sec, tp.tv_nsec, accumulator);
     accumulator++;
@@ -567,7 +567,7 @@ bool hibus_is_valid_unique_id (const char* id)
     int n = 0;
 
     while (id [n]) {
-        if (n > LEN_UNIQUE_ID)
+        if (n > HIBUS_LEN_UNIQUE_ID)
             return false;
 
         if (!isalnum (id [n]) && id [n] != '-')

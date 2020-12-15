@@ -234,7 +234,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
     unsigned int sig_len;
     char* enc_sig = NULL;
     unsigned int enc_sig_len;
-    char buff [DEF_PACKET_BUFF_SIZE];
+    char buff [HIBUS_DEF_PACKET_BUFF_SIZE];
 
     sig = hibus_sign_data (conn->app_name,
             (const unsigned char *)ch_code, strlen (ch_code), &sig_len);
@@ -516,7 +516,7 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
             else if (header.op == US_OPCODE_TEXT ||
                     header.op == US_OPCODE_BIN) {
 
-                if (header.fragmented > MAX_PAYLOAD_SIZE) {
+                if (header.fragmented > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
                     conn->err_code = HIBUS_EC_TOO_LARGE;
                     goto done;
                 }
@@ -626,7 +626,7 @@ void* hibus_read_packet_alloc (hibus_conn* conn, unsigned int *packet_len)
                     header.op == US_OPCODE_BIN) {
                 int is_text;
 
-                if (header.fragmented > MAX_PAYLOAD_SIZE) {
+                if (header.fragmented > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
                     conn->err_code = HIBUS_EC_TOO_LARGE;
                     goto failed;
                 }
@@ -726,21 +726,21 @@ int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int len
     if (conn->type == CT_UNIX_SOCKET) {
         USFrameHeader header;
 
-        if (len > MAX_PAYLOAD_SIZE) {
+        if (len > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
             unsigned int left = len;
 
             do {
                 if (left == len) {
                     header.op = US_OPCODE_TEXT;
                     header.fragmented = len;
-                    header.sz_payload = MAX_PAYLOAD_SIZE;
-                    left -= MAX_PAYLOAD_SIZE;
+                    header.sz_payload = HIBUS_MAX_FRAME_PAYLOAD_SIZE;
+                    left -= HIBUS_MAX_FRAME_PAYLOAD_SIZE;
                 }
-                else if (left > MAX_PAYLOAD_SIZE) {
+                else if (left > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
                     header.op = US_OPCODE_CONTINUATION;
                     header.fragmented = 0;
-                    header.sz_payload = MAX_PAYLOAD_SIZE;
-                    left -= MAX_PAYLOAD_SIZE;
+                    header.sz_payload = HIBUS_MAX_FRAME_PAYLOAD_SIZE;
+                    left -= HIBUS_MAX_FRAME_PAYLOAD_SIZE;
                 }
                 else {
                     header.op = US_OPCODE_END;
@@ -808,8 +808,8 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         int time_expected, char** ret_value)
 {
     int n;
-    char call_id [LEN_UNIQUE_ID + 1];
-    char buff [DEF_PACKET_BUFF_SIZE];
+    char call_id [HIBUS_LEN_UNIQUE_ID + 1];
+    char buff [HIBUS_DEF_PACKET_BUFF_SIZE];
     char* escaped_param;
 
     if (!hibus_is_valid_method_name (method_name))
@@ -854,15 +854,15 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
         hibus_method_handler method_handler)
 {
     int n, ret_code;
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
-    char normalized_method [LEN_METHOD_NAME + 1];
-    char param_buff [MIN_PACKET_BUFF_SIZE];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char normalized_method [HIBUS_LEN_METHOD_NAME + 1];
+    char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
     char* ret_value;
 
     if (!hibus_is_valid_method_name (method_name))
         return HIBUS_EC_INVALID_VALUE;
 
-    hibus_name_tolower_copy (method_name, normalized_method, LEN_METHOD_NAME);
+    hibus_name_tolower_copy (method_name, normalized_method, HIBUS_LEN_METHOD_NAME);
 
     if (kvlist_get (&conn->method_list, normalized_method))
         return HIBUS_EC_DUPLICATED;
@@ -885,7 +885,7 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
 
     ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
         "registerProcedure", param_buff,
-        DEF_TIME_EXPECTED, &ret_value);
+        HIBUS_DEF_TIME_EXPECTED, &ret_value);
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_set (&conn->method_list, normalized_method, method_handler);
@@ -897,15 +897,15 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
 int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
 {
     int n, ret_code;
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
-    char normalized_method [LEN_METHOD_NAME + 1];
-    char param_buff [MIN_PACKET_BUFF_SIZE];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char normalized_method [HIBUS_LEN_METHOD_NAME + 1];
+    char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
     char* ret_value;
 
     if (!hibus_is_valid_method_name (method_name))
         return HIBUS_EC_INVALID_VALUE;
 
-    hibus_name_tolower_copy (method_name, normalized_method, LEN_METHOD_NAME);
+    hibus_name_tolower_copy (method_name, normalized_method, HIBUS_LEN_METHOD_NAME);
 
     if (!kvlist_get (&conn->method_list, normalized_method))
         return HIBUS_EC_INVALID_VALUE;
@@ -924,7 +924,7 @@ int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
 
     ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
         "revokeProcedure", param_buff,
-        DEF_TIME_EXPECTED, &ret_value);
+        HIBUS_DEF_TIME_EXPECTED, &ret_value);
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_delete (&conn->method_list, normalized_method);
@@ -940,15 +940,15 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
         const char* for_host, const char* for_app)
 {
     int n, ret_code;
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
-    char normalized_bubble [LEN_BUBBLE_NAME + 1];
-    char param_buff [MIN_PACKET_BUFF_SIZE];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char normalized_bubble [HIBUS_LEN_BUBBLE_NAME + 1];
+    char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
     char* ret_value;
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_EC_INVALID_VALUE;
 
-    hibus_name_tolower_copy (bubble_name, normalized_bubble, LEN_BUBBLE_NAME);
+    hibus_name_tolower_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
 
     if (kvlist_get (&conn->bubble_list, normalized_bubble))
         return HIBUS_EC_DUPLICATED;
@@ -971,7 +971,7 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
 
     ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
         "registerEvent", param_buff,
-        DEF_TIME_EXPECTED, &ret_value);
+        HIBUS_DEF_TIME_EXPECTED, &ret_value);
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_set (&conn->bubble_list, normalized_bubble, hibus_register_event);
@@ -986,15 +986,15 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
 int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
 {
     int n, ret_code;
-    char endpoint_name [LEN_ENDPOINT_NAME + 1];
-    char normalized_bubble [LEN_BUBBLE_NAME + 1];
-    char param_buff [MIN_PACKET_BUFF_SIZE];
+    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char normalized_bubble [HIBUS_LEN_BUBBLE_NAME + 1];
+    char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
     char* ret_value;
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_EC_INVALID_VALUE;
 
-    hibus_name_tolower_copy (bubble_name, normalized_bubble, LEN_BUBBLE_NAME);
+    hibus_name_tolower_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
 
     if (!kvlist_get (&conn->bubble_list, normalized_bubble))
         return HIBUS_EC_INVALID_VALUE;
@@ -1013,7 +1013,7 @@ int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
 
     ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
         "revokeEvent", param_buff,
-        DEF_TIME_EXPECTED, &ret_value);
+        HIBUS_DEF_TIME_EXPECTED, &ret_value);
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_delete (&conn->bubble_list, normalized_bubble);
@@ -1030,9 +1030,9 @@ int hibus_subscribe_event (hibus_conn* conn,
         hibus_event_handler event_handler)
 {
     int n, ret_code;
-    char builtin_name [LEN_ENDPOINT_NAME + 1];
-    char param_buff [MIN_PACKET_BUFF_SIZE];
-    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 2];
+    char builtin_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
+    char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
     char* ret_value;
 
     if (!hibus_is_valid_endpoint_name (endpoint))
@@ -1041,10 +1041,10 @@ int hibus_subscribe_event (hibus_conn* conn,
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_EC_INVALID_VALUE;
 
-    n = hibus_name_tolower_copy (endpoint, event_name, LEN_ENDPOINT_NAME);
+    n = hibus_name_tolower_copy (endpoint, event_name, HIBUS_LEN_ENDPOINT_NAME);
     event_name [n++] = '/';
     event_name [n + 1] = '\0';
-    hibus_name_toupper_copy (bubble_name, event_name + n, LEN_BUBBLE_NAME);
+    hibus_name_toupper_copy (bubble_name, event_name + n, HIBUS_LEN_BUBBLE_NAME);
     if (kvlist_get (&conn->subscribed_list, event_name))
         return HIBUS_EC_INVALID_VALUE;
 
@@ -1064,7 +1064,7 @@ int hibus_subscribe_event (hibus_conn* conn,
 
     ret_code = hibus_call_procedure_and_wait (conn, builtin_name,
         "subscribeEvent", param_buff,
-        DEF_TIME_EXPECTED, &ret_value);
+        HIBUS_DEF_TIME_EXPECTED, &ret_value);
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_set (&conn->subscribed_list, event_name, event_handler);
@@ -1080,9 +1080,9 @@ int hibus_unsubscribe_event (hibus_conn* conn,
         const char* endpoint, const char* bubble_name)
 {
     int n, ret_code;
-    char builtin_name [LEN_ENDPOINT_NAME + 1];
-    char param_buff [MIN_PACKET_BUFF_SIZE];
-    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 2];
+    char builtin_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
+    char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
     char* ret_value;
 
     if (!hibus_is_valid_endpoint_name (endpoint))
@@ -1091,10 +1091,10 @@ int hibus_unsubscribe_event (hibus_conn* conn,
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_EC_INVALID_VALUE;
 
-    n = hibus_name_tolower_copy (endpoint, event_name, LEN_ENDPOINT_NAME);
+    n = hibus_name_tolower_copy (endpoint, event_name, HIBUS_LEN_ENDPOINT_NAME);
     event_name [n++] = '/';
     event_name [n + 1] = '\0';
-    hibus_name_toupper_copy (bubble_name, event_name + n, LEN_BUBBLE_NAME);
+    hibus_name_toupper_copy (bubble_name, event_name + n, HIBUS_LEN_BUBBLE_NAME);
     if (!kvlist_get (&conn->subscribed_list, event_name))
         return HIBUS_EC_INVALID_VALUE;
 
@@ -1114,7 +1114,7 @@ int hibus_unsubscribe_event (hibus_conn* conn,
 
     ret_code = hibus_call_procedure_and_wait (conn, builtin_name,
         "unsubscribeEvent", param_buff,
-        DEF_TIME_EXPECTED, &ret_value);
+        HIBUS_DEF_TIME_EXPECTED, &ret_value);
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_delete (&conn->subscribed_list, event_name);
@@ -1132,8 +1132,8 @@ int hibus_call_procedure (hibus_conn* conn,
         int time_expected, hibus_result_handler result_handler)
 {
     int n, retv;
-    char call_id [LEN_UNIQUE_ID + 1];
-    char buff [DEF_PACKET_BUFF_SIZE];
+    char call_id [HIBUS_LEN_UNIQUE_ID + 1];
+    char buff [HIBUS_DEF_PACKET_BUFF_SIZE];
     char* escaped_param;
 
     if (!hibus_is_valid_endpoint_name (endpoint))
@@ -1179,10 +1179,10 @@ int hibus_fire_event (hibus_conn* conn,
         const char* bubble_name, const char* bubble_data)
 {
     int n;
-    char normalized_bubble [LEN_BUBBLE_NAME + 1];
-    char event_id [LEN_UNIQUE_ID + 1];
+    char normalized_bubble [HIBUS_LEN_BUBBLE_NAME + 1];
+    char event_id [HIBUS_LEN_UNIQUE_ID + 1];
 
-    char buff_in_stack [DEF_PACKET_BUFF_SIZE];
+    char buff_in_stack [HIBUS_DEF_PACKET_BUFF_SIZE];
     char* packet_buff = buff_in_stack;
     size_t len_data = bubble_data ? (strlen (bubble_data) * 2 + 1) : 0;
     size_t sz_packet_buff = sizeof (buff_in_stack);
@@ -1194,15 +1194,15 @@ int hibus_fire_event (hibus_conn* conn,
         return HIBUS_EC_INVALID_VALUE;
     }
 
-    hibus_name_tolower_copy (bubble_name, normalized_bubble, LEN_BUBBLE_NAME);
+    hibus_name_tolower_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
     if (!kvlist_get (&conn->bubble_list, normalized_bubble)) {
         conn->err_code = HIBUS_EC_INVALID_VALUE;
         return HIBUS_EC_INVALID_VALUE;
     }
 
-    if (len_data > MIN_PACKET_BUFF_SIZE) {
-        sz_packet_buff = MIN_PACKET_BUFF_SIZE + len_data;
-        packet_buff = malloc (MIN_PACKET_BUFF_SIZE + len_data);
+    if (len_data > HIBUS_MIN_PACKET_BUFF_SIZE) {
+        sz_packet_buff = HIBUS_MIN_PACKET_BUFF_SIZE + len_data;
+        packet_buff = malloc (HIBUS_MIN_PACKET_BUFF_SIZE + len_data);
         if (packet_buff == NULL) {
             conn->err_code = HIBUS_EC_NOMEM;
             return HIBUS_EC_NOMEM;
@@ -1253,10 +1253,10 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
     const char* to_method;
     const char* parameter;
     char *ret_value = NULL;
-    char normalized_name [LEN_METHOD_NAME + 1];
+    char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
     hibus_method_handler method_handler;
     int err_code = 0;
-    char buff_in_stack [DEF_PACKET_BUFF_SIZE];
+    char buff_in_stack [HIBUS_DEF_PACKET_BUFF_SIZE];
     char* packet_buff = buff_in_stack;
     size_t sz_packet_buff = sizeof (buff_in_stack);
     char* escaped_value = NULL;
@@ -1302,7 +1302,7 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
         parameter = "";
     }
 
-    hibus_name_tolower_copy (to_method, normalized_name, LEN_METHOD_NAME);
+    hibus_name_tolower_copy (to_method, normalized_name, HIBUS_LEN_METHOD_NAME);
     if ((method_handler = kvlist_get (&conn->method_list, normalized_name)) == NULL) {
         err_code = HIBUS_EC_UNKNOWN_METHOD;
         goto done;
@@ -1318,9 +1318,9 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
         if (err_code == 0) {
             size_t len_value = ret_value ? (strlen (ret_value) * 2 + 1) : 0;
 
-            if (len_value > MIN_PACKET_BUFF_SIZE) {
-                sz_packet_buff = MIN_PACKET_BUFF_SIZE + len_value;
-                packet_buff = malloc (MIN_PACKET_BUFF_SIZE + len_value);
+            if (len_value > HIBUS_MIN_PACKET_BUFF_SIZE) {
+                sz_packet_buff = HIBUS_MIN_PACKET_BUFF_SIZE + len_value;
+                packet_buff = malloc (HIBUS_MIN_PACKET_BUFF_SIZE + len_value);
                 if (packet_buff == NULL) {
                     err_code = HIBUS_EC_NOMEM;
                     goto done;
@@ -1454,7 +1454,7 @@ static int dispatch_event_packet (hibus_conn* conn, const hibus_json *jo)
     const char* from_endpoint = NULL;
     const char* from_bubble = NULL;
     const char* bubble_data;
-    char event_name [LEN_ENDPOINT_NAME + LEN_BUBBLE_NAME + 2];
+    char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
     hibus_event_handler event_handler;
     int n;
 
@@ -1479,10 +1479,10 @@ static int dispatch_event_packet (hibus_conn* conn, const hibus_json *jo)
         bubble_data = "";
     }
 
-    n = hibus_name_tolower_copy (from_endpoint, event_name, LEN_ENDPOINT_NAME);
+    n = hibus_name_tolower_copy (from_endpoint, event_name, HIBUS_LEN_ENDPOINT_NAME);
     event_name [n++] = '/';
     event_name [n + 1] = '\0';
-    hibus_name_toupper_copy (from_bubble, event_name + n + 1, LEN_BUBBLE_NAME);
+    hibus_name_toupper_copy (from_bubble, event_name + n + 1, HIBUS_LEN_BUBBLE_NAME);
     if ((event_handler = kvlist_get (&conn->subscribed_list, event_name)) == NULL) {
         // TODO handle system events here.
         return HIBUS_EC_UNKNOWN_EVENT;
@@ -1508,7 +1508,7 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
     *ret_value = NULL;
 
     if (time_expected <= 0) {
-        time_to_return = time (NULL) + DEF_TIME_EXPECTED;
+        time_to_return = time (NULL) + HIBUS_DEF_TIME_EXPECTED;
     }
     else {
         time_to_return = time (NULL) + time_expected;

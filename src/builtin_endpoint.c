@@ -39,7 +39,7 @@ default_method_handler (BusServer *bus_srv,
         BusEndpoint* from, BusEndpoint* to,
         const char* method_name, const char* method_param, int* ret_code)
 {
-    char buff_in_stack [DEF_PACKET_BUFF_SIZE];
+    char buff_in_stack [HIBUS_DEF_PACKET_BUFF_SIZE];
     int n = 0;
     char* packet_buff = buff_in_stack;
     const CallInfo *call_info = from->sta_data;
@@ -47,9 +47,9 @@ default_method_handler (BusServer *bus_srv,
     size_t sz_packet_buff = sizeof (buff_in_stack);
     char* escaped_param;
 
-    if (len_param > MIN_PACKET_BUFF_SIZE) {
-        sz_packet_buff = MIN_PACKET_BUFF_SIZE + len_param;
-        packet_buff = malloc (MIN_PACKET_BUFF_SIZE + len_param);
+    if (len_param > HIBUS_MIN_PACKET_BUFF_SIZE) {
+        sz_packet_buff = HIBUS_MIN_PACKET_BUFF_SIZE + len_param;
+        packet_buff = malloc (HIBUS_MIN_PACKET_BUFF_SIZE + len_param);
         if (packet_buff == NULL) {
             *ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
             return NULL;
@@ -320,9 +320,9 @@ builtin_method_subscribe_event (BusServer *bus_srv,
     if (json_object_object_get_ex (jo, "endpointName", &jo_tmp) &&
         (param_endpoint_name = json_object_get_string (jo_tmp))) {
         void *data;
-        char normalized_name [LEN_ENDPOINT_NAME + 1];
+        char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        hibus_name_tolower_copy (param_endpoint_name, normalized_name, LEN_ENDPOINT_NAME);
+        hibus_name_tolower_copy (param_endpoint_name, normalized_name, HIBUS_LEN_ENDPOINT_NAME);
         if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
             target_endpoint = *(BusEndpoint **)data;
         }
@@ -378,9 +378,9 @@ builtin_method_unsubscribe_event (BusServer *bus_srv,
     if (json_object_object_get_ex (jo, "endpointName", &jo_tmp) &&
         (param_endpoint_name = json_object_get_string (jo_tmp))) {
         void *data;
-        char normalized_name [LEN_ENDPOINT_NAME + 1];
+        char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        hibus_name_tolower_copy (param_endpoint_name, normalized_name, LEN_ENDPOINT_NAME);
+        hibus_name_tolower_copy (param_endpoint_name, normalized_name, HIBUS_LEN_ENDPOINT_NAME);
         if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
             target_endpoint = *(BusEndpoint **)data;
         }
@@ -601,9 +601,9 @@ builtin_method_list_event_subscribers (BusServer *bus_srv,
     if (json_object_object_get_ex (jo, "endpointName", &jo_tmp) &&
         (param_endpoint_name = json_object_get_string (jo_tmp))) {
         void *data;
-        char normalized_name [LEN_ENDPOINT_NAME + 1];
+        char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        hibus_name_tolower_copy (param_endpoint_name, normalized_name, LEN_ENDPOINT_NAME);
+        hibus_name_tolower_copy (param_endpoint_name, normalized_name, HIBUS_LEN_ENDPOINT_NAME);
         if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
             target_endpoint = *(BusEndpoint **)data;
         }
@@ -619,9 +619,9 @@ builtin_method_list_event_subscribers (BusServer *bus_srv,
     if (json_object_object_get_ex (jo, "bubbleName", &jo_tmp) &&
             (param_bubble_name = json_object_get_string (jo_tmp))) {
         void *data;
-        char normalized_name [LEN_BUBBLE_NAME + 1];
+        char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
 
-        hibus_name_toupper_copy (param_bubble_name, normalized_name, LEN_BUBBLE_NAME);
+        hibus_name_toupper_copy (param_bubble_name, normalized_name, HIBUS_LEN_BUBBLE_NAME);
 
         if ((data = kvlist_get (&target_endpoint->bubble_list, normalized_name))) {
             bubble = *(BubbleInfo **)data;
@@ -760,8 +760,8 @@ bool fire_system_event (BusServer* bus_srv, int bubble_type,
 {
     const char* bubble_name;
     int n = 0;
-    char packet_buff [DEF_PACKET_BUFF_SIZE];
-    char bubble_data [MIN_PACKET_BUFF_SIZE];
+    char packet_buff [HIBUS_DEF_PACKET_BUFF_SIZE];
+    char bubble_data [HIBUS_MIN_PACKET_BUFF_SIZE];
     char* escaped_bubble_data = NULL;
 
     if (bubble_type == SBT_NEW_ENDPOINT) {

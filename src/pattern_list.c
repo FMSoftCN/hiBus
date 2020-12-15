@@ -78,7 +78,7 @@ bool init_pattern_list (pattern_list *pl, const char* pattern)
             one_pattern->var_name = NULL;
         }
         else if (*token == '$') {
-            if (hibus_is_valid_token (token + 1, LEN_APP_NAME)) {
+            if (hibus_is_valid_token (token + 1, HIBUS_LEN_APP_NAME)) {
                 one_pattern->type = PT_VARIABLE;
                 one_pattern->var_name = strdup (token + 1);
             }
