@@ -469,7 +469,7 @@ static int check_auth_result (hibus_conn* conn)
         ULOG_WARN ("Failed the authentication\n");
         retval = HIBUS_EC_AUTH_FAILED;
     }
-    else if (retval == JPT_AUTH_FAILED) {
+    else if (retval == JPT_ERROR) {
         ULOG_WARN ("Got an error\n");
         retval = HIBUS_EC_SERVER_REFUSED;
     }
@@ -485,7 +485,7 @@ static int check_auth_result (hibus_conn* conn)
 int hibus_connect_via_unix_socket (const char* path_to_socket,
         const char* app_name, const char* runner_name, hibus_conn** conn)
 {
-    int fd, len;
+    int fd, len, err_code = HIBUS_EC_PROTOCOL;
     struct sockaddr_un unix_addr;
     char peer_name [33];
     char *ch_code = NULL;
@@ -571,7 +571,7 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     free (ch_code);
     ch_code = NULL;
 
-    if (check_auth_result (*conn))
+    if ((err_code = check_auth_result (*conn)))
         goto error;
 
     return fd;
@@ -590,7 +590,7 @@ error:
     free (*conn);
     *conn = NULL;
 
-    return HIBUS_EC_PROTOCOL;
+    return err_code;
 }
 
 int hibus_connect_via_web_socket (const char* host_name, int port,

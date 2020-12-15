@@ -139,7 +139,7 @@ const char* hibus_get_ret_message (int ret_code)
 
 static const char* err_messages [] = {
     /* 0 */
-    "Everything Ok"
+    "Everything Ok",
     /* HIBUS_EC_IO (-1) */
     "IO Error",
     /* HIBUS_EC_CLOSED (-2) */
