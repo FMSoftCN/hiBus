@@ -683,7 +683,7 @@ done:
             "\"resultId\": \"%s\","
             "\"callId\": \"%s\","
             "\"fromEndpoint\": \"@%s/%s/%s\","
-            "\"fromMethod\": \"%s\""
+            "\"fromMethod\": \"%s\","           // add ",", modified by gengyue
             "\"timeDiff\": %f,"
             "\"timeConsumed\": %f,"
             "\"retCode\": %d,"
