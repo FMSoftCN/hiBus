@@ -555,24 +555,79 @@ int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms);
 }
 #endif
 
+/**
+ * hibus_is_valid_runner_name:
+ * @runner_name: the pointer to the runner name string.
+ *
+ * Checks whether a runner name is valid. According to hiBus protocal,
+ * the runner name should be a valid token and not longer than
+ * @HIBUS_LEN_RUNNER_NAME.
+ *
+ * Note that a string with a length longer than @HIBUS_LEN_RUNNER_NAME will
+ * be considered as an invalid runner name.
+ *
+ * Returns: true for a valid token, otherwise false.
+ *
+ * Since: 1.0
+ */
 static inline bool
 hibus_is_valid_runner_name (const char* runner_name)
 {
     return hibus_is_valid_token (runner_name, HIBUS_LEN_RUNNER_NAME);
 }
 
+/**
+ * hibus_is_valid_method_name:
+ * @method_name: the pointer to the method name string.
+ *
+ * Checks whether a method name is valid. According to hiBus protocal,
+ * the method name should be a valid token and not longer than
+ * @HIBUS_LEN_METHOD_NAME.
+ *
+ * Note that a string with a length longer than @HIBUS_LEN_METHOD_NAME will
+ * be considered as an invalid method name.
+ *
+ * Returns: true for a valid token, otherwise false.
+ *
+ * Since: 1.0
+ */
 static inline bool
 hibus_is_valid_method_name (const char* method_name)
 {
     return hibus_is_valid_token (method_name, HIBUS_LEN_METHOD_NAME);
 }
 
+/**
+ * hibus_is_valid_bubble_name:
+ * @bubble_name: the pointer to the bubble name string.
+ *
+ * Checks whether a bubble name is valid. According to hiBus protocal,
+ * the bubble name should be a valid token and not longer than
+ * @HIBUS_LEN_BUBBLE_NAME.
+ *
+ * Note that a string with a length longer than @HIBUS_LEN_BUBBLE_NAME will
+ * be considered as an invalid bubble name.
+ *
+ * Returns: true for a valid token, otherwise false.
+ *
+ * Since: 1.0
+ */
 static inline bool
 hibus_is_valid_bubble_name (const char* bubble_name)
 {
     return hibus_is_valid_token (bubble_name, HIBUS_LEN_BUBBLE_NAME);
 }
 
+/**
+ * hibus_name_tolower:
+ * @name (not nullable): the pointer to a name string.
+ *
+ * Converts a name string lowercase in place.
+ *
+ * Returns: the length of the name string.
+ *
+ * Since: 1.0
+ */
 static inline int
 hibus_name_tolower (char* name)
 {
@@ -586,6 +641,16 @@ hibus_name_tolower (char* name)
     return i;
 }
 
+/**
+ * hibus_name_toupper:
+ * @name (not nullable): the pointer to a name string.
+ *
+ * Converts a name string uppercase in place.
+ *
+ * Returns: the length of the name string.
+ *
+ * Since: 1.0
+ */
 static inline int
 hibus_name_toupper (char* name)
 {
@@ -599,6 +664,21 @@ hibus_name_toupper (char* name)
     return i;
 }
 
+/**
+ * hibus_name_tolower_copy:
+ * @name (not nullable): the pointer to a name string.
+ * @buff (not nullable): the buffer used to return the converted name string.
+ * @max_len: The maximal length of the name string to convert.
+ *
+ * Converts a name string lowercase and copies the letters to
+ * the specified buffer.
+ *
+ * Note that if @max_len <= 0, the argument will be ignored.
+ *
+ * Returns: the total number of letters converted.
+ *
+ * Since: 1.0
+ */
 static inline int
 hibus_name_tolower_copy (const char* name, char* buff, int max_len)
 {
@@ -617,6 +697,21 @@ hibus_name_tolower_copy (const char* name, char* buff, int max_len)
     return n;
 }
 
+/**
+ * hibus_name_toupper_copy:
+ * @name (not nullable): the pointer to a name string.
+ * @buff (not nullable): the buffer used to return the converted name string.
+ * @max_len: The maximal length of the name string to convert.
+ *
+ * Converts a name string uppercase and copies the letters to
+ * the specified buffer.
+ *
+ * Note that if @max_len <= 0, the argument will be ignored.
+ *
+ * Returns: the total number of letters converted.
+ *
+ * Since: 1.0
+ */
 static inline int
 hibus_name_toupper_copy (const char* name, char* buff, int max_len)
 {
