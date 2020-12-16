@@ -547,6 +547,8 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         const char* method_name, const char* method_param,
         int time_expected, char** ret_value);
 
+int hibus_read_and_dispatch_packet (hibus_conn* conn);
+
 int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms);
 
 #ifdef __cplusplus

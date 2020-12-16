@@ -1808,15 +1808,86 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
     return err_code;
 }
 
+int hibus_read_and_dispatch_packet (hibus_conn* conn)
+{
+    void* packet;
+    unsigned int data_len;
+    hibus_json* jo = NULL;
+    int err_code, retval;
+
+    err_code = hibus_read_packet_alloc (conn, &packet, &data_len);
+    if (err_code) {
+        ULOG_ERR ("Failed to read packet\n");
+        goto done;
+    }
+
+    ULOG_INFO ("got a packet (%u bytes long):\n%s\n", data_len, (char *)packet);
+    retval = hibus_json_packet_to_object (packet, data_len, &jo);
+    free (packet);
+
+    if (retval < 0) {
+        ULOG_ERR ("Failed to parse JSON packet; quit...\n");
+        err_code = HIBUS_EC_BAD_PACKET;
+    }
+    else if (retval == JPT_ERROR) {
+        ULOG_ERR ("The server refused my request\n");
+        if (conn->error_handler) {
+            err_code = conn->error_handler (conn, jo);
+        }
+        else {
+            err_code = HIBUS_EC_SERVER_ERROR;
+        }
+    }
+    else if (retval == JPT_AUTH) {
+        ULOG_WARN ("Should not be here for packetType `auth`; quit...\n");
+        err_code = HIBUS_EC_UNEXPECTED;
+    }
+    else if (retval == JPT_CALL) {
+        ULOG_INFO ("Sombody called me\n");
+        err_code = dispatch_call_packet (conn, jo);
+    }
+    else if (retval == JPT_RESULT) {
+        ULOG_INFO ("I get a result packet\n");
+        err_code = dispatch_result_packet (conn, jo);
+    }
+    else if (retval == JPT_RESULT_SENT) {
+        ULOG_INFO ("I get a resultSent packet\n");
+        err_code = 0;
+    }
+    else if (retval == JPT_EVENT) {
+        ULOG_INFO ("I get en event\n");
+        err_code = dispatch_event_packet (conn, jo);
+    }
+    else if (retval == JPT_EVENT_SENT) {
+        ULOG_INFO ("I get an eventSent packet\n");
+        err_code = 0;
+    }
+    else if (retval == JPT_AUTH_PASSED) {
+        ULOG_WARN ("Unexpected authPassed packet\n");
+        err_code = HIBUS_EC_UNEXPECTED;
+    }
+    else if (retval == JPT_AUTH_FAILED) {
+        ULOG_WARN ("Unexpected authFailed packet\n");
+        err_code = HIBUS_EC_UNEXPECTED;
+    }
+    else {
+        ULOG_ERR ("Unknown packet type; quit...\n");
+        err_code = HIBUS_EC_PROTOCOL;
+    }
+
+done:
+    if (jo)
+        json_object_put (jo);
+
+    return err_code;
+}
+
 int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms)
 {
     fd_set rfds;
     struct timeval tv;
-    int retval;
-    void* packet;
-    unsigned int data_len;
-    hibus_json* jo = NULL;
     int err_code = 0;
+    int retval;
 
     FD_ZERO (&rfds);
     FD_SET (conn->fd, &rfds);
@@ -1835,74 +1906,12 @@ int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms)
         err_code = HIBUS_EC_BAD_SYSTEM_CALL;
     }
     else if (retval) {
-        err_code = hibus_read_packet_alloc (conn, &packet, &data_len);
-        if (err_code) {
-            ULOG_ERR ("Failed to read packet\n");
-            goto done;
-        }
-
-        ULOG_INFO ("got a packet (%u bytes long):\n%s\n", data_len, (char *)packet);
-        retval = hibus_json_packet_to_object (packet, data_len, &jo);
-        free (packet);
-
-        if (retval < 0) {
-            ULOG_ERR ("Failed to parse JSON packet; quit...\n");
-            err_code = HIBUS_EC_BAD_PACKET;
-        }
-        else if (retval == JPT_ERROR) {
-            ULOG_ERR ("The server refused my request\n");
-            if (conn->error_handler) {
-                err_code = conn->error_handler (conn, jo);
-            }
-            else {
-                err_code = HIBUS_EC_SERVER_ERROR;
-            }
-        }
-        else if (retval == JPT_AUTH) {
-            ULOG_WARN ("Should not be here for packetType `auth`; quit...\n");
-            err_code = 0;
-        }
-        else if (retval == JPT_CALL) {
-            ULOG_INFO ("Sombody called me\n");
-            err_code = dispatch_call_packet (conn, jo);
-        }
-        else if (retval == JPT_RESULT) {
-            ULOG_INFO ("I get a result packet\n");
-            err_code = dispatch_result_packet (conn, jo);
-        }
-        else if (retval == JPT_RESULT_SENT) {
-            ULOG_INFO ("I get a resultSent packet\n");
-            err_code = 0;
-        }
-        else if (retval == JPT_EVENT) {
-            ULOG_INFO ("I get en event\n");
-            err_code = dispatch_event_packet (conn, jo);
-        }
-        else if (retval == JPT_EVENT_SENT) {
-            ULOG_INFO ("I get an eventSent packet\n");
-            err_code = 0;
-        }
-        else if (retval == JPT_AUTH_PASSED) {
-            ULOG_WARN ("Unexpected authPassed packet\n");
-            err_code = HIBUS_EC_UNEXPECTED;
-        }
-        else if (retval == JPT_AUTH_FAILED) {
-            ULOG_WARN ("Unexpected authFailed packet\n");
-            err_code = HIBUS_EC_UNEXPECTED;
-        }
-        else {
-            ULOG_ERR ("Unknown packet type; quit...\n");
-            err_code = HIBUS_EC_PROTOCOL;
-        }
+        err_code = hibus_read_and_dispatch_packet (conn);
     }
     else {
         ULOG_INFO ("Timeout\n");
         err_code = HIBUS_EC_TIMEOUT;
     }
-
-done:
-    if (jo)
-        json_object_put (jo);
 
     return err_code;
 }
