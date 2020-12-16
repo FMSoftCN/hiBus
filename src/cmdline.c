@@ -65,6 +65,7 @@ static struct run_info {
 /* command identifiers */
 enum {
     CMD_HELP = 0,
+    CMD_EXIT,
     CMD_CALL,
     CMD_SUBSCRIBE,
     CMD_UNSUBSCRIBE,
@@ -95,6 +96,8 @@ static struct cmd_info {
 } cmd_info [] = {
     { CMD_HELP,
         "help", "h", 0},
+    { CMD_EXIT,
+        "exit", "x", 0},
     { CMD_CALL,
         "call", "c", 3, AT_ENDPOINT, AT_METHOD, AT_JSON, },
     { CMD_SUBSCRIBE,
@@ -210,18 +213,57 @@ static int setup_signals (void)
     return 0;
 }
 
-static void print_help (hibus_conn *conn)
+static void on_cmd_help (hibus_conn *conn)
 {
+    fprintf (stderr, "\n"
+            "\n"
+            "hiBus - the data bus system for HybridOS.\n"
+            "\n"
+            "Copyright (C) 2020 FMSoft <https://www.fmsoft.cn>\n"
+            "\n"
+            "hiBus is free software: you can redistribute it and/or modify\n"
+            "it under the terms of the GNU General Public License as published by\n"
+            "the Free Software Foundation, either version 3 of the License, or\n"
+            "(at your option) any later version.\n"
+            "\n"
+            "hiBus is distributed in the hope that it will be useful,\n"
+            "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+            "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
+            "GNU General Public License for more details.\n"
+            "You should have received a copy of the GNU General Public License\n"
+            "along with this program.  If not, see http://www.gnu.org/licenses/.\n"
+            );
     fprintf (stderr, "\n");
-    fprintf (stderr, "Usage of hiBusCL:\n");
-    fprintf (stderr, "help\n");
-    fprintf (stderr, "  print this help message\n");
-    fprintf (stderr, "call <endpoint> <method> <parameters>\n");
-    fprintf (stderr, "  call a procedure\n");
-    fprintf (stderr, "sub <endpoint> <BUBBLE>\n");
-    fprintf (stderr, "  suscribe an event\n");
-    fprintf (stderr, "unsub <endpoint> <BUBBLE>\n");
-    fprintf (stderr, "  unsuscribe an event\n");
+    fprintf (stderr, "Commands:\n\n");
+    fprintf (stderr, "\t<help | h>\n");
+    fprintf (stderr, "\t\tprint this help message.\n");
+    fprintf (stderr, "\t<exit | x>\n");
+    fprintf (stderr, "\t\texit this hiBus command line program.\n");
+    fprintf (stderr, "\t<call | c> <endpoint> <method> [parameters]\n");
+    fprintf (stderr, "\t\tcall a procedure\n");
+    fprintf (stderr, "\t<subscribe | sub> <endpoint> <BUBBLE>\n");
+    fprintf (stderr, "\t\tsuscribe an event.\n");
+    fprintf (stderr, "\t<unsubscribe | unsub> <endpoint> <BUBBLE>\n");
+    fprintf (stderr, "\t\tunsuscribe an event.\n");
+    fprintf (stderr, "\n");
+    fprintf (stderr, "Shortcuts:\n");
+    fprintf (stderr, "\t<F1>: print this help message.\n");
+    fprintf (stderr, "\t<F2>: list all endpoints.\n");
+    fprintf (stderr, "\t<ESC>: exit this hiBus command line program.\n");
+    fprintf (stderr, "\t<TAB>: auto complete the command.\n");
+    fprintf (stderr, "\t<Up>/<Down>: switch among available values.\n");
+    fprintf (stderr, "\n");
+}
+
+static void on_cmd_exit (hibus_conn *conn)
+{
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    assert (info);
+
+    fprintf (stderr, "\n");
+    fprintf (stderr, "Exiting...\n");
+    info->running = false;
 }
 
 static void print_prompt (hibus_conn *conn)
@@ -250,6 +292,9 @@ static void on_confirm_command (hibus_conn *conn)
     
     assert (info);
 
+    // fputs ("\n", stderr);
+    // fputs (info->cmd, stderr);
+
     for (i = 0; i < TABLESIZE (cmd_info); i++) {
         if (strcasecmp (info->cmd, cmd_info[i].short_name) == 0
                 || strcasecmp (info->cmd, cmd_info[i].long_name) == 0) {
@@ -261,8 +306,12 @@ static void on_confirm_command (hibus_conn *conn)
 
     switch (cmd) {
         case CMD_HELP:
-            print_help (conn);
+            on_cmd_help (conn);
             break;
+
+        case CMD_EXIT:
+            on_cmd_exit (conn);
+            return;
 
         case CMD_CALL:
         case CMD_SUBSCRIBE:
@@ -300,7 +349,7 @@ static void on_delete_char (hibus_conn *conn)
     if (info->curr_edit_buff) {
         pos = strlen (info->curr_edit_buff);
         if (pos > 0) {
-            info->curr_edit_buff [pos] = '\0';
+            info->curr_edit_buff [--pos] = '\0';
             fputs ("\x1B[1D\x1B[1X", stderr);
         }
     }
@@ -503,6 +552,8 @@ int main (int argc, char **argv)
         }
 
     } while (the_client.running);
+
+    fputs ("\n", stderr);
 
 failed:
     if (ttyfd >= 0)
