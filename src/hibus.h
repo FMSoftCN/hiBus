@@ -114,6 +114,7 @@
 #define HIBUS_EC_UNEXPECTED             (-18)
 #define HIBUS_EC_SERVER_REFUSED         (-19)
 #define HIBUS_EC_BAD_PACKET             (-20)
+#define HIBUS_EC_BAD_CONNECTION         (-21)
 
 #define HIBUS_LEN_HOST_NAME             127
 #define HIBUS_LEN_APP_NAME              127

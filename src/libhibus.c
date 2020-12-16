@@ -505,7 +505,7 @@ static int check_auth_result (hibus_conn* conn)
 int hibus_connect_via_unix_socket (const char* path_to_socket,
         const char* app_name, const char* runner_name, hibus_conn** conn)
 {
-    int fd, len, err_code = HIBUS_EC_PROTOCOL;
+    int fd, len, err_code = HIBUS_EC_BAD_CONNECTION;
     struct sockaddr_un unix_addr;
     char peer_name [33];
     char *ch_code = NULL;
@@ -1922,14 +1922,14 @@ int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms)
     }
 
     if (retval == -1) {
-        ULOG_ERR ("Failed to call select(): %s\n", strerror (errno));
+        // ULOG_ERR ("Failed to call select(): %s\n", strerror (errno));
         err_code = HIBUS_EC_BAD_SYSTEM_CALL;
     }
     else if (retval) {
         err_code = hibus_read_and_dispatch_packet (conn);
     }
     else {
-        ULOG_INFO ("Timeout\n");
+        // ULOG_INFO ("Timeout\n");
         err_code = HIBUS_EC_TIMEOUT;
     }
 

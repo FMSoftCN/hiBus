@@ -180,6 +180,8 @@ static const char* err_messages [] = {
     "Server Refused",
     /* HIBUS_EC_BAD_PACKET (-20) */
     "Bad Packet",
+    /* HIBUS_EC_BAD_CONNECTION (-21) */
+    "Bad Connection",
 };
 
 const char* hibus_get_err_message (int err_code)
