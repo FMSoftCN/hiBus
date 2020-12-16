@@ -489,8 +489,13 @@ int hibus_connect_via_web_socket (const char* host_name, int port,
 int hibus_disconnect (hibus_conn* conn);
 
 typedef int (*hibus_error_handler)(hibus_conn* conn, const hibus_json *jo);
+
+hibus_error_handler hibus_conn_get_error_handler (hibus_conn* conn);
 hibus_error_handler hibus_conn_set_error_handler (hibus_conn* conn,
         hibus_error_handler error_handler);
+
+void *hibus_conn_get_user_data (hibus_conn* conn);
+void *hibus_conn_set_user_data (hibus_conn* conn, void* user_data);
 
 const char* hibus_conn_srv_host_name (hibus_conn* conn);
 const char* hibus_conn_own_host_name (hibus_conn* conn);

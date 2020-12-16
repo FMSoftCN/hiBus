@@ -47,25 +47,45 @@ struct _hibus_conn {
     int type;
     int fd;
     int pt;
+    int padding_;
 
     char* srv_host_name;
     char* own_host_name;
     char* app_name;
     char* runner_name;
 
-    hibus_error_handler error_handler;
-
     struct kvlist method_list;
     struct kvlist bubble_list;
     struct kvlist call_list;
     struct kvlist subscribed_list;
+
+    hibus_error_handler error_handler;
+    void *user_data;
 };
+
+hibus_error_handler hibus_conn_get_error_handler (hibus_conn *conn)
+{
+    return conn->error_handler;
+}
 
 hibus_error_handler hibus_conn_set_error_handler (hibus_conn *conn,
         hibus_error_handler error_handler)
 {
     hibus_error_handler old = conn->error_handler;
     conn->error_handler = error_handler;
+
+    return old;
+}
+
+void *hibus_conn_get_user_data (hibus_conn *conn)
+{
+    return conn->user_data;
+}
+
+void *hibus_conn_set_user_data (hibus_conn *conn, void *user_data)
+{
+    void *old = conn->user_data;
+    conn->user_data = user_data;
 
     return old;
 }
