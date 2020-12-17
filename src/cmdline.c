@@ -540,6 +540,12 @@ static int test_basic_functions (hibus_conn *conn)
     ULOG_INFO ("error message for hibus_revoke_event: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
+    if (err_code == HIBUS_EC_SERVER_ERROR) {
+        int ret_code = hibus_conn_get_last_ret_code (conn);
+        ULOG_INFO ("last return code: %d (%s)\n",
+                ret_code, hibus_get_ret_message (ret_code));
+    }
+
     return err_code;
 }
 
