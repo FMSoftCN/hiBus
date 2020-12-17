@@ -521,6 +521,22 @@ static int my_echo_result (hibus_conn* conn,
     return -1;
 }
 
+static void my_clock_event (hibus_conn* conn,
+        const char* from_endpoint, const char* from_bubble,
+        const char* bubble_data)
+{
+    ULOG_INFO ("Got an event of (%s): %s\n", from_bubble, bubble_data);
+}
+
+static void format_current_time (char* buff, size_t sz)
+{
+    struct tm tm;
+    time_t curr_time = time (NULL);
+
+    localtime_r (&curr_time, &tm);
+    strftime (buff, sz, "%H:%M", &tm);
+}
+
 static int test_basic_functions (hibus_conn *conn)
 {
     hibus_json *jo;
@@ -607,6 +623,7 @@ int main (int argc, char **argv)
     hibus_conn* conn;
     fd_set rfds;
     struct timeval tv;
+    char curr_time [16];
 
     ulog_open (-1, -1, "hiBusCL");
 
@@ -643,8 +660,9 @@ int main (int argc, char **argv)
     if (test_basic_functions (conn))
         goto failed;
 
-    int err_code;
+    format_current_time (curr_time, sizeof (curr_time) - 1);
 
+    int err_code;
     err_code = hibus_register_procedure (conn, "echo", NULL, NULL, my_echo_method);
     ULOG_INFO ("error message for hibus_register_procedure: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
@@ -658,10 +676,24 @@ int main (int argc, char **argv)
     ULOG_INFO ("error message for hibus_call_procedure: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
+    err_code = hibus_register_event (conn, "clock", NULL, NULL);
+    ULOG_INFO ("error message for hibus_register_event: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
+    err_code = hibus_subscribe_event (conn, the_client.self_endpoint, "clock",
+            my_clock_event);
+    ULOG_INFO ("error message for hibus_subscribe_event: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
+    err_code = hibus_fire_event (conn, "clock", curr_time);
+    ULOG_INFO ("error message for hibus_fire_event: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
     print_prompt (conn);
     maxfd = cnnfd > ttyfd ? cnnfd : ttyfd;
     do {
         int retval;
+        char _new_clock [16];
 
         FD_ZERO (&rfds);
         FD_SET (cnnfd, &rfds);
@@ -692,7 +724,11 @@ int main (int argc, char **argv)
             }
         }
         else {
-            // ULOG_INFO ("Timeout\n");
+            format_current_time (_new_clock, sizeof (_new_clock) - 1);
+            if (strcmp (_new_clock, curr_time)) {
+                hibus_fire_event (conn, "clock", _new_clock);
+                strcpy (curr_time, _new_clock);
+            }
         }
 
         if (time (NULL) > the_client.last_sigint_time + 5) {

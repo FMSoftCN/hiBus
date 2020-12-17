@@ -100,7 +100,7 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
 {
     char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     const char *method_name, *bubble_name;
-    void *data;
+    void *next, *data;
 
     if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
         ULOG_INFO ("Deleting an endpoint: %s (%p)\n", endpoint_name, endpoint);
@@ -126,7 +126,7 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
     }
     kvlist_free (&endpoint->method_list);
 
-    kvlist_for_each (&endpoint->bubble_list, bubble_name, data) {
+    kvlist_for_each_safe (&endpoint->bubble_list, bubble_name, next, data) {
         const char* sub_name;
         void* sub_data;
         BubbleInfo* bubble;
@@ -140,13 +140,18 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
 
         if (endpoint->type != ET_BUILTIN) {
             kvlist_for_each (&bubble->subscriber_list, sub_name, sub_data) {
-                BusEndpoint* subscriber;
-                sub_data = kvlist_get (&bus_srv->endpoint_list, sub_name);
+                void *sub_sub_data;
+                sub_sub_data = kvlist_get (&bus_srv->endpoint_list, sub_name);
 
-                if (sub_data) {
-                    subscriber = *(BusEndpoint **)sub_data;
-                    fire_system_event (bus_srv, SBT_LOST_EVENT_GENERATOR,
-                            endpoint, subscriber, bubble_name);
+                if (sub_sub_data) {
+                    BusEndpoint* subscriber;
+                    subscriber = *(BusEndpoint **)sub_sub_data;
+
+                    ULOG_INFO ("notify subscirber: %s\n", sub_name);
+                    if (subscriber != endpoint) {
+                        fire_system_event (bus_srv, SBT_LOST_EVENT_GENERATOR,
+                                endpoint, subscriber, bubble_name);
+                    }
                 }
             }
         }
@@ -1053,8 +1058,8 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         "\"packetType\": \"event\","
         "\"eventId\": \"%s\","
         "\"fromEndpoint\": \"@%s/%s/%s\","
-        "\"fromBubble\": \"%s\""
-        "\"bubbleData\": \"%s\""
+        "\"fromBubble\": \"%s\","
+        "\"bubbleData\": \"%s\","
         "\"timeDiff\":",
         event_id,
         endpoint->host_name, endpoint->app_name, endpoint->runner_name,
@@ -1080,11 +1085,15 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                 subscriber = *(BusEndpoint **)sub_data;
 
                 my_time_diff = hibus_get_elapsed_seconds (ts, NULL);
-                snprintf (str_time_diff, sizeof (str_time_diff), "%f}", my_time_diff);
+                snprintf (str_time_diff, sizeof (str_time_diff), "%.9f}", my_time_diff);
                 packet_buff [org_len] = '\0';
-                if (sz_packet_buff > org_len + strlen (str_time_diff)) {
+                n = org_len + strlen (str_time_diff);
+                if (sz_packet_buff > n) {
                     strcat (packet_buff, str_time_diff);
                     send_packet_to_endpoint (bus_srv, subscriber, packet_buff, n);
+                    ULOG_INFO ("Send event packet to endpoint (@%s/%s/%s): \n%s\n",
+                            subscriber->host_name, subscriber->app_name, subscriber->runner_name,
+                            packet_buff);
                 }
                 else {
                     ULOG_ERR ("The size of buffer for event packet is too small.\n");
@@ -1296,6 +1305,8 @@ int register_event (BusServer *bus_srv, BusEndpoint* endpoint, const char* bubbl
     int retv = HIBUS_SC_OK;
     BubbleInfo *info;
     char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
+
+    ULOG_INFO ("register_event: %s (%s, %s)\n", bubble_name, for_host, for_app);
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_SC_BAD_REQUEST;

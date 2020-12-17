@@ -156,12 +156,11 @@ builtin_method_register_procedure (BusServer *bus_srv,
         goto failed;
     }
 
-    if (jo)
-        json_object_put (jo);
-
     *ret_code = register_procedure (bus_srv, from,
             param_method_name, param_for_host, param_for_app,
             default_method_handler);
+    json_object_put (jo);
+
     return NULL;
 
 failed:
@@ -196,9 +195,8 @@ builtin_method_revoke_procedure (BusServer *bus_srv,
         goto failed;
     }
 
-    json_object_put (jo);
-
     *ret_code = revoke_procedure (bus_srv, from, param_method_name);
+    json_object_put (jo);
     return NULL;
 
 failed:
@@ -219,6 +217,8 @@ builtin_method_register_event (BusServer *bus_srv,
     assert (from->type != ET_BUILTIN);
     assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "registerEvent") == 0);
+
+    ULOG_INFO ("parameter: %s\n", method_param);
 
     jo = hibus_json_object_from_string (method_param, strlen (method_param), 2);
     if (jo == NULL) {
@@ -246,11 +246,9 @@ builtin_method_register_event (BusServer *bus_srv,
         goto failed;
     }
 
-    if (jo)
-        json_object_put (jo);
-
     *ret_code = register_event (bus_srv, from,
             param_bubble_name, param_for_host, param_for_app);
+    json_object_put (jo);
     return NULL;
 
 failed:
@@ -285,10 +283,8 @@ builtin_method_revoke_event (BusServer *bus_srv,
         goto failed;
     }
 
-    if (jo)
-        json_object_put (jo);
-
     *ret_code = revoke_event (bus_srv, from, param_bubble_name);
+    json_object_put (jo);
     return NULL;
 
 failed:
@@ -344,10 +340,8 @@ builtin_method_subscribe_event (BusServer *bus_srv,
         goto failed;
     }
 
-    if (jo)
-        json_object_put (jo);
-
     *ret_code = subscribe_event (bus_srv, target_endpoint, param_bubble_name, from);
+    json_object_put (jo);
     return NULL;
 
 failed:
@@ -402,11 +396,9 @@ builtin_method_unsubscribe_event (BusServer *bus_srv,
         goto failed;
     }
 
-    if (jo)
-        json_object_put (jo);
-
     *ret_code = unsubscribe_event (bus_srv, target_endpoint,
             param_bubble_name, from);
+    json_object_put (jo);
     return NULL;
 
 failed:

@@ -457,7 +457,7 @@ static int on_auth_passed (hibus_conn* conn, const hibus_json *jo)
     strcat (event_name, "LOSTEVENTGENERATOR");
 
     if (!kvlist_set (&conn->subscribed_list, event_name,
-                on_lost_event_generator)) {
+                &on_lost_event_generator)) {
         ULOG_ERR ("Failed to register callback for system event `LOSTEVENTGENERATOR`!\n");
         return HIBUS_EC_UNEXPECTED;
     }
@@ -469,7 +469,7 @@ static int on_auth_passed (hibus_conn* conn, const hibus_json *jo)
     strcat (event_name, "LOSTBUBBLE");
 
     if (!kvlist_set (&conn->subscribed_list, event_name,
-                on_lost_bubble)) {
+                &on_lost_bubble)) {
         ULOG_ERR ("Failed to register callback for system event `LOSTBUBBLE`!\n");
         return HIBUS_EC_UNEXPECTED;
     }
@@ -1328,7 +1328,7 @@ int hibus_subscribe_event (hibus_conn* conn,
     }
 
     if (ret_code == HIBUS_SC_OK) {
-        kvlist_set (&conn->subscribed_list, event_name, event_handler);
+        kvlist_set (&conn->subscribed_list, event_name, &event_handler);
 
         if (ret_value)
             free (ret_value);
@@ -1725,6 +1725,7 @@ static int dispatch_event_packet (hibus_conn* conn, const hibus_json *jo)
     char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
     hibus_event_handler event_handler;
     int n;
+    void *data;
 
     if (json_object_object_get_ex (jo, "fromEndpoint", &jo_tmp) &&
             (from_endpoint = json_object_get_string (jo_tmp))) {
@@ -1750,11 +1751,12 @@ static int dispatch_event_packet (hibus_conn* conn, const hibus_json *jo)
     n = hibus_name_tolower_copy (from_endpoint, event_name, HIBUS_LEN_ENDPOINT_NAME);
     event_name [n++] = '/';
     event_name [n + 1] = '\0';
-    hibus_name_toupper_copy (from_bubble, event_name + n + 1, HIBUS_LEN_BUBBLE_NAME);
-    if ((event_handler = kvlist_get (&conn->subscribed_list, event_name)) == NULL) {
+    hibus_name_toupper_copy (from_bubble, event_name + n, HIBUS_LEN_BUBBLE_NAME);
+    if ((data = kvlist_get (&conn->subscribed_list, event_name)) == NULL) {
         return HIBUS_EC_UNKNOWN_EVENT;
     }
     else {
+        event_handler = *(hibus_event_handler *)data;
         event_handler (conn, from_endpoint, from_bubble, bubble_data);
     }
 
@@ -1962,7 +1964,7 @@ int hibus_read_and_dispatch_packet (hibus_conn* conn)
         err_code = 0;
     }
     else if (retval == JPT_EVENT) {
-        ULOG_INFO ("I get en event\n");
+        ULOG_INFO ("I get an event\n");
         err_code = dispatch_event_packet (conn, jo);
     }
     else if (retval == JPT_EVENT_SENT) {
