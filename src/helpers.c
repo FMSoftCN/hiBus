@@ -291,13 +291,33 @@ bool hibus_is_valid_token (const char* token, int max_len)
     i = 1;
     while (token [i]) {
 
-        if (i > max_len)
+        if (max_len > 0 && i > max_len)
             return false;
 
         if (!isalnum (token [i]) && token [i] != '_')
             return false;
 
         i++;
+    }
+
+    return true;
+}
+
+bool hibus_is_valid_wildcard_pattern (const char* pattern)
+{
+    if (*pattern == '!')
+        pattern++;
+    else if (*pattern == '$')
+        return hibus_is_valid_token (++pattern, 0);
+
+    while (*pattern) {
+
+        if (!isalnum (*pattern) && *pattern != '_'
+                && *pattern != '*' && *pattern != '?' && *pattern != '.'
+                && *pattern != ',' && *pattern != ';' && *pattern != ' ')
+            return false;
+
+        pattern++;
     }
 
     return true;

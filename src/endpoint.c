@@ -551,7 +551,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n = 0;
     char result_id [HIBUS_LEN_UNIQUE_ID + 1], *result, *escaped_result = NULL;
-    char* packet_buff = NULL;
+    char* packet_buff = buff_in_stack;
 
     if (json_object_object_get_ex (jo, "toEndpoint", &jo_tmp)) {
         if ((str_tmp = json_object_get_string (jo_tmp))) {

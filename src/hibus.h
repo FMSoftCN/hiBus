@@ -276,6 +276,20 @@ hibus_json *hibus_json_object_from_string (const char* json, int len, int depth)
 bool hibus_is_valid_token (const char* token, int max_len);
 
 /**
+ * hibus_is_valid_wildcard_pattern:
+ * @pattern: the pointer to the wildcard pattern string.
+ *
+ * Checks whether a wildcard pattern string is valid. According to
+ * hiBus protocal, you can use wildcard patterns to define
+ * the access control list of a method or event.
+ *
+ * Returns: true for a valid wildcard pattern, otherwise false.
+ *
+ * Since: 1.0
+ */
+bool hibus_is_valid_wildcard_pattern (const char* pattern);
+
+/**
  * hibus_is_valid_host_name:
  * @host_name: the pointer to a string contains a host name.
  *
