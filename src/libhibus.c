@@ -1124,7 +1124,7 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
     }
 
     if (ret_code == HIBUS_SC_OK) {
-        kvlist_set (&conn->method_list, normalized_method, method_handler);
+        kvlist_set (&conn->method_list, normalized_method, &method_handler);
         if (ret_value)
             free (ret_value);
     }
@@ -1517,7 +1517,7 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
     const char* parameter;
     char *ret_value = NULL;
     char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
-    hibus_method_handler method_handler;
+    void *data;
     int err_code = 0;
     char buff_in_stack [HIBUS_DEF_PACKET_BUFF_SIZE];
     char* packet_buff = buff_in_stack;
@@ -1566,12 +1566,15 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
     }
 
     hibus_name_tolower_copy (to_method, normalized_name, HIBUS_LEN_METHOD_NAME);
-    if ((method_handler = kvlist_get (&conn->method_list, normalized_name)) == NULL) {
+    if ((data = kvlist_get (&conn->method_list, normalized_name)) == NULL) {
         err_code = HIBUS_EC_UNKNOWN_METHOD;
         goto done;
     }
     else {
         struct timespec ts;
+        hibus_method_handler method_handler;
+
+        method_handler = *(hibus_method_handler *)data;
 
         clock_gettime (CLOCK_REALTIME, &ts);
         ret_value = method_handler (conn, from_endpoint,
@@ -1645,6 +1648,7 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
     const char* from_endpoint = NULL;
     const char* from_method = NULL;
     const char* ret_value;
+    void *data;
     hibus_result_handler result_handler;
     int ret_code;
     double time_consumed;
@@ -1663,8 +1667,8 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
         return HIBUS_EC_PROTOCOL;
     }
 
-    result_handler = kvlist_get (&conn->call_list, call_id);
-    if (result_handler == NULL) {
+    data = kvlist_get (&conn->call_list, call_id);
+    if (data == NULL) {
         ULOG_ERR ("Not found result handler for callId: %s\n", call_id);
         return HIBUS_EC_INVALID_VALUE;
     }
@@ -1708,6 +1712,7 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
         return HIBUS_EC_PROTOCOL;
     }
 
+    result_handler = *(hibus_result_handler *)data;
     result_handler (conn, from_endpoint, from_method, ret_code, ret_value);
 
     return 0;
@@ -1823,22 +1828,28 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                     }
                     conn->last_ret_code = *ret_code;
 
-                    if (json_object_object_get_ex (jo, "retValue", &jo_tmp)) {
-                        str_tmp = json_object_get_string (jo_tmp);
-                        if (str_tmp) {
-                            *ret_value = strdup (str_tmp);
+                    if (*ret_code == HIBUS_SC_OK) {
+                        if (json_object_object_get_ex (jo, "retValue", &jo_tmp)) {
+                            str_tmp = json_object_get_string (jo_tmp);
+                            if (str_tmp) {
+                                *ret_value = strdup (str_tmp);
+                            }
+                            else
+                                *ret_value = NULL;
                         }
-                        else
+                        else {
                             *ret_value = NULL;
-                    }
-                    else {
-                        *ret_value = NULL;
-                    }
+                        }
 
-                    json_object_put (jo);
-                    jo = NULL;
-                    err_code = 0;
-                    break;
+                        json_object_put (jo);
+                        jo = NULL;
+                        err_code = 0;
+                        break;
+                    }
+                    else if (*ret_code == HIBUS_SC_ACCEPTED) {
+                        // wait for ok
+                        err_code = 0;
+                    }
                 }
                 else {
                     ULOG_INFO ("Got another result packet\n");

@@ -774,7 +774,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 
     char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
     int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
-    char* escaped_ret_value = NULL, *packet_buff = NULL;
+    char* escaped_ret_value = NULL, *packet_buff = buff_in_stack;
 
     if (json_object_object_get_ex (jo, "resultId", &jo_tmp) &&
             (result_id = json_object_get_string (jo_tmp))) {
@@ -810,7 +810,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 
     if (json_object_object_get_ex (jo, "fromMethod", &jo_tmp) &&
             (from_method_name = json_object_get_string (jo_tmp))) {
-        if (hibus_is_valid_method_name (from_method_name)) {
+        if (!hibus_is_valid_method_name (from_method_name)) {
             ret_code = HIBUS_SC_BAD_REQUEST;
             goto failed;
         }

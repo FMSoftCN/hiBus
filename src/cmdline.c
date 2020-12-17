@@ -53,6 +53,7 @@ static struct run_info {
     struct termios startup_termios;
 
     char builtin_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char self_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
 
     // buffers for current command
     char cmd [LEN_COMMAND + 1];
@@ -494,6 +495,14 @@ static const char *the_wrong_json =
     "\"retValue\": \"I am here\""
 "}";
 
+static char* my_echo_method (hibus_conn* conn,
+        const char* from_endpoint, const char* to_method,
+        const char* method_param, int *err_code)
+{
+    *err_code = 0;
+    return strdup (method_param);
+}
+
 static int test_basic_functions (hibus_conn *conn)
 {
     hibus_json *jo;
@@ -540,6 +549,31 @@ static int test_basic_functions (hibus_conn *conn)
     ULOG_INFO ("error message for hibus_revoke_event: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
+    err_code = hibus_register_procedure (conn, "echo", NULL, NULL, my_echo_method);
+    ULOG_INFO ("error message for hibus_register_procedure: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
+    /* call echo method of myself */
+    err_code = hibus_call_procedure_and_wait (conn,
+            info->self_endpoint,
+            "echo",
+            "I AM HERE",
+            HIBUS_DEF_TIME_EXPECTED,
+            &ret_code, &ret_value);
+
+    if (err_code) {
+        ULOG_ERR ("Failed to call hibus_call_procedure_and_wait: %s\n",
+                hibus_get_err_message (err_code));
+    }
+    else {
+        ULOG_INFO ("Got the result for `echo` method: %s (%d)\n",
+                ret_value ? ret_value : "(null)", ret_code);
+    }
+
+    err_code = hibus_revoke_procedure (conn, "echo");
+    ULOG_INFO ("error message for hibus_revoke_procedure: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
     if (err_code == HIBUS_EC_SERVER_ERROR) {
         int ret_code = hibus_conn_get_last_ret_code (conn);
         ULOG_INFO ("last return code: %d (%s)\n",
@@ -579,6 +613,11 @@ int main (int argc, char **argv)
             hibus_conn_srv_host_name (conn),
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN,
             the_client.builtin_endpoint);
+
+    hibus_assemble_endpoint_name (
+            hibus_conn_own_host_name (conn),
+            HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE,
+            the_client.self_endpoint);
 
     the_client.ttyfd = ttyfd;
     hibus_conn_set_user_data (conn, &the_client);
