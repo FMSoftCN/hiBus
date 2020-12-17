@@ -182,6 +182,10 @@ static const char* err_messages [] = {
     "Bad Packet",
     /* HIBUS_EC_BAD_CONNECTION (-21) */
     "Bad Connection",
+    /* HIBUS_EC_CANT_LOAD (-22) */
+    "Cannot Load Resource",
+    /* HIBUS_EC_BAD_KEY (-23) */
+    "Bad Key",
 };
 
 const char* hibus_get_err_message (int err_code)

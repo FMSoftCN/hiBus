@@ -246,12 +246,12 @@ static void on_cmd_help (hibus_conn *conn)
     fprintf (stderr, "\t<unsubscribe | unsub> <endpoint> <BUBBLE>\n");
     fprintf (stderr, "\t\tunsuscribe an event.\n");
     fprintf (stderr, "\n");
-    fprintf (stderr, "Shortcuts:\n");
-    fprintf (stderr, "\t<F1>: print this help message.\n");
-    fprintf (stderr, "\t<F2>: list all endpoints.\n");
-    fprintf (stderr, "\t<ESC>: exit this hiBus command line program.\n");
-    fprintf (stderr, "\t<TAB>: auto complete the command.\n");
-    fprintf (stderr, "\t<Up>/<Down>: switch among available values.\n");
+    fprintf (stderr, "Shortcuts:\n\n");
+    fprintf (stderr, "\t<F1>\n\t\tprint this help message.\n");
+    fprintf (stderr, "\t<F2>\n\t\tlist all endpoints.\n");
+    fprintf (stderr, "\t<ESC>\n\t\texit this hiBus command line program.\n");
+    fprintf (stderr, "\t<TAB>\n\t\tauto complete the command.\n");
+    fprintf (stderr, "\t<UP>/<DOWN>\n\t\tswitch among available values when editing command line.\n");
     fprintf (stderr, "\n");
 }
 

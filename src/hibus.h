@@ -115,6 +115,8 @@
 #define HIBUS_EC_SERVER_REFUSED         (-19)
 #define HIBUS_EC_BAD_PACKET             (-20)
 #define HIBUS_EC_BAD_CONNECTION         (-21)
+#define HIBUS_EC_CANT_LOAD              (-22)
+#define HIBUS_EC_BAD_KEY                (-23)
 
 #define HIBUS_LEN_HOST_NAME             127
 #define HIBUS_LEN_APP_NAME              127
@@ -451,11 +453,49 @@ int hibus_assemble_endpoint_name (const char *host_name, const char *app_name,
 char* hibus_assemble_endpoint_name_alloc (const char* host_name, const char* app_name,
         const char* runner_name);
 
-unsigned char *hibus_sign_data (const char *app_name,
+/**
+ * hibus_sign_data:
+ * @app_name: the pointer to a string contains the app name.
+ * @data: the pointer to the data will be signed.
+ * @data_len: the length of the data in bytes.
+ * @sig: the pointer to a buffer for returning
+ *      the pointer to the newly allocated signature if success.
+ * @sig_len: the pointer to an unsigned integer for returning the length
+ *      of the signature.
+ *
+ * Signs the specified data with the private key of a specific app
+ * and returns the signature.
+ * 
+ * Note that the caller is responsible for releasing the buffer of
+ * the signature.
+ *
+ * Returns: zero if success; an error code (<0) otherwise.
+ *
+ * Since: 1.0
+ */
+int hibus_sign_data (const char *app_name,
         const unsigned char* data, unsigned int data_len,
-        unsigned int *sig_len);
+        unsigned char **sig, unsigned int *sig_len);
 
-/* return > 0 if verified, = 0 if failes, < 0 when no such app. */
+/**
+ * hibus_verify_signature:
+ * @app_name: the pointer to a string contains the app name.
+ * @data: the pointer to the data will be verified.
+ * @data_len: the length of the data in bytes.
+ * @sig: the pointer to the signature.
+ * @sig_len: the length of the signature.
+ *
+ * Signs the specified data with the private key of a specific app
+ * and returns the signature.
+ * 
+ * Note that the caller is responsible for releasing the buffer of
+ * the signature.
+ *
+ * Returns: 1 if verified, 0 if cannot verify the signature; an error code
+ * which is less than 0 means something wrong.
+ *
+ * Since: 1.0
+ */
 int hibus_verify_signature (const char* app_name,
         const unsigned char* data, unsigned int data_len,
         const unsigned char* sig, unsigned int sig_len);

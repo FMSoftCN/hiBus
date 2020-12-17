@@ -63,28 +63,27 @@ static int read_private_key_for_app (const char* app_name,
     return 0;
 }
 
-unsigned char *hibus_sign_data (const char *app_name,
+int hibus_sign_data (const char *app_name,
         const unsigned char* data, unsigned int data_len,
-        unsigned int *sig_len)
+        unsigned char **sing, unsigned int *sig_len)
 {
     unsigned char key [HIBUS_LEN_PRIVATE_HMAC_KEY];
-    unsigned char *sig;
 
-    sig = NULL;
+    *sig = NULL;
     *sig_len = 0;
 
     if (read_private_key_for_app (app_name, key, HIBUS_LEN_PRIVATE_HMAC_KEY)) {
-        return NULL;
+        return HIBUS_EC_CANT_LOAD;
     }
 
-    if ((sig = calloc (1, SHA256_DIGEST_SIZE)) == NULL) {
-        return NULL;
+    if ((*sig = calloc (1, SHA256_DIGEST_SIZE)) == NULL) {
+        return HIBUS_EC_NOMEM;
     }
 
     *sig_len = SHA256_DIGEST_SIZE;
-    hmac_sha256 (sig, data, data_len, key, HIBUS_LEN_PRIVATE_HMAC_KEY);
+    hmac_sha256 (*sig, data, data_len, key, HIBUS_LEN_PRIVATE_HMAC_KEY);
 
-    return sig;
+    return 0;
 }
 
 int hibus_verify_signature (const char* app_name,
@@ -95,7 +94,7 @@ int hibus_verify_signature (const char* app_name,
     unsigned char my_sig [SHA256_DIGEST_SIZE];
 
     if (read_private_key_for_app (app_name, key, HIBUS_LEN_PRIVATE_HMAC_KEY)) {
-        return -1;
+        return HIBUS_EC_CANT_LOAD;
     }
 
     hmac_sha256 (my_sig, data, data_len, key, HIBUS_LEN_PRIVATE_HMAC_KEY);

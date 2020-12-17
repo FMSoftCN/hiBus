@@ -259,22 +259,24 @@ failed:
 
 static int send_auth_info (hibus_conn *conn, const char* ch_code)
 {
-    int retv;
+    int err_code = 0, n;
     unsigned char* sig;
     unsigned int sig_len;
     char* enc_sig = NULL;
     unsigned int enc_sig_len;
     char buff [HIBUS_DEF_PACKET_BUFF_SIZE];
 
-    sig = hibus_sign_data (conn->app_name,
-            (const unsigned char *)ch_code, strlen (ch_code), &sig_len);
-    if (sig == NULL || sig_len <= 0) {
-        return -1;
+    err_code = hibus_sign_data (conn->app_name,
+            (const unsigned char *)ch_code, strlen (ch_code),
+            &sig, &sig_len);
+    if (err_code) {
+        return err_code;
     }
 
     enc_sig_len = B64_ENCODE_LEN (sig_len);
     enc_sig = malloc (enc_sig_len);
     if (enc_sig == NULL) {
+        err_code = HIBUS_EC_NOMEM;
         goto failed;
     }
 
@@ -285,7 +287,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
     free (sig);
     sig = NULL;
 
-    retv = snprintf (buff, sizeof (buff), 
+    n = snprintf (buff, sizeof (buff), 
             "{"
             "\"packetType\":\"auth\","
             "\"protocolName\":\"%s\","
@@ -299,14 +301,16 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             conn->own_host_name, conn->app_name, conn->runner_name, enc_sig);
 
-    if (retv >= sizeof (buff)) {
+    if (n >= sizeof (buff)) {
         ULOG_ERR ("Too small buffer for signature (%s) in send_auth_info.\n", enc_sig);
+        err_code = HIBUS_EC_TOO_SMALL_BUFF;
         goto failed;
     }
 
     ULOG_INFO ("auth packate: \n%s\n", buff);
-    if (hibus_send_text_packet (conn, buff, retv)) {
+    if (hibus_send_text_packet (conn, buff, n)) {
         ULOG_ERR ("Failed to send text packet to hiBus server in send_auth_info.\n");
+        err_code = HIBUS_EC_IO;
         goto failed;
     }
 
@@ -318,7 +322,7 @@ failed:
         free (sig);
     if (enc_sig)
         free (enc_sig);
-    return -1;
+    return err_code;
 }
 
 static void on_lost_event_generator (hibus_conn* conn,
@@ -584,7 +588,7 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     if ((ch_code = get_challenge_code (*conn)) == NULL)
         goto error;
 
-    if (send_auth_info (*conn, ch_code)) {
+    if ((err_code = send_auth_info (*conn, ch_code))) {
         goto error;
     }
 

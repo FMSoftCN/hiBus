@@ -71,38 +71,40 @@ static RSA* read_private_key_for_app (const char* app_name)
     return pri_key;
 }
 
-unsigned char *hibus_sign_data (const char *app_name,
+int hibus_sign_data (const char *app_name,
         const unsigned char* data, unsigned int data_len,
-        unsigned int *sig_len)
+        unsigned char **sig, unsigned int *sig_len)
 {
+    int err_code = 0;
     RSA *priv_key = NULL;
     unsigned char md [SHA256_DIGEST_LENGTH];
-    unsigned char *sig;
     int retv = 0;
 
-    sig = NULL;
+    *sig = NULL;
     *sig_len = 0;
 
     priv_key = read_private_key_for_app (app_name);
     if (!priv_key) {
-        return NULL;
+        return HIBUS_EC_CANT_LOAD;
     }
 
-    if ((sig = calloc (1, 128)) == NULL) {
+    if ((*sig = calloc (1, 128)) == NULL) {
+        err_code = HIBUS_EC_NOMEM;
         goto failed;
     }
 
     SHA256 (data, data_len, md);
-    retv = RSA_sign (NID_sha256, md, SHA256_DIGEST_LENGTH, sig, sig_len, priv_key);
+    retv = RSA_sign (NID_sha256, md, SHA256_DIGEST_LENGTH, *sig, sig_len, priv_key);
     if (retv != 1) {
-        free (sig);
-        sig = NULL;
-        sig_len = 0;
+        free (*sig);
+        *sig = NULL;
+        *sig_len = 0;
+        err_code = HIBUS_EC_BAD_KEY;
     }
 
 failed:
     RSA_free (priv_key);
-    return sig;
+    return err_code;
 }
 
 static RSA* read_public_key_for_app (const char* app_name)
@@ -145,7 +147,7 @@ int hibus_verify_signature (const char* app_name,
 
     pub_key = read_public_key_for_app (app_name);  
     if (!pub_key) {
-        return -1;
+        return HIBUS_EC_CANT_LOAD;
     }
 
     SHA256 (data, data_len, md);
