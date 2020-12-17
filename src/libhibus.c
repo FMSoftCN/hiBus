@@ -1592,6 +1592,7 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
 
             if (ret_value) {
                 escaped_value = hibus_escape_string_for_json (ret_value);
+                free (ret_value);
                 if (escaped_value == NULL) {
                     err_code = HIBUS_EC_NOMEM;
                     goto done;

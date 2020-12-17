@@ -532,7 +532,7 @@ bool hibus_is_valid_md5_id (const char* id);
 /* calculate the elapsed seconds in float number */
 double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct timespec *ts2);
 
-/* escaped a string for JSON */
+/* escape a string for JSON */
 char* hibus_escape_string_for_json (const char* str);
 
 /*
