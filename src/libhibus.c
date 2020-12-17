@@ -251,7 +251,6 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
     }
 
     assert (ch_code);
-    json_object_put (jo);
     *challenge = strdup (ch_code);
     if (*challenge == NULL)
         err_code = HIBUS_EC_NOMEM;
@@ -1023,11 +1022,11 @@ int hibus_ping_server (hibus_conn* conn)
 }
 
 static int wait_for_specific_call_result_packet (hibus_conn* conn, 
-        const char* call_id, int time_expected, char** ret_value);
+        const char* call_id, int time_expected, int *ret_code, char** ret_value);
 
 int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         const char* method_name, const char* method_param,
-        int time_expected, char** ret_value)
+        int time_expected, int *ret_code, char** ret_value)
 {
     int n;
     char call_id [HIBUS_LEN_UNIQUE_ID + 1];
@@ -1068,14 +1067,14 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
     }
 
     return wait_for_specific_call_result_packet (conn,
-            call_id, time_expected, ret_value);
+            call_id, time_expected, ret_code, ret_value);
 }
 
 int hibus_register_procedure (hibus_conn* conn, const char* method_name,
         const char* for_host, const char* for_app,
         hibus_method_handler method_handler)
 {
-    int n, ret_code;
+    int n, err_code, ret_code;
     char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char normalized_method [HIBUS_LEN_METHOD_NAME + 1];
     char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
@@ -1113,12 +1112,16 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
     hibus_assemble_endpoint_name (conn->srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, endpoint_name);
 
-    ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
-        "registerProcedure", param_buff,
-        HIBUS_DEF_TIME_EXPECTED, &ret_value);
+    if ((err_code = hibus_call_procedure_and_wait (conn, endpoint_name,
+                    "registerProcedure", param_buff,
+                    HIBUS_DEF_TIME_EXPECTED, &ret_code, &ret_value))) {
+        return err_code;
+    }
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_set (&conn->method_list, normalized_method, method_handler);
+        if (ret_value)
+            free (ret_value);
     }
 
     return HIBUS_SC_OK;
@@ -1126,7 +1129,7 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
 
 int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
 {
-    int n, ret_code;
+    int n, err_code, ret_code;
     char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char normalized_method [HIBUS_LEN_METHOD_NAME + 1];
     char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
@@ -1152,9 +1155,11 @@ int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
     hibus_assemble_endpoint_name (conn->srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, endpoint_name);
 
-    ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
-        "revokeProcedure", param_buff,
-        HIBUS_DEF_TIME_EXPECTED, &ret_value);
+    if ((err_code = hibus_call_procedure_and_wait (conn, endpoint_name,
+                    "revokeProcedure", param_buff,
+                    HIBUS_DEF_TIME_EXPECTED, &ret_code, &ret_value))) {
+        return err_code;
+    }
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_delete (&conn->method_list, normalized_method);
@@ -1163,13 +1168,13 @@ int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
             free (ret_value);
     }
 
-    return HIBUS_SC_OK;
+    return 0;
 }
 
 int hibus_register_event (hibus_conn* conn, const char* bubble_name,
         const char* for_host, const char* for_app)
 {
-    int n, ret_code;
+    int n, err_code, ret_code;
     char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char normalized_bubble [HIBUS_LEN_BUBBLE_NAME + 1];
     char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
@@ -1208,9 +1213,11 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
     hibus_assemble_endpoint_name (conn->srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, endpoint_name);
 
-    ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
-        "registerEvent", param_buff,
-        HIBUS_DEF_TIME_EXPECTED, &ret_value);
+    if ((err_code = hibus_call_procedure_and_wait (conn, endpoint_name,
+                    "registerEvent", param_buff,
+                    HIBUS_DEF_TIME_EXPECTED, &ret_code, &ret_value))) {
+        return err_code;
+    }
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_set (&conn->bubble_list, normalized_bubble, hibus_register_event);
@@ -1224,7 +1231,7 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
 
 int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
 {
-    int n, ret_code;
+    int n, err_code, ret_code;
     char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char normalized_bubble [HIBUS_LEN_BUBBLE_NAME + 1];
     char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
@@ -1250,9 +1257,11 @@ int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
     hibus_assemble_endpoint_name (conn->srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, endpoint_name);
 
-    ret_code = hibus_call_procedure_and_wait (conn, endpoint_name,
-        "revokeEvent", param_buff,
-        HIBUS_DEF_TIME_EXPECTED, &ret_value);
+    if ((err_code = hibus_call_procedure_and_wait (conn, endpoint_name,
+                    "revokeEvent", param_buff,
+                    HIBUS_DEF_TIME_EXPECTED, &ret_code, &ret_value))) {
+        return err_code;
+    }
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_delete (&conn->bubble_list, normalized_bubble);
@@ -1261,14 +1270,14 @@ int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
             free (ret_value);
     }
 
-    return HIBUS_SC_OK;
+    return 0;
 }
 
 int hibus_subscribe_event (hibus_conn* conn,
         const char* endpoint, const char* bubble_name,
         hibus_event_handler event_handler)
 {
-    int n, ret_code;
+    int n, err_code, ret_code;
     char builtin_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
     char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
@@ -1301,9 +1310,11 @@ int hibus_subscribe_event (hibus_conn* conn,
     hibus_assemble_endpoint_name (conn->srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, builtin_name);
 
-    ret_code = hibus_call_procedure_and_wait (conn, builtin_name,
-        "subscribeEvent", param_buff,
-        HIBUS_DEF_TIME_EXPECTED, &ret_value);
+    if ((err_code = hibus_call_procedure_and_wait (conn, builtin_name,
+                    "subscribeEvent", param_buff,
+                    HIBUS_DEF_TIME_EXPECTED, &ret_code, &ret_value))) {
+        return err_code;
+    }
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_set (&conn->subscribed_list, event_name, event_handler);
@@ -1318,7 +1329,7 @@ int hibus_subscribe_event (hibus_conn* conn,
 int hibus_unsubscribe_event (hibus_conn* conn,
         const char* endpoint, const char* bubble_name)
 {
-    int n, ret_code;
+    int n, err_code, ret_code;
     char builtin_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
     char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
@@ -1351,9 +1362,11 @@ int hibus_unsubscribe_event (hibus_conn* conn,
     hibus_assemble_endpoint_name (conn->srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, builtin_name);
 
-    ret_code = hibus_call_procedure_and_wait (conn, builtin_name,
-        "unsubscribeEvent", param_buff,
-        HIBUS_DEF_TIME_EXPECTED, &ret_value);
+    if ((err_code = hibus_call_procedure_and_wait (conn, builtin_name,
+                    "unsubscribeEvent", param_buff,
+                    HIBUS_DEF_TIME_EXPECTED, &ret_code, &ret_value))) {
+        return err_code;
+    }
 
     if (ret_code == HIBUS_SC_OK) {
         kvlist_delete (&conn->subscribed_list, event_name);
@@ -1733,14 +1746,14 @@ static int dispatch_event_packet (hibus_conn* conn, const hibus_json *jo)
 }
 
 static int wait_for_specific_call_result_packet (hibus_conn* conn, 
-        const char* call_id, int time_expected, char** ret_value)
+        const char* call_id, int time_expected, int *ret_code, char** ret_value)
 {
     fd_set rfds;
     struct timeval tv;
     int retval;
     void* packet;
     unsigned int data_len;
-    hibus_json* jo;
+    hibus_json* jo = NULL;
     time_t time_to_return;
     int err_code = 0;
 
@@ -1789,14 +1802,21 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                         strcasecmp (str_tmp, call_id) == 0) {
 
                     ULOG_INFO ("Got the packet we are wait for\n");
+                    if (json_object_object_get_ex (jo, "retCode", &jo_tmp)) {
+                        *ret_code = json_object_get_int (jo_tmp);
+                    }
+
                     if (json_object_object_get_ex (jo, "retValue", &jo_tmp)) {
                         str_tmp = json_object_get_string (jo_tmp);
                         if (str_tmp) {
                             *ret_value = strdup (str_tmp);
                         }
+                        else
+                            *ret_value = NULL;
                     }
 
                     json_object_put (jo);
+                    jo = NULL;
                     err_code = 0;
                     break;
                 }
@@ -1843,6 +1863,7 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
             }
 
             json_object_put (jo);
+            jo = NULL;
         }
         else {
             ULOG_INFO ("Timeout\n");

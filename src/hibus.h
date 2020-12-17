@@ -606,7 +606,7 @@ int hibus_call_procedure (hibus_conn* conn,
 
 int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         const char* method_name, const char* method_param,
-        int time_expected, char** ret_value);
+        int time_expected, int *ret_code, char** ret_value);
 
 int hibus_read_and_dispatch_packet (hibus_conn* conn);
 

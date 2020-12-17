@@ -109,6 +109,8 @@ builtin_method_echo (BusServer *bus_srv,
     assert (to->type == ET_BUILTIN);
     assert (strcasecmp (method_name, "echo") == 0);
 
+    *ret_code = HIBUS_SC_OK;
+
     if (method_param) {
         return strdup (method_param);
     }

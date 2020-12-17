@@ -52,6 +52,8 @@ static struct run_info {
 
     struct termios startup_termios;
 
+    char builtin_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
+
     // buffers for current command
     char cmd [LEN_COMMAND + 1];
     char endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
@@ -478,6 +480,50 @@ static void handle_tty_input (hibus_conn *conn)
     }
 }
 
+static const char *the_wrong_json =
+"{"
+    "\"packetType\": \"result\","
+    "\"resultId\": \"RESULTXX-000000005FDAC261-000000001BED7939-0000000000000001\","
+    "\"callId\": \"CALLXXXX-000000005FDAC261-000000001BEC6766-0000000000000000\","
+    "\"fromEndpoint\": \"@localhost/cn.fmsoft.hybridos.hibus/builtin\","
+    "\"fromMethod\": \"echo\","
+    "\"timeDiff\": 0.000047,"
+    "\"timeConsumed\": 0.000000,"
+    "\"retCode\": 200,"
+    "\"retMsg\": \"Ok\","
+    "\"retValue\": \"I am here\""
+"}";
+
+static int test_basic_functions (hibus_conn *conn)
+{
+    hibus_json *jo;
+
+    int err_code, ret_code;
+    char *ret_value;
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    hibus_json_packet_to_object (the_wrong_json, sizeof (the_wrong_json) - 1, &jo);
+
+    /* call echo method of the builtin endpoint */
+    err_code = hibus_call_procedure_and_wait (conn,
+            info->builtin_endpoint,
+            "echo",
+            "I am here",
+            HIBUS_DEF_TIME_EXPECTED,
+            &ret_code, &ret_value);
+
+    if (err_code) {
+        ULOG_ERR ("Failed to call hibus_call_procedure_and_wait: %s\n",
+                hibus_get_err_message (err_code));
+    }
+    else {
+        ULOG_INFO ("Got the result for `echo` method: %s (%d)\n",
+                ret_value ? ret_value : "(null)", ret_code);
+    }
+
+    return err_code;
+}
+
 int main (int argc, char **argv)
 {
     int cnnfd = -1, ttyfd = -1, maxfd;
@@ -504,10 +550,16 @@ int main (int argc, char **argv)
         goto failed;
     }
 
-    ULOG_NOTE ("Connection fd: %d\n", cnnfd);
+    hibus_assemble_endpoint_name (
+            hibus_conn_srv_host_name (conn),
+            HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN,
+            the_client.builtin_endpoint);
 
     the_client.ttyfd = ttyfd;
     hibus_conn_set_user_data (conn, &the_client);
+
+    if (test_basic_functions (conn))
+        goto failed;
 
     print_prompt (conn);
     maxfd = cnnfd > ttyfd ? cnnfd : ttyfd;
