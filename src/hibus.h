@@ -1041,9 +1041,11 @@ int hibus_unsubscribe_event (hibus_conn* conn,
  * @ret_code: the return code of the result.
  * @ret_value: the return value (a string) of the result.
  *
+ * Returns: 0 for finished the handle of the result; otherwise -1.
+ *
  * Since: 1.0
  */
-typedef void (*hibus_result_handler)(hibus_conn* conn,
+typedef int (*hibus_result_handler)(hibus_conn* conn,
         const char* from_endpoint, const char* from_method,
         int ret_code, const char* ret_value);
 

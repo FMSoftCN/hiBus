@@ -1432,7 +1432,7 @@ int hibus_call_procedure (hibus_conn* conn,
     }
 
     if ((retv = hibus_send_text_packet (conn, buff, n)) == 0) {
-        kvlist_set (&conn->call_list, call_id, result_handler);
+        kvlist_set (&conn->call_list, call_id, &result_handler);
     }
 
     return retv;
@@ -1672,9 +1672,6 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
         ULOG_ERR ("Not found result handler for callId: %s\n", call_id);
         return HIBUS_EC_INVALID_VALUE;
     }
-    else {
-        kvlist_delete (&conn->call_list, call_id);
-    }
 
     if (json_object_object_get_ex (jo, "fromEndpoint", &jo_tmp) &&
             (from_endpoint = json_object_get_string (jo_tmp))) {
@@ -1713,7 +1710,8 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
     }
 
     result_handler = *(hibus_result_handler *)data;
-    result_handler (conn, from_endpoint, from_method, ret_code, ret_value);
+    if (result_handler (conn, from_endpoint, from_method, ret_code, ret_value) == 0)
+        kvlist_delete (&conn->call_list, call_id);
 
     return 0;
 }

@@ -481,7 +481,7 @@ static void handle_tty_input (hibus_conn *conn)
     }
 }
 
-static const char *the_wrong_json =
+static const char *a_json =
 "{"
     "\"packetType\": \"result\","
     "\"resultId\": \"RESULTXX-000000005FDAC261-000000001BED7939-0000000000000001\","
@@ -503,6 +503,24 @@ static char* my_echo_method (hibus_conn* conn,
     return strdup (method_param);
 }
 
+static int my_echo_result (hibus_conn* conn,
+        const char* from_endpoint, const char* from_method,
+        int ret_code, const char* ret_value)
+{
+    if (ret_code == HIBUS_SC_OK) {
+        ULOG_INFO ("Got the result: %s\n", ret_value);
+        return 0;
+    }
+    else if (ret_code == HIBUS_SC_ACCEPTED) {
+        ULOG_WARN ("The server accepted the call\n");
+    }
+    else {
+        ULOG_WARN ("Unexpected return code: %d\n", ret_code);
+    }
+
+    return -1;
+}
+
 static int test_basic_functions (hibus_conn *conn)
 {
     hibus_json *jo;
@@ -511,9 +529,9 @@ static int test_basic_functions (hibus_conn *conn)
     char *ret_value;
     struct run_info *info = hibus_conn_get_user_data (conn);
 
-    hibus_json_packet_to_object (the_wrong_json, strlen (the_wrong_json), &jo);
+    hibus_json_packet_to_object (a_json, strlen (a_json), &jo);
     if (jo == NULL) {
-        ULOG_ERR ("Bad JSON: \n%s\n", the_wrong_json);
+        ULOG_ERR ("Bad JSON: \n%s\n", a_json);
     }
     else {
         ULOG_INFO ("hibus_json_packet_to_object passed\n");
@@ -624,6 +642,21 @@ int main (int argc, char **argv)
 
     if (test_basic_functions (conn))
         goto failed;
+
+    int err_code;
+
+    err_code = hibus_register_procedure (conn, "echo", NULL, NULL, my_echo_method);
+    ULOG_INFO ("error message for hibus_register_procedure: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
+    err_code = hibus_call_procedure (conn,
+            the_client.self_endpoint,
+            "echo",
+            "I AM HERE AGAIN",
+            HIBUS_DEF_TIME_EXPECTED,
+            my_echo_result);
+    ULOG_INFO ("error message for hibus_call_procedure: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
 
     print_prompt (conn);
     maxfd = cnnfd > ttyfd ? cnnfd : ttyfd;
