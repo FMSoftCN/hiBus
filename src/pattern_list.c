@@ -189,7 +189,7 @@ bool match_pattern (pattern_list *pl, const char* string,
         var = va_arg (ap, const char *);
         sub = va_arg (ap, const char *);
         if (var && sub) {
-            if (!kvlist_set (&kv, var, sub)) {
+            if (!kvlist_set (&kv, var, &sub)) {
                 goto failed;
             }
         }

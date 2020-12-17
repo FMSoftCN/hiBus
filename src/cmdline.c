@@ -502,7 +502,14 @@ static int test_basic_functions (hibus_conn *conn)
     char *ret_value;
     struct run_info *info = hibus_conn_get_user_data (conn);
 
-    hibus_json_packet_to_object (the_wrong_json, sizeof (the_wrong_json) - 1, &jo);
+    hibus_json_packet_to_object (the_wrong_json, strlen (the_wrong_json), &jo);
+    if (jo == NULL) {
+        ULOG_ERR ("Bad JSON: \n%s\n", the_wrong_json);
+    }
+    else {
+        ULOG_INFO ("hibus_json_packet_to_object passed\n");
+        json_object_put (jo);
+    }
 
     /* call echo method of the builtin endpoint */
     err_code = hibus_call_procedure_and_wait (conn,
@@ -520,6 +527,18 @@ static int test_basic_functions (hibus_conn *conn)
         ULOG_INFO ("Got the result for `echo` method: %s (%d)\n",
                 ret_value ? ret_value : "(null)", ret_code);
     }
+
+    err_code = hibus_register_event (conn, "alarm", "*", "*");
+    ULOG_INFO ("error message for hibus_register_event: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
+    err_code = hibus_fire_event (conn, "alarm", "12:00");
+    ULOG_INFO ("error message for hibus_fire_event: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
+
+    err_code = hibus_revoke_event (conn, "alarm");
+    ULOG_INFO ("error message for hibus_revoke_event: %s (%d)\n",
+            hibus_get_err_message (err_code), err_code);
 
     return err_code;
 }
