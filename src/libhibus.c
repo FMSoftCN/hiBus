@@ -155,21 +155,24 @@ failed:
     return NULL;
 }
 
-/* return zero for success */
-static char *get_challenge_code (hibus_conn *conn)
+static int get_challenge_code (hibus_conn *conn, char **challenge)
 {
+    int err_code = 0;
     char* payload;
     int len;
     hibus_json *jo = NULL, *jo_tmp;
     const char *ch_code = NULL;
 
+    // TODO: handle WebSocket connection
     payload = read_text_payload_from_us (conn->fd, &len);
     if (payload == NULL) {
+        err_code = HIBUS_EC_NOMEM;
         goto failed;
     }
 
     jo = hibus_json_object_from_string (payload, len, 2);
     if (jo == NULL) {
+        err_code = HIBUS_EC_BAD_PACKET;
         goto failed;
     }
 
@@ -207,6 +210,7 @@ static char *get_challenge_code (hibus_conn *conn)
             }
             ULOG_WARN ("  Error Info: %d (%s): %s\n", ret_code, ret_msg, extra_msg);
 
+            err_code = HIBUS_EC_SERVER_REFUSED;
             goto failed;
         }
         else if (strcasecmp (pack_type, "auth") == 0) {
@@ -229,24 +233,28 @@ static char *get_challenge_code (hibus_conn *conn)
 
             if (ch_code == NULL) {
                 ULOG_WARN ("Null challenge code\n");
+                err_code = HIBUS_EC_BAD_PACKET;
                 goto failed;
             }
             else if (strcasecmp (prot_name, HIBUS_PROTOCOL_NAME) ||
                     prot_ver < HIBUS_PROTOCOL_VERSION) {
                 ULOG_WARN ("Protocol not matched: %s/%d\n", prot_name, prot_ver);
+                err_code = HIBUS_EC_PROTOCOL;
                 goto failed;
             }
-
         }
     }
     else {
         ULOG_WARN ("No packetType field\n");
+        err_code = HIBUS_EC_BAD_PACKET;
         goto failed;
     }
 
     assert (ch_code);
     json_object_put (jo);
-    return strdup (ch_code);
+    *challenge = strdup (ch_code);
+    if (*challenge == NULL)
+        err_code = HIBUS_EC_NOMEM;
 
 failed:
     if (jo)
@@ -254,7 +262,7 @@ failed:
     if (payload)
         free (payload);
 
-    return NULL;
+    return err_code;
 }
 
 static int send_auth_info (hibus_conn *conn, const char* ch_code)
@@ -585,7 +593,7 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     kvlist_init (&(*conn)->subscribed_list, NULL);
 
     /* try to read challenge code */
-    if ((ch_code = get_challenge_code (*conn)) == NULL)
+    if ((err_code = get_challenge_code (*conn, &ch_code)))
         goto error;
 
     if ((err_code = send_auth_info (*conn, ch_code))) {
