@@ -46,7 +46,7 @@
 struct _hibus_conn {
     int type;
     int fd;
-    int pt;
+    int last_ret_code;
     int padding_;
 
     char* srv_host_name;
@@ -88,6 +88,11 @@ void *hibus_conn_set_user_data (hibus_conn *conn, void *user_data)
     conn->user_data = user_data;
 
     return old;
+}
+
+int hibus_conn_get_last_ret_code (hibus_conn *conn)
+{
+    return conn->last_ret_code;
 }
 
 int hibus_conn_endpoint_name (hibus_conn* conn, char *buff)
@@ -1225,8 +1230,11 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
         if (ret_value)
             free (ret_value);
     }
+    else {
+        err_code = HIBUS_EC_SERVER_ERROR;
+    }
 
-    return HIBUS_SC_OK;
+    return err_code;
 }
 
 int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
@@ -1268,6 +1276,9 @@ int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
 
         if (ret_value)
             free (ret_value);
+    }
+    else {
+        err_code = HIBUS_EC_SERVER_ERROR;
     }
 
     return 0;
@@ -1683,6 +1694,7 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
 
     if (json_object_object_get_ex (jo, "retCode", &jo_tmp) &&
             (ret_code = json_object_get_int (jo_tmp))) {
+        conn->last_ret_code = ret_code;
     }
     else {
         return HIBUS_EC_PROTOCOL;
@@ -1805,6 +1817,10 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                     if (json_object_object_get_ex (jo, "retCode", &jo_tmp)) {
                         *ret_code = json_object_get_int (jo_tmp);
                     }
+                    else {
+                        *ret_code = HIBUS_SC_INTERNAL_SERVER_ERROR;
+                    }
+                    conn->last_ret_code = *ret_code;
 
                     if (json_object_object_get_ex (jo, "retValue", &jo_tmp)) {
                         str_tmp = json_object_get_string (jo_tmp);
@@ -1813,6 +1829,9 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                         }
                         else
                             *ret_value = NULL;
+                    }
+                    else {
+                        *ret_value = NULL;
                     }
 
                     json_object_put (jo);
@@ -1826,7 +1845,17 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                 }
             }
             else if (retval == JPT_ERROR) {
+                hibus_json *jo_tmp;
+
                 ULOG_WARN ("Got a `error` packet\n");
+
+                if (json_object_object_get_ex (jo, "retCode", &jo_tmp)) {
+                    *ret_code = json_object_get_int (jo_tmp);
+                }
+                else {
+                    *ret_code = HIBUS_SC_INTERNAL_SERVER_ERROR;
+                }
+                conn->last_ret_code = *ret_code;
                 err_code = HIBUS_EC_SERVER_ERROR;
             }
             else if (retval == JPT_AUTH) {

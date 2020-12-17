@@ -553,6 +553,8 @@ hibus_error_handler hibus_conn_set_error_handler (hibus_conn* conn,
 void *hibus_conn_get_user_data (hibus_conn* conn);
 void *hibus_conn_set_user_data (hibus_conn* conn, void* user_data);
 
+int hibus_conn_get_last_ret_code (hibus_conn* conn);
+
 const char* hibus_conn_srv_host_name (hibus_conn* conn);
 const char* hibus_conn_own_host_name (hibus_conn* conn);
 const char* hibus_conn_app_name (hibus_conn* conn);
