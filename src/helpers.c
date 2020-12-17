@@ -303,7 +303,7 @@ bool hibus_is_valid_token (const char* token, int max_len)
     return true;
 }
 
-bool hibus_is_valid_wildcard_pattern (const char* pattern)
+bool hibus_is_valid_wildcard_pattern_list (const char* pattern)
 {
     if (*pattern == '!')
         pattern++;

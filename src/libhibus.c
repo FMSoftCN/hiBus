@@ -1085,12 +1085,12 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
         return HIBUS_EC_INVALID_VALUE;
 
     if (for_host == NULL) for_host = "*";
-    if (!hibus_is_valid_wildcard_pattern (for_host)) {
+    if (!hibus_is_valid_wildcard_pattern_list (for_host)) {
         return HIBUS_EC_INVALID_VALUE;
     }
 
     if (for_app == NULL) for_app = "*";
-    if (!hibus_is_valid_wildcard_pattern (for_app)) {
+    if (!hibus_is_valid_wildcard_pattern_list (for_app)) {
         return HIBUS_EC_INVALID_VALUE;
     }
     hibus_name_tolower_copy (method_name, normalized_method, HIBUS_LEN_METHOD_NAME);
@@ -1179,12 +1179,12 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
         return HIBUS_EC_INVALID_VALUE;
 
     if (for_host == NULL) for_host = "*";
-    if (!hibus_is_valid_wildcard_pattern (for_host)) {
+    if (!hibus_is_valid_wildcard_pattern_list (for_host)) {
         return HIBUS_EC_INVALID_VALUE;
     }
 
     if (for_app == NULL) for_app = "*";
-    if (!hibus_is_valid_wildcard_pattern (for_app)) {
+    if (!hibus_is_valid_wildcard_pattern_list (for_app)) {
         return HIBUS_EC_INVALID_VALUE;
     }
 
