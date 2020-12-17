@@ -653,7 +653,7 @@ int hibus_disconnect (hibus_conn* conn)
 
     free (conn);
 
-    return HIBUS_SC_OK;
+    return 0;
 }
 
 const char* hibus_conn_srv_host_name (hibus_conn* conn)
@@ -1129,7 +1129,7 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
             free (ret_value);
     }
 
-    return HIBUS_SC_OK;
+    return 0;
 }
 
 int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
@@ -1334,7 +1334,7 @@ int hibus_subscribe_event (hibus_conn* conn,
             free (ret_value);
     }
 
-    return HIBUS_SC_OK;
+    return 0;
 }
 
 int hibus_unsubscribe_event (hibus_conn* conn,
@@ -1941,13 +1941,11 @@ int hibus_read_and_dispatch_packet (hibus_conn* conn)
         err_code = HIBUS_EC_BAD_PACKET;
     }
     else if (retval == JPT_ERROR) {
-        ULOG_ERR ("The server refused my request\n");
+        ULOG_ERR ("The server gives an error packet\n");
         if (conn->error_handler) {
-            err_code = conn->error_handler (conn, jo);
+            conn->error_handler (conn, jo);
         }
-        else {
-            err_code = HIBUS_EC_SERVER_ERROR;
-        }
+        err_code = HIBUS_EC_SERVER_ERROR;
     }
     else if (retval == JPT_AUTH) {
         ULOG_WARN ("Should not be here for packetType `auth`; quit...\n");
