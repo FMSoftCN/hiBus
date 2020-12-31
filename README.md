@@ -3,11 +3,10 @@
 hiBus is the data bus for device side of HybridOS.
 
 - [Introduction](#introduction)
+- [Dependencies](#dependencies)
 - [Current Status](#current-status)
 - [TODO List](#todo-list)
 - [Copying](#copying)
-   + [For the Server and the Command Line](#for-the-server-and-the-command-line)
-   + [For the Library](#for-the-library)
    + [Commercial License](#commercial-license)
    + [Special Statement](#special-statement)
 
