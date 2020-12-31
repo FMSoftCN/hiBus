@@ -43,8 +43,17 @@ For more information, please refer to:
 
 <https://github.com/FMSoftCN/hybridos/blob/master/docs/design/hybridos-data-bus-zh.md>
 
+## Dependencies
+
+hiBus depends on the following libraries:
+
+- [hiBox](https://github.com/FMSoft/hibox) provides some utilities for HybridOS device side in C language.
+- [glib](https://github.com/GNOME/glib) provides data structure handling for C language.
+- OpenSSL (optional) provides support for secure WebSocket connections.
+
 ## Current Status
 
+- Dec. 2020: First release (version 0.9).
 - Oct. 2020: Skeleton of source code.
 
 ## Copying
