@@ -4,6 +4,7 @@ hiBus is the data bus for device side of HybridOS.
 
 - [Introduction](#introduction)
 - [Current Status](#current-status)
+- [TODO List](#todo-list)
 - [Copying](#copying)
    + [For the Server and the Command Line](#for-the-server-and-the-command-line)
    + [For the Library](#for-the-library)
@@ -55,6 +56,13 @@ hiBus depends on the following libraries:
 
 - Dec. 2020: First release (version 0.9).
 - Oct. 2020: Skeleton of source code.
+
+## TODO List
+
+- Version 1.0
+   1. Finish the command line.
+   1. Support for WebSocket in `libhibus`.
+   1. Unit tests.
 
 ## Copying
 
