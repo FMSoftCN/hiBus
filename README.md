@@ -25,12 +25,12 @@ But compared to uBus, hiBus has the following important improvements:
 - Two types of underlying connection channels are provided: local Unix Domain Socket
   and Web Socket, so that modules developed in different programming languages can
   be easily connected to hiBus.
-- Provide a basic security mechanism to determine whether an application or a remote
-  node can subscribe to a specific event, and whether to call a specific procedure.
+- Providing a basic security mechanism to determine whether an application or a remote
+  node can subscribe to a specific event or call a specific procedure.
 - Considering that in the future, hiBus can provide services to other IoT device nodes
-  in the local area network through Web Socket. Therefore, we include host name
+  in the local area network through Web Socket, we include host name
   information when subscribing to events and calling remote procedures.
-- The redesigned communication protocol can avoid deadlock when the same app plays
+- The redesigned hiBus protocol can avoid deadlock when the same app plays
   different roles.
 
 hiBus includes the following three components:
