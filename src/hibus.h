@@ -662,6 +662,18 @@ int hibus_connect_via_web_socket (const char* srv_host_name, int port,
 int hibus_disconnect (hibus_conn* conn);
 
 /**
+ * hibus_free_connection:
+ * @conn: the pointer to the hiBus connection.
+ *
+ * Frees the space used by the connection, including the connection itself.
+ *
+ * Returns: the error code; zero means everything is ok.
+ *
+ * Since: 1.0
+ */
+int hibus_free_connection (hibus_conn* conn);
+
+/**
  * hibus_error_handler:
  * The prototype of an error handler.
  *

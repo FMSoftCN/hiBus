@@ -635,7 +635,7 @@ int hibus_connect_via_web_socket (const char* host_name, int port,
     return HIBUS_EC_NOT_IMPLEMENTED;
 }
 
-int hibus_disconnect (hibus_conn* conn)
+int hibus_free_connection (hibus_conn* conn)
 {
     assert (conn);
 
@@ -654,6 +654,12 @@ int hibus_disconnect (hibus_conn* conn)
     free (conn);
 
     return 0;
+}
+
+int hibus_disconnect (hibus_conn* conn)
+{
+    /* TODO: send CLOSE packet to the server */
+    return hibus_free_connection (conn);
 }
 
 const char* hibus_conn_srv_host_name (hibus_conn* conn)
@@ -1673,6 +1679,12 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
         return HIBUS_EC_INVALID_VALUE;
     }
 
+    result_handler = *(hibus_result_handler *)data;
+    if (result_handler == NULL) {
+        /* ignore the result */
+        return 0;
+    }
+
     if (json_object_object_get_ex (jo, "fromEndpoint", &jo_tmp) &&
             (from_endpoint = json_object_get_string (jo_tmp))) {
     }
@@ -1709,7 +1721,6 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
         return HIBUS_EC_PROTOCOL;
     }
 
-    result_handler = *(hibus_result_handler *)data;
     if (result_handler (conn, from_endpoint, from_method, ret_code, ret_value) == 0)
         kvlist_delete (&conn->call_list, call_id);
 

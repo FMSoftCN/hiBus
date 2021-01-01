@@ -39,31 +39,10 @@
 #include <hibox/json.h>
 
 #include "hibus.h"
-
-#define LEN_COMMAND         63
-#define LEN_LAST_ARGUMENT   1023
-#define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
+#include "cmdline.h"
 
 /* original terminal modes */
-static struct run_info {
-    int ttyfd;
-    bool running;
-    time_t last_sigint_time;
-
-    struct termios startup_termios;
-
-    char builtin_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
-    char self_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
-
-    // buffers for current command
-    char cmd [LEN_COMMAND + 1];
-    char endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
-    char method_bubble [HIBUS_LEN_METHOD_NAME + 1];
-    char last_arg [LEN_LAST_ARGUMENT + 1];
-
-    char* curr_edit_buff;
-    int curr_edit_pos;
-} the_client;
+static struct run_info the_client;
 
 /* command identifiers */
 enum {
@@ -358,6 +337,62 @@ static void on_delete_char (hibus_conn *conn)
     }
 }
 
+static int on_result_list_procedures (hibus_conn* conn,
+        const char* from_endpoint, const char* from_method,
+        int ret_code, const char* ret_value)
+{
+    if (ret_code == HIBUS_SC_OK) {
+        struct run_info *info = hibus_conn_get_user_data (conn);
+        bool first_time = true;
+
+        if (info->jo_endpoints) {
+            first_time = false;
+            json_object_put (info->jo_endpoints);
+        }
+        else {
+        }
+
+        info->jo_endpoints = hibus_json_object_from_string (ret_value,
+                sizeof (ret_value), 2);
+        if (info->jo_endpoints == NULL) {
+            ULOG_ERR ("Failed to build JSON object for endpoints:\n%s\n", ret_value);
+        }
+        else if (first_time) {
+            json_object_to_fd (2, info->jo_endpoints, JSON_C_TO_STRING_PRETTY);
+        }
+
+        return 0;
+    }
+    else if (ret_code == HIBUS_SC_ACCEPTED) {
+        ULOG_WARN ("The server accepted the call\n");
+    }
+    else {
+        ULOG_WARN ("Unexpected return code: %d\n", ret_code);
+    }
+
+    return -1;
+}
+
+static void on_list_endpoints (hibus_conn* conn)
+{
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    if (info->jo_endpoints) {
+        fputs ("ENDPOINTS:\n", stderr);
+        json_object_to_fd (2, info->jo_endpoints, JSON_C_TO_STRING_PRETTY);
+    }
+    else {
+        fputs ("WAIT A MOMENT...\n", stderr);
+    }
+
+    hibus_call_procedure (conn,
+            info->builtin_endpoint,
+            "listProcedures",
+            NULL,
+            HIBUS_DEF_TIME_EXPECTED,
+            on_result_list_procedures);
+}
+
 static void handle_tty_input (hibus_conn *conn)
 {
     struct run_info *info = hibus_conn_get_user_data (conn);
@@ -442,6 +477,7 @@ static void handle_tty_input (hibus_conn *conn)
                 else if (strncmp (buff + i, "\x1B\x4F\x51", 3) == 0) {
                     fputs ("F2", stderr);
                     i += 3;
+                    on_list_endpoints (conn);
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x52", 3) == 0) {
                     fputs ("F3", stderr);
@@ -617,6 +653,28 @@ static int test_basic_functions (hibus_conn *conn)
     return err_code;
 }
 
+static void on_new_broken_endpoint (hibus_conn* conn,
+        const char* from_endpoint, const char* from_bubble,
+        const char* bubble_data)
+{
+    hibus_json *jo = hibus_json_object_from_string (bubble_data, sizeof (bubble_data), 2);
+    if (jo == NULL) {
+        ULOG_ERR ("Failed to parse bubbleData:\n%s\n", bubble_data);
+        return;
+    }
+
+    if (strcasecmp (from_bubble, "NEWENDPOINT") == 0) {
+        fputs ("NEW ENDPOINT:\n", stderr);
+        json_object_to_fd (2, jo, JSON_C_TO_STRING_PRETTY);
+    }
+    else if (strcasecmp (from_bubble, "BROKENENDPOINT") == 0) {
+        fputs ("LOST ENDPOINT:\n", stderr);
+        json_object_to_fd (2, jo, JSON_C_TO_STRING_PRETTY);
+    }
+
+    json_object_put (jo);
+}
+
 int main (int argc, char **argv)
 {
     int cnnfd = -1, ttyfd = -1, maxfd;
@@ -689,6 +747,22 @@ int main (int argc, char **argv)
     ULOG_INFO ("error message for hibus_fire_event: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
+    if ((err_code = hibus_subscribe_event (conn,
+                    the_client.builtin_endpoint, "NEWENDPOINT",
+                    on_new_broken_endpoint))) {
+        ULOG_ERR ("Failed to subscribe builtin event `NEWENDPOINT` (%d): %s\n",
+                err_code, hibus_get_err_message (err_code));
+        goto failed;
+    }
+
+    if ((err_code = hibus_subscribe_event (conn,
+                    the_client.builtin_endpoint, "BROKENENDPOINT",
+                    on_new_broken_endpoint))) {
+        ULOG_ERR ("Failed to subscribe builtin event `BROKENENDPOINT` (%d): %s\n",
+                err_code, hibus_get_err_message (err_code));
+        goto failed;
+    }
+
     print_prompt (conn);
     maxfd = cnnfd > ttyfd ? cnnfd : ttyfd;
     do {
@@ -737,6 +811,20 @@ int main (int argc, char **argv)
         }
 
     } while (the_client.running);
+
+    if ((err_code = hibus_unsubscribe_event (conn, the_client.builtin_endpoint,
+                    "NEWENDPOINT"))) {
+        ULOG_ERR ("Failed to unsubscribe builtin event `NEWENDPOINT` (%d): %s\n",
+                err_code, hibus_get_err_message (err_code));
+    }
+
+    if ((err_code = hibus_unsubscribe_event (conn, the_client.builtin_endpoint,
+                    "BROKENENDPOINT"))) {
+        ULOG_ERR ("Failed to unsubscribe builtin event `BROKENENDPOINT` (%d): %s\n",
+                err_code, hibus_get_err_message (err_code));
+    }
+
+    json_object_put (the_client.jo_endpoints);
 
     fputs ("\n", stderr);
 
