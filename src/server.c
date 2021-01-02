@@ -669,12 +669,12 @@ static void
 cleanup_bus_server (void)
 {
     const char* name;
-    void* data;
+    void *next, *data;
     BusEndpoint* endpoint;
 
     kvlist_free (&the_server.waiting_endpoints);
 
-    kvlist_for_each (&the_server.endpoint_list, name, data) {
+    kvlist_for_each_safe (&the_server.endpoint_list, name, next, data) {
         //memcpy (&endpoint, data, sizeof (BusEndpoint*));
         endpoint = *(BusEndpoint **)data;
 
@@ -694,6 +694,7 @@ cleanup_bus_server (void)
         }
 
         del_endpoint (&the_server, endpoint, CDE_EXITING);
+        kvlist_delete (&the_server.endpoint_list, name);
         the_server.nr_endpoints--;
     }
 
