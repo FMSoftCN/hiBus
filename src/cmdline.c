@@ -88,11 +88,11 @@ static struct cmd_info {
     { CMD_UNSUBSCRIBE,
         "unsubscribe", "unsub", 2, AT_ENDPOINT, AT_BUBBLE, },
     { CMD_LIST_ENDPOINTS,
-        "listendpoints", "listep", 0 },
+        "listendpoints", "le", 0 },
     { CMD_LIST_METHODS,
-        "listendpoints", "listep", 1, AT_ENDPOINT, },
+        "listmethods", "lm", 1, AT_ENDPOINT, },
     { CMD_LIST_BUBBLES,
-        "listendpoints", "listep", 1, AT_ENDPOINT, },
+        "listbubbles", "lb", 1, AT_ENDPOINT, },
 };
 
 static int setup_tty (void)
@@ -253,7 +253,7 @@ static void on_cmd_help (hibus_conn *conn)
     fprintf (stderr, "\t<F1>\n\t\tprint this help message.\n");
     fprintf (stderr, "\t<F2>\n\t\tlist all endpoints.\n");
     fprintf (stderr, "\t<ESC>\n\t\texit this hiBus command line program.\n");
-    fprintf (stderr, "\t<TAB>\n\t\tauto complete the command.\n");
+    //fprintf (stderr, "\t<TAB>\n\t\tauto complete the command.\n");
     fprintf (stderr, "\t<UP>/<DOWN>\n\t\tswitch among available values when editing command line.\n");
     fprintf (stderr, "\n");
 }
@@ -264,8 +264,7 @@ static void on_cmd_exit (hibus_conn *conn)
 
     assert (info);
 
-    fprintf (stderr, "\n");
-    fprintf (stderr, "Exiting...\n");
+    fputs ("\nExiting...\n", stderr);
     info->running = false;
 }
 
@@ -401,7 +400,7 @@ static void on_list_endpoints (hibus_conn* conn)
     struct run_info *info = hibus_conn_get_user_data (conn);
 
     if (info->jo_endpoints) {
-        fputs ("ENDPOINTS:\n", stderr);
+        fputs ("\nENDPOINTS:\n", stderr);
         json_object_to_fd (2, info->jo_endpoints,
                 JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
         fputs ("\n", stderr);
@@ -442,11 +441,11 @@ static void handle_tty_input (hibus_conn *conn)
             }
             else if (buff [i] == '\t') {
                 // confirm user's input
-                fputs ("HT", stderr);
+                // fputs ("HT", stderr);
             }
             else if (buff [i] == '\b') {
                 // backspace
-                fputs ("BS", stderr);
+                // fputs ("BS", stderr);
             }
             else if (buff [i] == 0x7f) {
                 // backspace
@@ -455,7 +454,12 @@ static void handle_tty_input (hibus_conn *conn)
             }
             else if (buff [i] == 0x1B) {
                 // an escape sequence.
-                if (strncmp (buff + i, "\x1b\x5b\x41", 3) == 0) {
+                if (buff [i + 1] == 0) {
+                    fputs ("ESC", stderr);
+                    i += 1;
+                    on_cmd_exit (conn);
+                }
+                else if (strncmp (buff + i, "\x1b\x5b\x41", 3) == 0) {
                     fputs ("UP", stderr);
                     i += 3;
                 }
@@ -464,68 +468,71 @@ static void handle_tty_input (hibus_conn *conn)
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1b\x5b\x43", 3) == 0) {
-                    fputs ("RIGHT", stderr);
+                    // fputs ("RIGHT", stderr);
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1b\x5b\x44", 3) == 0) {
-                    fputs ("LEFT", stderr);
+                    // fputs ("LEFT", stderr);
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x33\x7E", 4) == 0) {
-                    fputs ("Del", stderr);
+                    // fputs ("Del", stderr);
                     i += 4;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x32\x7E", 4) == 0) {
-                    fputs ("Ins", stderr);
+                    // fputs ("Ins", stderr);
                     i += 4;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x48", 3) == 0) {
-                    fputs ("Home", stderr);
+                    // fputs ("Home", stderr);
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x46", 3) == 0) {
-                    fputs ("End", stderr);
+                    // fputs ("End", stderr);
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x35\x7E", 4) == 0) {
-                    fputs ("PgUp", stderr);
+                    // fputs ("PgUp", stderr);
                     i += 4;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x36\x7E", 4) == 0) {
-                    fputs ("PgDn", stderr);
+                    // fputs ("PgDn", stderr);
                     i += 4;
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x50", 3) == 0) {
                     fputs ("F1", stderr);
                     i += 3;
+                    on_cmd_help (conn);
+                    print_prompt (conn);
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x51", 3) == 0) {
                     fputs ("F2", stderr);
                     i += 3;
                     on_list_endpoints (conn);
+                    print_prompt (conn);
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x52", 3) == 0) {
-                    fputs ("F3", stderr);
+                    //fputs ("F3", stderr);
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x53", 3) == 0) {
-                    fputs ("F4", stderr);
+                    //fputs ("F4", stderr);
                     i += 4;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x31\x35\x7E", 5) == 0) {
-                    fputs ("F5", stderr);
+                    //fputs ("F5", stderr);
                     i += 5;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x31\x37\x7E", 5) == 0) {
-                    fputs ("F6", stderr);
+                    //fputs ("F6", stderr);
                     i += 5;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x31\x38\x7E", 5) == 0) {
-                    fputs ("F7", stderr);
+                    //fputs ("F7", stderr);
                     i += 5;
                 }
                 else if (strncmp (buff + i, "\x1B\x5B\x31\x39\x7E", 5) == 0) {
-                    fputs ("F8", stderr);
+                    //fputs ("F8", stderr);
                     i += 5;
                 }
                 else {
