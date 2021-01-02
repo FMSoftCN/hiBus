@@ -117,6 +117,9 @@ typedef struct BusEndpoint_
     /* All bubbles registered by this endpoint */
     struct kvlist bubble_list;
 
+    /* All event subscribed by this endpoint */
+    struct kvlist subscribed_list;
+
     /* the data for current status, e.g., the challenge code for authentication */
     void* sta_data;
 } BusEndpoint;

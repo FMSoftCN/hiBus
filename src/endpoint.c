@@ -92,6 +92,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
 
     kvlist_init (&endpoint->method_list, NULL);
     kvlist_init (&endpoint->bubble_list, NULL);
+    kvlist_init (&endpoint->subscribed_list, NULL);
 
     return endpoint;
 }
@@ -99,7 +100,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
 int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
 {
     char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
-    const char *method_name, *bubble_name;
+    const char *method_name, *bubble_name, *event_name;
     void *next, *data;
 
     if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
@@ -160,6 +161,33 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
         free (bubble);
     }
     kvlist_free (&endpoint->bubble_list);
+
+    kvlist_for_each (&endpoint->subscribed_list, event_name, data) {
+        char* bubble_name;
+        void *sub_data;
+
+        /* here we use a trick to separate the endpoint name and bubble name */
+        bubble_name = strrchr (event_name, '/');
+        bubble_name [0] = '\0';
+        bubble_name++;
+
+        sub_data = kvlist_get (&bus_srv->endpoint_list, event_name);
+        if (sub_data) {
+            void *sub_sub_data;
+            BusEndpoint* event_endpoint;
+            BubbleInfo *info;
+
+            event_endpoint = *(BusEndpoint **)sub_data;
+            if ((sub_sub_data = kvlist_get (&event_endpoint->bubble_list,
+                            bubble_name)) == NULL) {
+                continue;
+            }
+
+            info = *(BubbleInfo **)sub_sub_data;
+            kvlist_delete (&info->subscriber_list, endpoint_name);
+        }
+    }
+    kvlist_free (&endpoint->subscribed_list);
 
     /* not for builtin endpoint */
     if (endpoint->sta_data)
@@ -1404,8 +1432,9 @@ int subscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
 {
     void *data;
     BubbleInfo *info;
-    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
+    char subscriber_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_SC_BAD_REQUEST;
@@ -1416,14 +1445,23 @@ int subscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
         return HIBUS_SC_NOT_FOUND;
     }
 
-    assemble_endpoint_name (subscriber, endpoint_name);
+    assemble_endpoint_name (subscriber, subscriber_name);
+
+    assemble_endpoint_name (endpoint, event_name);
+    strcat (event_name, "/");
+    strcat (event_name, normalized_name);
 
     info = *(BubbleInfo **)data;
-    if (kvlist_get (&info->subscriber_list, endpoint_name))
+    if (kvlist_get (&info->subscriber_list, subscriber_name))
         return HIBUS_SC_CONFLICT;
 
-    if (!kvlist_set (&info->subscriber_list, endpoint_name, &subscriber))
+    if (!kvlist_set (&subscriber->subscribed_list, event_name, &endpoint))
         return HIBUS_SC_INSUFFICIENT_STORAGE;
+
+    if (!kvlist_set (&info->subscriber_list, subscriber_name, &subscriber)) {
+        kvlist_delete (&subscriber->subscribed_list, event_name);
+        return HIBUS_SC_INSUFFICIENT_STORAGE;
+    }
 
     return HIBUS_SC_OK;
 }
@@ -1433,8 +1471,9 @@ int unsubscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
 {
     void *data;
     BubbleInfo *info;
-    char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
+    char subscriber_name [HIBUS_LEN_ENDPOINT_NAME + 1];
     char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
+    char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
 
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_SC_BAD_REQUEST;
@@ -1445,13 +1484,18 @@ int unsubscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
         return HIBUS_SC_NOT_FOUND;
     }
 
-    assemble_endpoint_name (subscriber, endpoint_name);
+    assemble_endpoint_name (subscriber, subscriber_name);
+
+    assemble_endpoint_name (endpoint, event_name);
+    strcat (event_name, "/");
+    strcat (event_name, normalized_name);
 
     info = *(BubbleInfo **)data;
-    if (kvlist_get (&info->subscriber_list, endpoint_name))
+    if (kvlist_get (&info->subscriber_list, subscriber_name))
         return HIBUS_SC_NOT_FOUND;
 
-    kvlist_delete (&info->subscriber_list, endpoint_name);
+    kvlist_delete (&info->subscriber_list, subscriber_name);
+    kvlist_delete (&subscriber->subscribed_list, event_name);
     return HIBUS_SC_OK;
 }
 
