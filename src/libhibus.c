@@ -1878,7 +1878,7 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
             else if (retval == JPT_ERROR) {
                 hibus_json *jo_tmp;
 
-                ULOG_WARN ("Got a `error` packet\n");
+                ULOG_WARN ("Got an `error` packet\n");
 
                 if (json_object_object_get_ex (jo, "retCode", &jo_tmp)) {
                     *ret_code = json_object_get_int (jo_tmp);
@@ -1886,8 +1886,16 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                 else {
                     *ret_code = HIBUS_SC_INTERNAL_SERVER_ERROR;
                 }
+
                 conn->last_ret_code = *ret_code;
                 err_code = HIBUS_EC_SERVER_ERROR;
+
+                if (json_object_object_get_ex (jo, "causedBy", &jo_tmp) &&
+                        strcasecmp (json_object_get_string (jo_tmp), "call") == 0 &&
+                        json_object_object_get_ex (jo, "causedId", &jo_tmp) &&
+                        strcasecmp (json_object_get_string (jo_tmp), call_id) == 0) {
+                    break;
+                }
             }
             else if (retval == JPT_AUTH) {
                 ULOG_WARN ("Should not be here for packetType `auth`\n");

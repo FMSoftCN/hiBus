@@ -173,7 +173,7 @@ static void handle_signal_action (int sig_number)
         }
     }
     else if (sig_number == SIGPIPE) {
-        fprintf (stderr, "SIGPIPE caught!\n");
+        fprintf (stderr, "SIGPIPE caught; the server might have quitted!\n");
     }
     else if (sig_number == SIGCHLD) {
         pid_t pid;
@@ -729,7 +729,7 @@ int main (int argc, char **argv)
             HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE, &conn);
 
     if (cnnfd < 0) {
-        ULOG_ERR ("Failed to connect to hiBus server: %s\n",
+        fprintf (stderr, "Failed to connect to hiBus server: %s\n",
                 hibus_get_err_message (cnnfd));
         goto failed;
     }
@@ -782,7 +782,7 @@ int main (int argc, char **argv)
     if ((err_code = hibus_subscribe_event (conn,
                     the_client.builtin_endpoint, "NEWENDPOINT",
                     on_new_broken_endpoint))) {
-        ULOG_ERR ("Failed to subscribe builtin event `NEWENDPOINT` (%d): %s\n",
+        fprintf (stderr, "Failed to subscribe builtin event `NEWENDPOINT` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
         goto failed;
     }
@@ -790,7 +790,7 @@ int main (int argc, char **argv)
     if ((err_code = hibus_subscribe_event (conn,
                     the_client.builtin_endpoint, "BROKENENDPOINT",
                     on_new_broken_endpoint))) {
-        ULOG_ERR ("Failed to subscribe builtin event `BROKENENDPOINT` (%d): %s\n",
+        fprintf (stderr, "Failed to subscribe builtin event `BROKENENDPOINT` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
         goto failed;
     }
@@ -819,8 +819,9 @@ int main (int argc, char **argv)
             if (FD_ISSET (cnnfd, &rfds)) {
                 int err_code = hibus_read_and_dispatch_packet (conn);
                 if (err_code) {
-                    ULOG_ERR ("Failed to read and dispatch packet: %s",
+                    fprintf (stderr, "Failed to read and dispatch packet: %s",
                             hibus_get_err_message (err_code));
+                    break;
                 }
 
                 print_prompt (conn);
@@ -846,13 +847,13 @@ int main (int argc, char **argv)
 
     if ((err_code = hibus_unsubscribe_event (conn, the_client.builtin_endpoint,
                     "NEWENDPOINT"))) {
-        ULOG_ERR ("Failed to unsubscribe builtin event `NEWENDPOINT` (%d): %s\n",
+        fprintf (stderr, "Failed to unsubscribe builtin event `NEWENDPOINT` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
     }
 
     if ((err_code = hibus_unsubscribe_event (conn, the_client.builtin_endpoint,
                     "BROKENENDPOINT"))) {
-        ULOG_ERR ("Failed to unsubscribe builtin event `BROKENENDPOINT` (%d): %s\n",
+        fprintf (stderr, "Failed to unsubscribe builtin event `BROKENENDPOINT` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
     }
 
