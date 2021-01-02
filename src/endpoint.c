@@ -1453,8 +1453,11 @@ int subscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
     strcat (event_name, normalized_name);
 
     info = *(BubbleInfo **)data;
-    if (kvlist_get (&info->subscriber_list, subscriber_name))
+    if (kvlist_get (&info->subscriber_list, subscriber_name)) {
+        ULOG_ERR ("Duplicated subscriber (%s) for bubble: %s\n",
+                subscriber_name, normalized_name);
         return HIBUS_SC_CONFLICT;
+    }
 
     if (!kvlist_set (&subscriber->subscribed_list, event_name, &endpoint))
         return HIBUS_SC_INSUFFICIENT_STORAGE;
@@ -1476,12 +1479,15 @@ int unsubscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
     char normalized_name [HIBUS_LEN_BUBBLE_NAME + 1];
     char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
 
-    if (!hibus_is_valid_bubble_name (bubble_name))
+    if (!hibus_is_valid_bubble_name (bubble_name)) {
+        ULOG_ERR ("Invalid bubble name: %s\n", bubble_name);
         return HIBUS_SC_BAD_REQUEST;
+    }
 
     hibus_name_toupper_copy (bubble_name, normalized_name, 0);
 
     if ((data = kvlist_get (&endpoint->bubble_list, normalized_name)) == NULL) {
+        ULOG_ERR ("No such bubble: %s\n", normalized_name);
         return HIBUS_SC_NOT_FOUND;
     }
 
@@ -1492,8 +1498,10 @@ int unsubscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
     strcat (event_name, normalized_name);
 
     info = *(BubbleInfo **)data;
-    if (kvlist_get (&info->subscriber_list, subscriber_name))
+    if (kvlist_get (&info->subscriber_list, subscriber_name) == NULL) {
+        ULOG_ERR ("No such subscriber: %s\n", subscriber_name);
         return HIBUS_SC_NOT_FOUND;
+    }
 
     kvlist_delete (&info->subscriber_list, subscriber_name);
     kvlist_delete (&subscriber->subscribed_list, event_name);

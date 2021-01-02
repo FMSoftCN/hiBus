@@ -320,7 +320,8 @@ builtin_method_subscribe_event (BusServer *bus_srv,
         void *data;
         char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        hibus_name_tolower_copy (param_endpoint_name, normalized_name, HIBUS_LEN_ENDPOINT_NAME);
+        hibus_name_tolower_copy (param_endpoint_name, normalized_name,
+                HIBUS_LEN_ENDPOINT_NAME);
         if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
             target_endpoint = *(BusEndpoint **)data;
         }
@@ -372,15 +373,17 @@ builtin_method_unsubscribe_event (BusServer *bus_srv,
     }
 
     if (json_object_object_get_ex (jo, "endpointName", &jo_tmp) &&
-        (param_endpoint_name = json_object_get_string (jo_tmp))) {
+            (param_endpoint_name = json_object_get_string (jo_tmp))) {
         void *data;
         char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        hibus_name_tolower_copy (param_endpoint_name, normalized_name, HIBUS_LEN_ENDPOINT_NAME);
+        hibus_name_tolower_copy (param_endpoint_name, normalized_name,
+                HIBUS_LEN_ENDPOINT_NAME);
         if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
             target_endpoint = *(BusEndpoint **)data;
         }
         else {
+            ULOG_ERR ("No such endpoint: %s\n", normalized_name);
             *ret_code = HIBUS_SC_NOT_FOUND;
             goto failed;
         }
@@ -390,9 +393,10 @@ builtin_method_unsubscribe_event (BusServer *bus_srv,
     }
 
     if (json_object_object_get_ex (jo, "bubbleName", &jo_tmp) &&
-        (param_bubble_name = json_object_get_string (jo_tmp))) {
+            (param_bubble_name = json_object_get_string (jo_tmp))) {
     }
     else {
+        *ret_code = HIBUS_SC_BAD_REQUEST;
         goto failed;
     }
 
@@ -599,7 +603,8 @@ builtin_method_list_event_subscribers (BusServer *bus_srv,
         void *data;
         char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        hibus_name_tolower_copy (param_endpoint_name, normalized_name, HIBUS_LEN_ENDPOINT_NAME);
+        hibus_name_tolower_copy (param_endpoint_name, normalized_name,
+                HIBUS_LEN_ENDPOINT_NAME);
         if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
             target_endpoint = *(BusEndpoint **)data;
         }
