@@ -359,7 +359,6 @@ int hibus_extract_host_name (const char* endpoint, char* host_name)
 
     strncpy (host_name, endpoint, len);
     host_name [len] = '\0';
-    ULOG_INFO ("Extracted host name: %s\n", host_name);
 
     return len;
 }
@@ -395,7 +394,6 @@ int hibus_extract_app_name (const char* endpoint, char* app_name)
 
     strncpy (app_name, first_slash, len);
     app_name [len] = '\0';
-    ULOG_INFO ("Extracted app name: %s\n", app_name);
 
     return len;
 }
@@ -429,7 +427,6 @@ int hibus_extract_runner_name (const char* endpoint, char* runner_name)
         return 0;
 
     strcpy (runner_name, second_slash);
-    ULOG_INFO ("Extracted runner name: %s\n", runner_name);
 
     return len;
 }

@@ -374,12 +374,14 @@ static int on_result_list_procedures (hibus_conn* conn,
         }
 
         info->jo_endpoints = hibus_json_object_from_string (ret_value,
-                sizeof (ret_value), 2);
+                strlen (ret_value), 5);
         if (info->jo_endpoints == NULL) {
             ULOG_ERR ("Failed to build JSON object for endpoints:\n%s\n", ret_value);
         }
         else if (first_time) {
-            json_object_to_fd (2, info->jo_endpoints, JSON_C_TO_STRING_PRETTY);
+            json_object_to_fd (2, info->jo_endpoints,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+            fputs ("\n", stderr);
         }
 
         return 0;
@@ -400,10 +402,12 @@ static void on_list_endpoints (hibus_conn* conn)
 
     if (info->jo_endpoints) {
         fputs ("ENDPOINTS:\n", stderr);
-        json_object_to_fd (2, info->jo_endpoints, JSON_C_TO_STRING_PRETTY);
+        json_object_to_fd (2, info->jo_endpoints,
+                JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+        fputs ("\n", stderr);
     }
     else {
-        fputs ("WAIT A MOMENT...\n", stderr);
+        fputs ("\nWAIT A MOMENT...\n", stderr);
     }
 
     hibus_call_procedure (conn,
