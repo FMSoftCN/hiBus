@@ -34,6 +34,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include <hibox/ulog.h>
 #include <hibox/json.h>
@@ -174,6 +175,21 @@ static void handle_signal_action (int sig_number)
     else if (sig_number == SIGPIPE) {
         fprintf (stderr, "SIGPIPE caught!\n");
     }
+    else if (sig_number == SIGCHLD) {
+        pid_t pid;
+        int status;
+
+        while ((pid = waitpid (-1, &status, WNOHANG)) > 0) {
+            if (WIFEXITED (status)) {
+                fprintf (stderr, "Player (%d) exited: return value: %d\n", 
+                        pid, WEXITSTATUS(status));
+            }
+            else if (WIFSIGNALED(status)) {
+                fprintf (stderr, "Player (%d) exited because of signal %d\n",
+                        pid, WTERMSIG (status));
+            }
+        }
+    }
 }
 
 static int setup_signals (void)
@@ -189,6 +205,11 @@ static int setup_signals (void)
 
     if (sigaction (SIGPIPE, &sa, 0) != 0) {
         ULOG_ERR ("Failed to call sigaction for SIGPIPE: %s\n", strerror (errno));
+        return -1;
+    }
+
+    if (sigaction (SIGCHLD, &sa, 0) != 0) {
+        ULOG_ERR ("Failed to call sigaction for SIGCHLD: %s\n", strerror (errno));
         return -1;
     }
 
@@ -387,8 +408,8 @@ static void on_list_endpoints (hibus_conn* conn)
 
     hibus_call_procedure (conn,
             info->builtin_endpoint,
-            "listProcedures",
-            NULL,
+            "listEndpoints",
+            "",
             HIBUS_DEF_TIME_EXPECTED,
             on_result_list_procedures);
 }

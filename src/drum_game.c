@@ -150,7 +150,7 @@ static int main_of_player (int pn)
     hibus_conn* conn;
     fd_set rfds;
     struct timeval tv;
-    int err_code;
+    int err_code = 0;
     struct player_info player;
 
     sprintf (player_name, "%s%d", PREFIX_PLAYER_RUNNER, pn);
@@ -200,7 +200,7 @@ static int main_of_player (int pn)
         FD_SET (cnnfd, &rfds);
 
         tv.tv_sec = 0;
-        tv.tv_usec = 200 * 1000;
+        tv.tv_usec = 100 * 1000;
         retval = select (cnnfd + 1, &rfds, NULL, NULL, &tv);
 
         if (retval == -1) {
@@ -211,14 +211,14 @@ static int main_of_player (int pn)
         }
         else if (retval) {
             if (FD_ISSET (cnnfd, &rfds)) {
-                int err_code = hibus_read_and_dispatch_packet (conn);
+                err_code = hibus_read_and_dispatch_packet (conn);
                 if (err_code) {
+                    break;
                 }
             }
         }
         else {
         }
-
 
     } while (player.running);
 
@@ -227,7 +227,7 @@ failed:
     if (cnnfd >= 0)
         hibus_disconnect (conn);
 
-    return 0;
+    return err_code;
 }
 
 
@@ -236,6 +236,7 @@ static int fork_a_player (hibus_conn* conn, int pn)
     pid_t pid;
 
     if ((pid = fork())) {
+        // do nothing
     }
     else {
         /* in the child */
@@ -254,7 +255,12 @@ static int fork_a_player (hibus_conn* conn, int pn)
         fd = dup (fd);
         fd = dup (fd);
 
-        main_of_player (pn);
+        if (main_of_player (pn)) {
+            exit (EXIT_FAILURE);
+        }
+        else {
+            exit (EXIT_SUCCESS);
+        }
     }
 
     return 0;
