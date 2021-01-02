@@ -100,7 +100,7 @@ bool init_pattern_list (pattern_list *pl, const char* pattern)
         }
         else {
             one_pattern->type = PT_SPEC;
-            one_pattern->spec = g_pattern_spec_new (token + 1);
+            one_pattern->spec = g_pattern_spec_new (token);
             if (one_pattern->spec == NULL) {
                 ULOG_WARN ("Failed to create a new not-spec for pattern: %s\n", token + 1);
                 free (one_pattern);
