@@ -763,10 +763,6 @@ done:
     }
 
     if (ret_code != HIBUS_SC_OK && ret_code != HIBUS_SC_ACCEPTED) {
-
-        ULOG_ERR ("sz_packet_buff: %d, ret_msg: %s\n", sz_packet_buff,
-                hibus_get_ret_message (ret_code));
-
         n = snprintf (packet_buff, sz_packet_buff, 
             "{"
             "\"packetType\": \"error\","

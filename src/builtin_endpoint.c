@@ -436,8 +436,9 @@ builtin_method_list_endpoints (BusServer *bus_srv,
         BusEndpoint* endpoint = *(BusEndpoint **)data;
         int n;
 
-        printbuf_strappend (pb, "{ \"endpointName\":");
-        sprintbuf (pb, "{ \"livingSeconds\":%lu,",
+        printbuf_strappend (pb, "{\"endpointName\":");
+        sprintbuf (pb, "\"%s\",", endpoint_name);
+        sprintbuf (pb, "\"livingSeconds\":%lu,",
                 time (NULL) - endpoint->t_created);
 
         n = 0;
@@ -447,7 +448,7 @@ builtin_method_list_endpoints (BusServer *bus_srv,
             n++;
         }
         if (n > 0)
-            printbuf_memset (pb, -1, '\0', 1);
+            printbuf_shrink (pb, 1);
         printbuf_strappend (pb, "],");
 
         n = 0;
@@ -457,8 +458,8 @@ builtin_method_list_endpoints (BusServer *bus_srv,
             n++;
         }
         if (n > 0)
-            printbuf_memset (pb, -1, '\0', 1);
-        printbuf_strappend (pb, "]");
+            printbuf_shrink (pb, 1);
+        printbuf_strappend (pb, "],");
 
         sprintbuf (pb, "\"memUsed\":%lu,", endpoint->entity.sz_sock_mem);
         sprintbuf (pb, "\"peakMemUsed\":%lu", endpoint->entity.peak_sz_sock_mem);
@@ -466,7 +467,7 @@ builtin_method_list_endpoints (BusServer *bus_srv,
         nr_endpoints++;
     }
     if (nr_endpoints)
-        printbuf_memset (pb, -1, '\0', 1);
+        printbuf_shrink (pb, 1);
 
     printbuf_strappend (pb, "]");
 
@@ -504,13 +505,14 @@ builtin_method_list_procedures (BusServer *bus_srv,
 
             printbuf_strappend (pb, "\"");
             printbuf_memappend (pb, endpoint_name, 0);
+            printbuf_strappend (pb, "/");
             printbuf_memappend (pb, method_name, 0);
             printbuf_strappend (pb, "\",");
         }
         n++;
     }
     if (n > 0) {
-        printbuf_memset (pb, -1, '\0', 1);
+        printbuf_shrink (pb, 1);
     }
 
     printbuf_strappend (pb, "]");
@@ -556,7 +558,7 @@ builtin_method_list_events (BusServer *bus_srv,
         n++;
     }
     if (n > 0) {
-        printbuf_memset (pb, -1, '\0', 1);
+        printbuf_shrink (pb, 1);
     }
 
     printbuf_strappend (pb, "]");
@@ -645,7 +647,7 @@ builtin_method_list_event_subscribers (BusServer *bus_srv,
             n++;
         }
         if (n > 0) {
-            printbuf_memset (pb, -1, '\0', 1);
+            printbuf_shrink (pb, 1);
         }
 
         printbuf_strappend (pb, "]");

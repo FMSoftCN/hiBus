@@ -187,7 +187,7 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
     if (json_object_object_get_ex (jo, "packetType", &jo_tmp)) {
         const char *pack_type;
         pack_type = json_object_get_string (jo_tmp);
-        ULOG_INFO ("packetType: %s\n", pack_type);
+        // ULOG_INFO ("packetType: %s\n", pack_type);
 
         if (strcasecmp (pack_type, "error") == 0) {
             const char* prot_name = HIBUS_NOT_AVAILABLE;
@@ -224,7 +224,7 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
 
             if (json_object_object_get_ex (jo, "challengeCode", &jo_tmp)) {
                 ch_code = json_object_get_string (jo_tmp);
-                ULOG_INFO ("challengeCode: %s\n", ch_code);
+                // ULOG_INFO ("challengeCode: %s\n", ch_code);
             }
 
             if (json_object_object_get_ex (jo, "protocolName", &jo_tmp)) {
@@ -234,7 +234,7 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
                 prot_ver = json_object_get_int (jo_tmp);
             }
 
-            ULOG_INFO ("Protocol :%s/%d\n", prot_name, prot_ver);
+            // ULOG_INFO ("Protocol :%s/%d\n", prot_name, prot_ver);
 
             if (ch_code == NULL) {
                 ULOG_WARN ("Null challenge code\n");
@@ -319,7 +319,7 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
         goto failed;
     }
 
-    ULOG_INFO ("auth packate: \n%s\n", buff);
+    // ULOG_INFO ("auth packate: \n%s\n", buff);
     if (hibus_send_text_packet (conn, buff, n)) {
         ULOG_ERR ("Failed to send text packet to hiBus server in send_auth_info.\n");
         err_code = HIBUS_EC_IO;
@@ -482,36 +482,43 @@ static int check_auth_result (hibus_conn* conn)
     void *packet;
     unsigned int data_len;
     hibus_json *jo;
-    int retval;
+    int retval, err_code;
 
-    retval = hibus_read_packet_alloc (conn, &packet, &data_len);
-    if (retval) {
+    err_code = hibus_read_packet_alloc (conn, &packet, &data_len);
+    if (err_code) {
         ULOG_ERR ("Failed to read packet\n");
-        return retval;
+        return err_code;
     }
+
+    ULOG_INFO ("Got a packet: \n%s\n", (char*)packet);
 
     retval = hibus_json_packet_to_object (packet, data_len, &jo);
     free (packet);
 
     if (retval < 0) {
-        ULOG_ERR ("Failed to parse JSON packet;\n");
-        retval = HIBUS_EC_BAD_PACKET;
+        ULOG_ERR ("Failed to parse JSON packet\n");
+        err_code = HIBUS_EC_BAD_PACKET;
     }
     else if (retval == JPT_AUTH_PASSED) {
         ULOG_WARN ("Passed the authentication\n");
-        retval = on_auth_passed (conn, jo);
+        err_code = on_auth_passed (conn, jo);
+        ULOG_ERR ("return value of on_auth_passed: %d\n", retval);
     }
     else if (retval == JPT_AUTH_FAILED) {
         ULOG_WARN ("Failed the authentication\n");
-        retval = HIBUS_EC_AUTH_FAILED;
+        err_code = HIBUS_EC_AUTH_FAILED;
     }
     else if (retval == JPT_ERROR) {
         ULOG_WARN ("Got an error\n");
-        retval = HIBUS_EC_SERVER_REFUSED;
+        err_code = HIBUS_EC_SERVER_REFUSED;
+    }
+    else {
+        ULOG_WARN ("Got an unexpected packet: %d\n", retval);
+        err_code = HIBUS_EC_UNEXPECTED;
     }
 
     json_object_put (jo);
-    return retval;
+    return err_code;
 }
 
 #define CLI_PATH    "/var/tmp/"
@@ -607,8 +614,9 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     free (ch_code);
     ch_code = NULL;
 
-    if ((err_code = check_auth_result (*conn)))
+    if ((err_code = check_auth_result (*conn))) {
         goto error;
+    }
 
     return fd;
 
