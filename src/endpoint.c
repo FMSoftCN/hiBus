@@ -574,7 +574,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     char to_method_name [HIBUS_LEN_METHOD_NAME + 1];
     BusEndpoint *to_endpoint;
     MethodInfo *to_method;
-    const char *call_id;
+    const char *call_id = NULL;
     int expected_time;
     struct timespec ts_start;
     double time_diff, time_consumed;
@@ -630,6 +630,14 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         goto done;
     }
 
+    if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
+            (call_id = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        ret_code = HIBUS_SC_BAD_REQUEST;
+        goto done;
+    }
+
     if (!match_pattern (&to_method->host_patt_list, endpoint->host_name,
                 1, HIBUS_PATTERN_VAR_SELF, to_endpoint->host_name)) {
         ret_code = HIBUS_SC_METHOD_NOT_ALLOWED;
@@ -639,14 +647,6 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     if (!match_pattern (&to_method->app_patt_list, endpoint->app_name,
                 1, HIBUS_PATTERN_VAR_OWNER, to_endpoint->app_name)) {
         ret_code = HIBUS_SC_METHOD_NOT_ALLOWED;
-        goto done;
-    }
-
-    if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
-            (call_id = json_object_get_string (jo_tmp))) {
-    }
-    else {
-        ret_code = HIBUS_SC_BAD_REQUEST;
         goto done;
     }
 
@@ -706,6 +706,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     else {
         escaped_result = NULL;
         packet_buff = buff_in_stack;
+        sz_packet_buff = sizeof (buff_in_stack);
     }
 
 done:
@@ -762,6 +763,10 @@ done:
     }
 
     if (ret_code != HIBUS_SC_OK && ret_code != HIBUS_SC_ACCEPTED) {
+
+        ULOG_ERR ("sz_packet_buff: %d, ret_msg: %s\n", sz_packet_buff,
+                hibus_get_ret_message (ret_code));
+
         n = snprintf (packet_buff, sz_packet_buff, 
             "{"
             "\"packetType\": \"error\","
@@ -773,7 +778,7 @@ done:
             "\"retMsg\": \"%s\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
-            call_id,
+            call_id ? call_id : "N/A",
             ret_code,
             hibus_get_ret_message (ret_code));
 
@@ -799,7 +804,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
 {
     hibus_json *jo_tmp;
     int real_ret_code;
-    const char *call_id, *result_id, *from_method_name;
+    const char *call_id, *result_id = NULL, *from_method_name;
     double time_diff, time_consumed;
     const char* ret_value;
     void* data;
@@ -960,7 +965,7 @@ failed:
             "\"retMsg\":\"%s\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
-            result_id,
+            result_id ? result_id : "N/A",
             ret_code, hibus_get_ret_message (ret_code));
 
         if (n < sz_packet_buff) {
@@ -1002,7 +1007,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     const char *str_tmp;
     char bubble_name [HIBUS_LEN_BUBBLE_NAME + 1];
     BubbleInfo *bubble;
-    const char *event_id;
+    const char *event_id = NULL;
     const char *bubble_data;
 
     char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
@@ -1156,7 +1161,7 @@ failed:
             "\"retMsg\": \"%s\""
             "}",
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
-            event_id,
+            event_id ? event_id : "N/A",
             ret_code,
             hibus_get_ret_message (ret_code));
 
