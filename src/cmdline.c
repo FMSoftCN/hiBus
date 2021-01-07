@@ -54,8 +54,8 @@ enum {
     CMD_SUBSCRIBE,
     CMD_UNSUBSCRIBE,
     CMD_LIST_ENDPOINTS,
-    CMD_LIST_METHODS,
-    CMD_LIST_BUBBLES,
+    CMD_LIST_PROCEDURES,
+    CMD_LIST_EVENTS,
     CMD_LIST_SUBSCRIBERS,
 };
 
@@ -107,16 +107,16 @@ static struct cmd_info {
         "unsub @localhost/cn.fmsoft.hybridos.hibus/builtin NEWENDPOINT" ,
         AT_ENDPOINT, AT_BUBBLE, AT_NONE, AT_NONE, },
     { CMD_LIST_ENDPOINTS,
-        "listendpoints", "le", 
-        "le",
+        "listendpoints", "lep", 
+        "lep",
         AT_NONE, AT_NONE, AT_NONE, AT_NONE, },
-    { CMD_LIST_METHODS,
-        "listmethods", "lm",
-        "lm @localhost/cn.fmsoft.hybridos.hibus/builtin",
+    { CMD_LIST_PROCEDURES,
+        "listprocedures", "lp",
+        "lp @localhost/cn.fmsoft.hybridos.hibus/builtin",
         AT_ENDPOINT, AT_NONE, AT_NONE, AT_NONE, },
-    { CMD_LIST_BUBBLES,
-        "listbubbles", "lb",
-        "lb @localhost/cn.fmsoft.hybridos.hibus/builtin",
+    { CMD_LIST_EVENTS,
+        "listevents", "le",
+        "le @localhost/cn.fmsoft.hybridos.hibus/builtin",
         AT_ENDPOINT, AT_NONE, AT_NONE, AT_NONE, },
     { CMD_LIST_SUBSCRIBERS,
         "listsubscribers", "ls",
@@ -324,14 +324,14 @@ static void on_cmd_help (hibus_conn *conn)
     fprintf (stderr, "    suscribe an event.\n");
     fprintf (stderr, "  <unsubscribe | unsub> <endpoint> <BUBBLE>\n");
     fprintf (stderr, "    unsuscribe an event.\n");
-    fprintf (stderr, "  <listEndpoints | le>\n");
+    fprintf (stderr, "  <listEndpoints | lep>\n");
     fprintf (stderr, "    list all endpoints.\n");
-    fprintf (stderr, "  <listMethods | lm> <endpoint>\n");
-    fprintf (stderr, "    list all methods of a specific endpoint.\n");
-    fprintf (stderr, "  <listBubble | lb> <endpoint>\n");
-    fprintf (stderr, "    list all bubbles of a specific endpoint.\n");
+    fprintf (stderr, "  <listProcedures | lp> <endpoint>\n");
+    fprintf (stderr, "    list all procedures can be called by the specified endpoint.\n");
+    fprintf (stderr, "  <listEvents | le> <endpoint>\n");
+    fprintf (stderr, "    list all events can be subscribed by the specified endpoint.\n");
     fprintf (stderr, "  <listSubscribers | ls> <endpoint> <BUBBLE>\n");
-    fprintf (stderr, "    list all subscribers of a specific endpoint bubble.\n");
+    fprintf (stderr, "    list all subscribers of the specified endpint bubble.\n");
     fprintf (stderr, "\n");
     fprintf (stderr, "Shortcuts:\n\n");
     fprintf (stderr, "  <F1>\n    print this help message.\n");
@@ -361,16 +361,278 @@ static void on_cmd_play (hibus_conn *conn,
 static void on_cmd_call (hibus_conn *conn,
         const char* endpoint, const char* method, const char* param)
 {
+    int ret_code;
+    char* ret_value;
+    int err_code;
+
+    err_code = hibus_call_procedure_and_wait (conn,
+            endpoint,
+            method,
+            param,
+            HIBUS_DEF_TIME_EXPECTED,
+            &ret_code, &ret_value);
+
+    if (err_code) {
+        fprintf (stderr, "Failed to call procedure %s/%s with parameter %s: %s\n",
+                endpoint, method, param, hibus_get_ret_message (ret_code));
+    }
+    else {
+        fprintf (stderr, "Got result from procedure %s/%s with parameter %s: \n%s\n",
+                endpoint, method, param, ret_value);
+
+        free (ret_value);
+    }
+}
+
+static void cb_generic_event (hibus_conn* conn,
+        const char* from_endpoint, const char* from_bubble,
+        const char* bubble_data)
+{
+    fprintf (stderr, "\nGot an event from (%s/%s):\n%s\n",
+            from_endpoint, from_bubble, bubble_data);
 }
 
 static void on_cmd_subscribe (hibus_conn *conn,
         const char* endpoint, const char* bubble)
 {
+    int err_code;
+
+    err_code = hibus_subscribe_event (conn, endpoint, bubble, cb_generic_event);
+
+    if (err_code) {
+        fprintf (stderr, "Failed to subscribe event: %s/%s: %s (%d)\n",
+                endpoint, bubble,
+                hibus_get_err_message (err_code), err_code);
+    }
+    else {
+        fprintf (stderr, "Subscribed event: %s/%s\n",
+                endpoint, bubble);
+    }
 }
 
 static void on_cmd_unsubscribe (hibus_conn *conn,
         const char* endpoint, const char* bubble)
 {
+    int err_code;
+
+    err_code = hibus_unsubscribe_event (conn, endpoint, bubble);
+
+    if (err_code) {
+        fprintf (stderr, "Failed to unsubscribe event: %s/%s: %s (%d)\n",
+                endpoint, bubble,
+                hibus_get_err_message (err_code), err_code);
+    }
+    else {
+        fprintf (stderr, "Unsubscribed event: %s/%s\n",
+                endpoint, bubble);
+    }
+}
+
+static int on_result_list_procedures (hibus_conn* conn,
+        const char* from_endpoint, const char* from_method,
+        int ret_code, const char* ret_value)
+{
+    if (ret_code == HIBUS_SC_OK) {
+        struct run_info *info = hibus_conn_get_user_data (conn);
+        bool first_time = true;
+
+        if (info->jo_endpoints) {
+            first_time = false;
+            json_object_put (info->jo_endpoints);
+        }
+        else {
+        }
+
+        info->jo_endpoints = hibus_json_object_from_string (ret_value,
+                strlen (ret_value), 5);
+        if (info->jo_endpoints == NULL) {
+            ULOG_ERR ("Failed to build JSON object for endpoints:\n%s\n", ret_value);
+        }
+        else if (first_time) {
+            json_object_to_fd (2, info->jo_endpoints,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+            fputs ("\n", stderr);
+        }
+
+        return 0;
+    }
+    else if (ret_code == HIBUS_SC_ACCEPTED) {
+        ULOG_WARN ("The server accepted the call\n");
+    }
+    else {
+        ULOG_WARN ("Unexpected return code: %d\n", ret_code);
+    }
+
+    return -1;
+}
+
+static void on_cmd_list_endpoints (hibus_conn* conn)
+{
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    if (info->jo_endpoints) {
+        fputs ("ENDPOINTS:\n", stderr);
+        json_object_to_fd (2, info->jo_endpoints,
+                JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+        fputs ("\n", stderr);
+    }
+    else {
+        fputs ("WAIT A MOMENT...\n", stderr);
+    }
+
+    hibus_call_procedure (conn,
+            info->builtin_endpoint,
+            "listEndpoints",
+            "",
+            HIBUS_DEF_TIME_EXPECTED,
+            on_result_list_procedures);
+}
+
+static void on_cmd_show_history (hibus_conn* conn)
+{
+    int i;
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    fputs ("History commands:\n", stderr);
+
+    for (i = 0; i < LEN_HISTORY_BUF; i++) {
+        if (info->history_cmds [i]) {
+            fprintf (stderr, "%d) %s\n", i, info->history_cmds [i]);
+        }
+        else
+            break;
+    }
+}
+
+static void on_cmd_list_procedures (hibus_conn *conn,
+        const char* endpoint)
+{
+    int err_code;
+    int ret_code;
+    char *ret_value;
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    err_code = hibus_call_procedure_and_wait (conn,
+            info->builtin_endpoint,
+            "listProcedures",
+            endpoint,
+            HIBUS_DEF_TIME_EXPECTED,
+            &ret_code, &ret_value);
+
+    if (err_code) {
+        fprintf (stderr, "Failed to call listProcedures on endpoint %s: %s\n",
+                endpoint, hibus_get_err_message (err_code));
+    }
+    else {
+        hibus_json *jo;
+
+        fprintf (stderr, "Procedures can be called by %s:\n", endpoint);
+
+        jo = hibus_json_object_from_string (ret_value,
+                strlen (ret_value), 5);
+        if (jo == NULL) {
+            fprintf (stderr, "Bad result:\n%s\n", ret_value);
+        }
+        else {
+            json_object_to_fd (2, jo,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+            fputs ("\n", stderr);
+        }
+
+        free (ret_value);
+    }
+}
+
+static void on_cmd_list_events (hibus_conn *conn,
+        const char* endpoint)
+{
+    int err_code;
+    int ret_code;
+    char *ret_value;
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    err_code = hibus_call_procedure_and_wait (conn,
+            info->builtin_endpoint,
+            "listEvents",
+            endpoint,
+            HIBUS_DEF_TIME_EXPECTED,
+            &ret_code, &ret_value);
+
+    if (err_code) {
+        fprintf (stderr, "Failed to call listEvents for endpoint %s: %s\n",
+                endpoint, hibus_get_err_message (err_code));
+    }
+    else {
+        hibus_json *jo;
+
+        fprintf (stderr, "Events can be subscribed by %s:\n", endpoint);
+
+        jo = hibus_json_object_from_string (ret_value,
+                strlen (ret_value), 5);
+        if (jo == NULL) {
+            fprintf (stderr, "Bad result:\n%s\n", ret_value);
+        }
+        else {
+            json_object_to_fd (2, jo,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+            fputs ("\n", stderr);
+        }
+
+        free (ret_value);
+    }
+}
+
+static void on_cmd_list_subscribers (hibus_conn *conn,
+        const char* endpoint, const char* bubble)
+{
+    int n, err_code;
+    int ret_code;
+    char *ret_value;
+    struct run_info *info = hibus_conn_get_user_data (conn);
+    char param_buff [HIBUS_MIN_PACKET_BUFF_SIZE];
+
+    n = snprintf (param_buff, sizeof (param_buff), 
+            "{"
+            "\"endpointName\": \"%s\","
+            "\"bubbleName\": \"%s\""
+            "}",
+            endpoint,
+            bubble);
+
+    if (n >= sizeof (param_buff)) {
+        fprintf (stderr, "Too small parameter buffer.\n");
+        return;
+    }
+
+    err_code = hibus_call_procedure_and_wait (conn,
+            info->builtin_endpoint,
+            "listEventSubscribers",
+            param_buff,
+            HIBUS_DEF_TIME_EXPECTED,
+            &ret_code, &ret_value);
+
+    if (err_code) {
+        fprintf (stderr, "Failed to call listEventSubscribers for endpoint bubble %s/%s: %s\n",
+                endpoint, bubble, hibus_get_err_message (err_code));
+    }
+    else {
+        hibus_json *jo;
+
+        fprintf (stderr, "Subscribers of %s/%s:\n", endpoint, bubble);
+
+        jo = hibus_json_object_from_string (ret_value,
+                strlen (ret_value), 5);
+        if (jo == NULL) {
+            fprintf (stderr, "Bad result:\n%s\n", ret_value);
+        }
+        else {
+            json_object_to_fd (2, jo,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+            fputs ("\n", stderr);
+        }
+
+        free (ret_value);
+    }
 }
 
 static void history_save_command (struct run_info *info, const char* cmd)
@@ -503,97 +765,6 @@ static void use_history_command (hibus_conn* conn, bool prev)
     }
 }
 
-static int on_result_list_procedures (hibus_conn* conn,
-        const char* from_endpoint, const char* from_method,
-        int ret_code, const char* ret_value)
-{
-    if (ret_code == HIBUS_SC_OK) {
-        struct run_info *info = hibus_conn_get_user_data (conn);
-        bool first_time = true;
-
-        if (info->jo_endpoints) {
-            first_time = false;
-            json_object_put (info->jo_endpoints);
-        }
-        else {
-        }
-
-        info->jo_endpoints = hibus_json_object_from_string (ret_value,
-                strlen (ret_value), 5);
-        if (info->jo_endpoints == NULL) {
-            ULOG_ERR ("Failed to build JSON object for endpoints:\n%s\n", ret_value);
-        }
-        else if (first_time) {
-            json_object_to_fd (2, info->jo_endpoints,
-                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
-            fputs ("\n", stderr);
-        }
-
-        return 0;
-    }
-    else if (ret_code == HIBUS_SC_ACCEPTED) {
-        ULOG_WARN ("The server accepted the call\n");
-    }
-    else {
-        ULOG_WARN ("Unexpected return code: %d\n", ret_code);
-    }
-
-    return -1;
-}
-
-static void on_cmd_list_endpoints (hibus_conn* conn)
-{
-    struct run_info *info = hibus_conn_get_user_data (conn);
-
-    if (info->jo_endpoints) {
-        fputs ("ENDPOINTS:\n", stderr);
-        json_object_to_fd (2, info->jo_endpoints,
-                JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
-        fputs ("\n", stderr);
-    }
-    else {
-        fputs ("WAIT A MOMENT...\n", stderr);
-    }
-
-    hibus_call_procedure (conn,
-            info->builtin_endpoint,
-            "listEndpoints",
-            "",
-            HIBUS_DEF_TIME_EXPECTED,
-            on_result_list_procedures);
-}
-
-static void on_cmd_show_history (hibus_conn* conn)
-{
-    int i;
-    struct run_info *info = hibus_conn_get_user_data (conn);
-
-    fputs ("History commands:\n", stderr);
-
-    for (i = 0; i < LEN_HISTORY_BUF; i++) {
-        if (info->history_cmds [i]) {
-            fprintf (stderr, "%d) %s\n", i, info->history_cmds [i]);
-        }
-        else
-            break;
-    }
-}
-
-static void on_cmd_list_methods (hibus_conn *conn,
-        const char* endpoint)
-{
-}
-
-static void on_cmd_list_bubbles (hibus_conn *conn,
-        const char* endpoint)
-{
-}
-
-static void on_cmd_list_subscribers (hibus_conn *conn,
-        const char* endpoint, const char* bubble)
-{
-}
-
 static void on_confirm_command (hibus_conn *conn)
 {
     int i;
@@ -717,12 +888,12 @@ static void on_confirm_command (hibus_conn *conn)
             on_cmd_list_endpoints (conn);
             break;
 
-        case CMD_LIST_METHODS:
-            on_cmd_list_methods (conn, args[0]);
+        case CMD_LIST_PROCEDURES:
+            on_cmd_list_procedures (conn, args[0]);
             break;
 
-        case CMD_LIST_BUBBLES:
-            on_cmd_list_bubbles (conn, args[0]);
+        case CMD_LIST_EVENTS:
+            on_cmd_list_events (conn, args[0]);
             break;
 
         case CMD_LIST_SUBSCRIBERS:
@@ -957,14 +1128,6 @@ static int my_echo_result (hibus_conn* conn,
     return -1;
 }
 
-static void my_clock_event (hibus_conn* conn,
-        const char* from_endpoint, const char* from_bubble,
-        const char* bubble_data)
-{
-    fprintf (stderr, "\nGot an event from (%s/%s):\n%s\n",
-            from_endpoint, from_bubble, bubble_data);
-}
-
 static void format_current_time (char* buff, size_t sz)
 {
     struct tm tm;
@@ -1143,7 +1306,7 @@ int main (int argc, char **argv)
             hibus_get_err_message (err_code), err_code);
 
     err_code = hibus_subscribe_event (conn, the_client.self_endpoint, "clock",
-            my_clock_event);
+            cb_generic_event);
     ULOG_INFO ("error message for hibus_subscribe_event: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
