@@ -356,6 +356,12 @@ static void on_cmd_exit (hibus_conn *conn)
 static void on_cmd_play (hibus_conn *conn,
         const char* game, long nr_players, const char* param)
 {
+    if (strcasecmp (game, "drum") == 0) {
+        start_drum_game (conn, nr_players, param);
+    }
+    else {
+        fprintf (stderr, "Unknown game: %s\n", game);
+    }
 }
 
 static void on_cmd_call (hibus_conn *conn,
