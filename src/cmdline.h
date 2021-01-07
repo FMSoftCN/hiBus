@@ -34,6 +34,8 @@
 
 #define LEN_EDIT_BUFF       1023
 
+#define LEN_HISTORY_BUF     128
+
 #define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
 
 /* original terminal modes */
@@ -60,6 +62,12 @@ struct run_info {
 
     char edit_buff [LEN_EDIT_BUFF + 1];
     int curr_edit_pos;
+    bool edited;
+
+    int nr_history_cmds;
+    int curr_history_idx;
+    char* history_cmds [LEN_HISTORY_BUF];
+    char* saved_buff;
 
     /* fields for drum-game */
     int nr_players;

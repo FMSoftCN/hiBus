@@ -245,9 +245,9 @@ static int setup_signals (void)
     return 0;
 }
 
-static void on_cmd_help (hibus_conn *conn)
+static void print_copying (void)
 {
-    fprintf (stderr, "\n"
+    fprintf (stderr,
             "\n"
             "hiBus - the data bus system for HybridOS.\n"
             "\n"
@@ -266,45 +266,26 @@ static void on_cmd_help (hibus_conn *conn)
             "along with this program.  If not, see http://www.gnu.org/licenses/.\n"
             );
     fprintf (stderr, "\n");
-    fprintf (stderr, "Commands:\n\n");
-    fprintf (stderr, "\t<help | h>\n");
-    fprintf (stderr, "\t\tprint this help message.\n");
-    fprintf (stderr, "\t<exit | x>\n");
-    fprintf (stderr, "\t\texit this hiBus command line program.\n");
-    fprintf (stderr, "\t<call | c> <endpoint> <method> [parameters]\n");
-    fprintf (stderr, "\t\tcall a procedure\n");
-    fprintf (stderr, "\t<subscribe | sub> <endpoint> <BUBBLE>\n");
-    fprintf (stderr, "\t\tsuscribe an event.\n");
-    fprintf (stderr, "\t<unsubscribe | unsub> <endpoint> <BUBBLE>\n");
-    fprintf (stderr, "\t\tunsuscribe an event.\n");
-    fprintf (stderr, "\n");
-    fprintf (stderr, "Shortcuts:\n\n");
-    fprintf (stderr, "\t<F1>\n\t\tprint this help message.\n");
-    fprintf (stderr, "\t<F2>\n\t\tlist all endpoints.\n");
-    fprintf (stderr, "\t<ESC>\n\t\texit this hiBus command line program.\n");
-    //fprintf (stderr, "\t<TAB>\n\t\tauto complete the command.\n");
-    fprintf (stderr, "\t<UP>/<DOWN>\n\t\tswitch among available values when editing command line.\n");
-    fprintf (stderr, "\n");
 }
 
-static void on_cmd_exit (hibus_conn *conn)
+// move cursor to the start of the current line and erase whole line
+static inline void console_reset_line (void)
 {
-    struct run_info *info = hibus_conn_get_user_data (conn);
-
-    assert (info);
-
-    fputs ("\nExiting...\n", stderr);
-    info->running = false;
-}
-
-static void print_prompt (hibus_conn *conn)
-{
-    struct run_info *info = hibus_conn_get_user_data (conn);
-
-    assert (info);
-
-    // move cursor to the start of the current line and erase whole line
     fputs ("\x1B[0G\x1B[2K", stderr);
+}
+
+static inline void console_beep (void)
+{
+    putc (0x07, stderr);
+}
+
+static void console_print_prompt (hibus_conn *conn, bool reset_history)
+{
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    assert (info);
+
+    console_reset_line ();
     fputs ("hiBusCL >> ", stderr);
 
     // reset the command line buffers
@@ -317,6 +298,59 @@ static void print_prompt (hibus_conn *conn)
 #endif
     info->edit_buff [0] = '\0';
     info->curr_edit_pos = 0;
+
+    if (reset_history) {
+        info->curr_history_idx = -1;
+        if (info->saved_buff) {
+            free (info->saved_buff);
+            info->saved_buff = NULL;
+        }
+        info->edited = false;
+    }
+}
+
+static void on_cmd_help (hibus_conn *conn)
+{
+    fprintf (stderr, "Commands:\n\n");
+    fprintf (stderr, "  <help | h>\n");
+    fprintf (stderr, "    print this help message.\n");
+    fprintf (stderr, "  <exit | x>\n");
+    fprintf (stderr, "    exit this hiBus command line program.\n");
+    fprintf (stderr, "  <play | p> <game> <number of players> <parameters>\n");
+    fprintf (stderr, "    play a game\n");
+    fprintf (stderr, "  <call | c> <endpoint> <method> <parameters>\n");
+    fprintf (stderr, "    call a procedure\n");
+    fprintf (stderr, "  <subscribe | sub> <endpoint> <BUBBLE>\n");
+    fprintf (stderr, "    suscribe an event.\n");
+    fprintf (stderr, "  <unsubscribe | unsub> <endpoint> <BUBBLE>\n");
+    fprintf (stderr, "    unsuscribe an event.\n");
+    fprintf (stderr, "  <listEndpoints | le>\n");
+    fprintf (stderr, "    list all endpoints.\n");
+    fprintf (stderr, "  <listMethods | lm> <endpoint>\n");
+    fprintf (stderr, "    list all methods of a specific endpoint.\n");
+    fprintf (stderr, "  <listBubble | lb> <endpoint>\n");
+    fprintf (stderr, "    list all bubbles of a specific endpoint.\n");
+    fprintf (stderr, "  <listSubscribers | ls> <endpoint> <BUBBLE>\n");
+    fprintf (stderr, "    list all subscribers of a specific endpoint bubble.\n");
+    fprintf (stderr, "\n");
+    fprintf (stderr, "Shortcuts:\n\n");
+    fprintf (stderr, "  <F1>\n    print this help message.\n");
+    fprintf (stderr, "  <F2>\n    list all endpoints.\n");
+    fprintf (stderr, "  <F3>\n    show history command.\n");
+    fprintf (stderr, "  <ESC>\n    exit this hiBus command line program.\n");
+    //fprintf (stderr, "\t<TAB>\n\t\tauto complete the command.\n");
+    fprintf (stderr, "  <UP>/<DOWN>\n   switch among history.\n");
+    fprintf (stderr, "\n");
+}
+
+static void on_cmd_exit (hibus_conn *conn)
+{
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    assert (info);
+
+    fputs ("Exiting...\n", stderr);
+    info->running = false;
 }
 
 static void on_cmd_play (hibus_conn *conn,
@@ -339,8 +373,210 @@ static void on_cmd_unsubscribe (hibus_conn *conn,
 {
 }
 
-static void on_cmd_list_endpoints (hibus_conn *conn)
+static void history_save_command (struct run_info *info, const char* cmd)
 {
+    int pos;
+
+    if (cmd [0] == '\0')
+        return;
+
+    if (info->nr_history_cmds > 0) {
+        pos = (info->nr_history_cmds - 1) % LEN_HISTORY_BUF;
+        if (cmd [0] && strcasecmp (info->history_cmds [pos], cmd) == 0)
+            return;
+    }
+
+    pos = info->nr_history_cmds % LEN_HISTORY_BUF;
+    info->nr_history_cmds++;
+
+    if (info->history_cmds [pos]) {
+        free (info->history_cmds [pos]);
+    }
+    else  {
+        info->history_cmds [pos] = strdup (cmd);
+    }
+
+    info->curr_history_idx = -1;
+}
+
+static void history_clear (struct run_info *info)
+{
+    int i;
+
+    for (i = 0; i < LEN_HISTORY_BUF; i++) {
+        if (info->history_cmds [i]) {
+            free (info->history_cmds [i]);
+            info->history_cmds [i] = NULL;
+        }
+    }
+
+    if (info->saved_buff) {
+        free (info->saved_buff);
+        info->saved_buff = NULL;
+    }
+
+    info->curr_history_idx = -1;
+}
+
+static const char* history_get_next (struct run_info *info)
+{
+    int pos;
+
+    if (info->nr_history_cmds <= 0)
+        return NULL;
+
+    if (info->curr_history_idx < 0) {
+        info->curr_history_idx = 0;
+    }
+    else if (info->curr_history_idx < info->nr_history_cmds - 1) {
+        info->curr_history_idx++;
+    }
+    else {
+        return NULL;
+    }
+
+    pos = info->curr_history_idx % LEN_HISTORY_BUF;
+    return info->history_cmds [pos];
+}
+
+static const char* history_get_prev (struct run_info *info)
+{
+    int pos;
+
+    if (info->nr_history_cmds <= 0)
+        return NULL;
+
+    if (info->curr_history_idx < 0) {
+        info->curr_history_idx = info->nr_history_cmds - 1;
+    }
+    else if (info->curr_history_idx > 0) {
+        info->curr_history_idx--;
+    }
+    else {
+        return NULL;
+    }
+
+    pos = info->curr_history_idx % LEN_HISTORY_BUF;
+    return info->history_cmds [pos];
+}
+
+static void use_history_command (hibus_conn* conn, bool prev)
+{
+    struct run_info *info = hibus_conn_get_user_data (conn);
+    const char* cmd;
+   
+    if (info->edited) {
+        if (info->saved_buff)
+            free (info->saved_buff);
+
+        if (info->edit_buff[0]) {
+            info->saved_buff = strdup (info->edit_buff);
+        }
+        else {
+            info->saved_buff = strdup ("");
+        }
+    }
+
+    if (prev)
+        cmd = history_get_prev (info);
+    else
+        cmd = history_get_next (info);
+
+    if (cmd == NULL) {
+        if (info->saved_buff)
+            cmd = info->saved_buff;
+        else
+            cmd = "";
+        console_beep ();
+    }
+
+    if (cmd) {
+        int len = strlen (cmd);
+
+        assert (len < LEN_EDIT_BUFF);
+
+        console_print_prompt (conn, false);
+        fputs (cmd, stderr);
+        strcpy (info->edit_buff, cmd);
+        info->edited = false;
+        info->curr_edit_pos = len;
+    }
+}
+
+static int on_result_list_procedures (hibus_conn* conn,
+        const char* from_endpoint, const char* from_method,
+        int ret_code, const char* ret_value)
+{
+    if (ret_code == HIBUS_SC_OK) {
+        struct run_info *info = hibus_conn_get_user_data (conn);
+        bool first_time = true;
+
+        if (info->jo_endpoints) {
+            first_time = false;
+            json_object_put (info->jo_endpoints);
+        }
+        else {
+        }
+
+        info->jo_endpoints = hibus_json_object_from_string (ret_value,
+                strlen (ret_value), 5);
+        if (info->jo_endpoints == NULL) {
+            ULOG_ERR ("Failed to build JSON object for endpoints:\n%s\n", ret_value);
+        }
+        else if (first_time) {
+            json_object_to_fd (2, info->jo_endpoints,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+            fputs ("\n", stderr);
+        }
+
+        return 0;
+    }
+    else if (ret_code == HIBUS_SC_ACCEPTED) {
+        ULOG_WARN ("The server accepted the call\n");
+    }
+    else {
+        ULOG_WARN ("Unexpected return code: %d\n", ret_code);
+    }
+
+    return -1;
+}
+
+static void on_cmd_list_endpoints (hibus_conn* conn)
+{
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    if (info->jo_endpoints) {
+        fputs ("ENDPOINTS:\n", stderr);
+        json_object_to_fd (2, info->jo_endpoints,
+                JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
+        fputs ("\n", stderr);
+    }
+    else {
+        fputs ("WAIT A MOMENT...\n", stderr);
+    }
+
+    hibus_call_procedure (conn,
+            info->builtin_endpoint,
+            "listEndpoints",
+            "",
+            HIBUS_DEF_TIME_EXPECTED,
+            on_result_list_procedures);
+}
+
+static void on_cmd_show_history (hibus_conn* conn)
+{
+    int i;
+    struct run_info *info = hibus_conn_get_user_data (conn);
+
+    fputs ("History commands:\n", stderr);
+
+    for (i = 0; i < LEN_HISTORY_BUF; i++) {
+        if (info->history_cmds [i]) {
+            fprintf (stderr, "%d) %s\n", i, info->history_cmds [i]);
+        }
+        else
+            break;
+    }
 }
 
 static void on_cmd_list_methods (hibus_conn *conn,
@@ -367,6 +603,13 @@ static void on_confirm_command (hibus_conn *conn)
     const char* args [NR_CMD_ARGS] = { NULL };
     int *arg_types;
     char *saveptr;
+
+    if (info->edit_buff [0] == '\0')
+        goto done;
+
+    history_save_command (info, info->edit_buff);
+
+    fputs ("\n", stderr);
 
     cmd = strtok_r (info->edit_buff, " ", &saveptr);
     if (cmd == NULL) {
@@ -490,11 +733,13 @@ static void on_confirm_command (hibus_conn *conn)
             break;
     }
 
-    print_prompt (conn);
+done:
+    console_print_prompt (conn, true);
     return;
 
 bad_cmd_line:
     if (curr_cmd) {
+        fputs ("Bad arguments; sample:\n", stderr);
         fputs (curr_cmd->sample, stderr);
         fputs ("\n", stderr);
     }
@@ -502,7 +747,7 @@ bad_cmd_line:
         on_cmd_help (conn);
     }
 
-    print_prompt (conn);
+    console_print_prompt (conn, true);
 }
 
 static void on_append_char (hibus_conn *conn, int ch)
@@ -512,6 +757,8 @@ static void on_append_char (hibus_conn *conn, int ch)
     if (info->curr_edit_pos < LEN_EDIT_BUFF) {
         info->edit_buff [info->curr_edit_pos++] = ch;
         info->edit_buff [info->curr_edit_pos] = '\0';
+        info->edited = true;
+
         putc (ch, stderr);
     }
     else {
@@ -525,71 +772,13 @@ static void on_delete_char (hibus_conn *conn)
 
     if (info->curr_edit_pos > 0) {
         info->edit_buff [--info->curr_edit_pos] = '\0';
+        info->edited = true;
+
         fputs ("\x1B[1D\x1B[1X", stderr);
     }
     else {
         putc (0x07, stderr);    // beep
     }
-}
-
-static int on_result_list_procedures (hibus_conn* conn,
-        const char* from_endpoint, const char* from_method,
-        int ret_code, const char* ret_value)
-{
-    if (ret_code == HIBUS_SC_OK) {
-        struct run_info *info = hibus_conn_get_user_data (conn);
-        bool first_time = true;
-
-        if (info->jo_endpoints) {
-            first_time = false;
-            json_object_put (info->jo_endpoints);
-        }
-        else {
-        }
-
-        info->jo_endpoints = hibus_json_object_from_string (ret_value,
-                strlen (ret_value), 5);
-        if (info->jo_endpoints == NULL) {
-            ULOG_ERR ("Failed to build JSON object for endpoints:\n%s\n", ret_value);
-        }
-        else if (first_time) {
-            json_object_to_fd (2, info->jo_endpoints,
-                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
-            fputs ("\n", stderr);
-        }
-
-        return 0;
-    }
-    else if (ret_code == HIBUS_SC_ACCEPTED) {
-        ULOG_WARN ("The server accepted the call\n");
-    }
-    else {
-        ULOG_WARN ("Unexpected return code: %d\n", ret_code);
-    }
-
-    return -1;
-}
-
-static void on_list_endpoints (hibus_conn* conn)
-{
-    struct run_info *info = hibus_conn_get_user_data (conn);
-
-    if (info->jo_endpoints) {
-        fputs ("\nENDPOINTS:\n", stderr);
-        json_object_to_fd (2, info->jo_endpoints,
-                JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
-        fputs ("\n", stderr);
-    }
-    else {
-        fputs ("\nWAIT A MOMENT...\n", stderr);
-    }
-
-    hibus_call_procedure (conn,
-            info->builtin_endpoint,
-            "listEndpoints",
-            "",
-            HIBUS_DEF_TIME_EXPECTED,
-            on_result_list_procedures);
 }
 
 static void handle_tty_input (hibus_conn *conn)
@@ -635,11 +824,13 @@ static void handle_tty_input (hibus_conn *conn)
                     on_cmd_exit (conn);
                 }
                 else if (strncmp (buff + i, "\x1b\x5b\x41", 3) == 0) {
-                    fputs ("UP", stderr);
+                    //fputs ("UP", stderr);
+                    use_history_command (conn, true);
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1b\x5b\x42", 3) == 0) {
-                    fputs ("DOWN", stderr);
+                    //fputs ("DOWN", stderr);
+                    use_history_command (conn, false);
                     i += 3;
                 }
                 else if (strncmp (buff + i, "\x1b\x5b\x43", 3) == 0) {
@@ -675,20 +866,22 @@ static void handle_tty_input (hibus_conn *conn)
                     i += 4;
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x50", 3) == 0) {
-                    fputs ("F1", stderr);
+                    fputs ("F1\n", stderr);
                     i += 3;
                     on_cmd_help (conn);
-                    print_prompt (conn);
+                    console_print_prompt (conn, true);
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x51", 3) == 0) {
-                    fputs ("F2", stderr);
+                    fputs ("F2\n", stderr);
                     i += 3;
-                    on_list_endpoints (conn);
-                    print_prompt (conn);
+                    on_cmd_list_endpoints (conn);
+                    console_print_prompt (conn, true);
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x52", 3) == 0) {
-                    //fputs ("F3", stderr);
+                    fputs ("F3\n", stderr);
                     i += 3;
+                    on_cmd_show_history (conn);
+                    console_print_prompt (conn, true);
                 }
                 else if (strncmp (buff + i, "\x1B\x4F\x53", 3) == 0) {
                     //fputs ("F4", stderr);
@@ -768,7 +961,7 @@ static void my_clock_event (hibus_conn* conn,
         const char* from_endpoint, const char* from_bubble,
         const char* bubble_data)
 {
-    fprintf (stderr, "Got an event from (%s/%s):\n%s\n",
+    fprintf (stderr, "\nGot an event from (%s/%s):\n%s\n",
             from_endpoint, from_bubble, bubble_data);
 }
 
@@ -891,6 +1084,8 @@ int main (int argc, char **argv)
     struct timeval tv;
     char curr_time [16];
 
+    print_copying ();
+
     ulog_open (-1, -1, "hiBusCL");
 
     the_client.running = true;
@@ -921,6 +1116,7 @@ int main (int argc, char **argv)
             the_client.self_endpoint);
 
     the_client.ttyfd = ttyfd;
+    the_client.curr_history_idx = -1;
     hibus_conn_set_user_data (conn, &the_client);
 
     if (test_basic_functions (conn))
@@ -971,7 +1167,7 @@ int main (int argc, char **argv)
         goto failed;
     }
 
-    print_prompt (conn);
+    console_print_prompt (conn, true);
     maxfd = cnnfd > ttyfd ? cnnfd : ttyfd;
     do {
         int retval;
@@ -1000,7 +1196,7 @@ int main (int argc, char **argv)
                     break;
                 }
 
-                print_prompt (conn);
+                console_print_prompt (conn, true);
             }
             else if (FD_ISSET (ttyfd, &rfds)) {
                 handle_tty_input (conn);
@@ -1033,7 +1229,10 @@ int main (int argc, char **argv)
                 err_code, hibus_get_err_message (err_code));
     }
 
+    // cleanup
     json_object_put (the_client.jo_endpoints);
+
+    history_clear (&the_client);
 
     fputs ("\n", stderr);
 
