@@ -586,6 +586,14 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     char result_id [HIBUS_LEN_UNIQUE_ID + 1], *result, *escaped_result = NULL;
     char* packet_buff = buff_in_stack;
 
+    if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
+            (call_id = json_object_get_string (jo_tmp))) {
+    }
+    else {
+        ret_code = HIBUS_SC_BAD_REQUEST;
+        goto done;
+    }
+
     if (json_object_object_get_ex (jo, "toEndpoint", &jo_tmp)) {
         if ((str_tmp = json_object_get_string (jo_tmp))) {
             void *data;
@@ -624,14 +632,6 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
             ret_code = HIBUS_SC_BAD_REQUEST;
             goto done;
         }
-    }
-    else {
-        ret_code = HIBUS_SC_BAD_REQUEST;
-        goto done;
-    }
-
-    if (json_object_object_get_ex (jo, "callId", &jo_tmp) &&
-            (call_id = json_object_get_string (jo_tmp))) {
     }
     else {
         ret_code = HIBUS_SC_BAD_REQUEST;
@@ -1457,6 +1457,16 @@ int subscribe_event (BusServer *bus_srv, BusEndpoint* endpoint,
         ULOG_ERR ("Duplicated subscriber (%s) for bubble: %s\n",
                 subscriber_name, normalized_name);
         return HIBUS_SC_CONFLICT;
+    }
+
+    if (!match_pattern (&info->host_patt_list, subscriber->host_name,
+                1, HIBUS_PATTERN_VAR_SELF, endpoint->host_name)) {
+        return HIBUS_SC_FORBIDDEN;
+    }
+
+    if (!match_pattern (&info->app_patt_list, subscriber->app_name,
+                1, HIBUS_PATTERN_VAR_OWNER, endpoint->app_name)) {
+        return HIBUS_SC_FORBIDDEN;
     }
 
     if (!kvlist_set (&subscriber->subscribed_list, event_name, &endpoint))
