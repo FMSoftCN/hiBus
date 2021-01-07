@@ -500,25 +500,83 @@ builtin_method_list_procedures (BusServer *bus_srv,
 
     n = 0;
     printbuf_strappend (pb, "[");
-    kvlist_for_each (&bus_srv->endpoint_list, endpoint_name, data) {
-        const char *method_name;
-        void *sub_data;
-        BusEndpoint* endpoint = *(BusEndpoint **)data;
+    if (hibus_is_valid_endpoint_name (method_param)) {
+        char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        kvlist_for_each (&endpoint->method_list, method_name, sub_data) {
+        hibus_name_tolower_copy (method_param, normalized_name,
+                HIBUS_LEN_ENDPOINT_NAME);
 
-            printbuf_strappend (pb, "\"");
-            printbuf_memappend (pb, endpoint_name, 0);
-            printbuf_strappend (pb, "/");
-            printbuf_memappend (pb, method_name, 0);
-            printbuf_strappend (pb, "\",");
+        if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
+            const char *method_name;
+            void *sub_data;
+            BusEndpoint* endpoint = *(BusEndpoint **)data;
+            int nr_methods = 0;
+
+            printbuf_strappend (pb, "{\"endpointName\":");
+            sprintbuf (pb, "\"%s\",", normalized_name);
+
+            printbuf_strappend (pb, "\"methods\": [");
+            kvlist_for_each (&endpoint->method_list, method_name, sub_data) {
+                MethodInfo *method_info = *(MethodInfo **)sub_data;
+
+                if (match_pattern (&method_info->host_patt_list, from->host_name,
+                            1, HIBUS_PATTERN_VAR_SELF, endpoint->host_name) &&
+                        match_pattern (&method_info->app_patt_list, from->app_name,
+                            1, HIBUS_PATTERN_VAR_OWNER, endpoint->app_name)) {
+
+                    printbuf_strappend (pb, "\"");
+                    printbuf_memappend (pb, method_name, 0);
+                    printbuf_strappend (pb, "\",");
+
+                    nr_methods++;
+                }
+            }
+
+            if (nr_methods > 0) {
+                printbuf_shrink (pb, 1);
+            }
+            printbuf_strappend (pb, "]}");
         }
-        n++;
     }
+    else {
+        kvlist_for_each (&bus_srv->endpoint_list, endpoint_name, data) {
+            const char *method_name;
+            void *sub_data;
+            BusEndpoint* endpoint = *(BusEndpoint **)data;
+            int nr_methods = 0;
+
+            printbuf_strappend (pb, "{\"endpointName\":");
+            sprintbuf (pb, "\"%s\",", endpoint_name);
+
+            printbuf_strappend (pb, "\"methods\": [");
+            kvlist_for_each (&endpoint->method_list, method_name, sub_data) {
+                MethodInfo *method_info = *(MethodInfo **)sub_data;
+
+                if (match_pattern (&method_info->host_patt_list, from->host_name,
+                            1, HIBUS_PATTERN_VAR_SELF, endpoint->host_name) &&
+                        match_pattern (&method_info->app_patt_list, from->app_name,
+                            1, HIBUS_PATTERN_VAR_OWNER, endpoint->app_name)) {
+
+                    printbuf_strappend (pb, "\"");
+                    printbuf_memappend (pb, method_name, 0);
+                    printbuf_strappend (pb, "\",");
+
+                    nr_methods++;
+                }
+            }
+
+            if (nr_methods > 0) {
+                printbuf_shrink (pb, 1);
+            }
+            printbuf_strappend (pb, "]},");
+
+            n++;
+        }
+    }
+
     if (n > 0) {
         printbuf_shrink (pb, 1);
     }
-
     printbuf_strappend (pb, "]");
 
     *ret_code = HIBUS_SC_OK;
@@ -537,7 +595,7 @@ builtin_method_list_events (BusServer *bus_srv,
 
     assert (from->type != ET_BUILTIN);
     assert (to->type == ET_BUILTIN);
-    assert (strcasecmp (method_name, "listProcedures") == 0);
+    assert (strcasecmp (method_name, "listEvents") == 0);
 
 	if (printbuf_init (pb)) {
         *ret_code = HIBUS_SC_INSUFFICIENT_STORAGE;
@@ -546,25 +604,83 @@ builtin_method_list_events (BusServer *bus_srv,
 
     n = 0;
     printbuf_strappend (pb, "[");
-    kvlist_for_each (&bus_srv->endpoint_list, endpoint_name, data) {
-        const char *bubble_name;
-        void *sub_data;
-        BusEndpoint* endpoint = *(BusEndpoint **)data;
+    if (hibus_is_valid_endpoint_name (method_param)) {
+        char normalized_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        kvlist_for_each (&endpoint->bubble_list, bubble_name, sub_data) {
+        hibus_name_tolower_copy (method_param, normalized_name,
+                HIBUS_LEN_ENDPOINT_NAME);
 
-            printbuf_strappend (pb, "\"");
-            printbuf_memappend (pb, endpoint_name, 0);
-            printbuf_memappend (pb, bubble_name, 0);
-            printbuf_strappend (pb, "\",");
+        if ((data = kvlist_get (&bus_srv->endpoint_list, normalized_name))) {
+            const char *bubble_name;
+            void *sub_data;
+            BusEndpoint* endpoint = *(BusEndpoint **)data;
+            int nr_methods = 0;
+
+            printbuf_strappend (pb, "{\"endpointName\":");
+            sprintbuf (pb, "\"%s\",", normalized_name);
+
+            printbuf_strappend (pb, "\"bubbles\": [");
+            kvlist_for_each (&endpoint->bubble_list, bubble_name, sub_data) {
+                BubbleInfo *bubble_info = *(BubbleInfo **)sub_data;
+
+                if (match_pattern (&bubble_info->host_patt_list, from->host_name,
+                            1, HIBUS_PATTERN_VAR_SELF, endpoint->host_name) &&
+                        match_pattern (&bubble_info->app_patt_list, from->app_name,
+                            1, HIBUS_PATTERN_VAR_OWNER, endpoint->app_name)) {
+
+                    printbuf_strappend (pb, "\"");
+                    printbuf_memappend (pb, bubble_name, 0);
+                    printbuf_strappend (pb, "\",");
+
+                    nr_methods++;
+                }
+            }
+
+            if (nr_methods > 0) {
+                printbuf_shrink (pb, 1);
+            }
+            printbuf_strappend (pb, "]}");
         }
-
-        n++;
     }
+    else {
+        kvlist_for_each (&bus_srv->endpoint_list, endpoint_name, data) {
+            const char *bubble_name;
+            void *sub_data;
+            BusEndpoint* endpoint = *(BusEndpoint **)data;
+            int nr_methods = 0;
+
+            printbuf_strappend (pb, "{\"endpointName\":");
+            sprintbuf (pb, "\"%s\",", endpoint_name);
+
+            printbuf_strappend (pb, "\"bubbles\": [");
+            kvlist_for_each (&endpoint->bubble_list, bubble_name, sub_data) {
+                BubbleInfo *bubble_info = *(BubbleInfo **)sub_data;
+
+                if (match_pattern (&bubble_info->host_patt_list, from->host_name,
+                            1, HIBUS_PATTERN_VAR_SELF, endpoint->host_name) &&
+                        match_pattern (&bubble_info->app_patt_list, from->app_name,
+                            1, HIBUS_PATTERN_VAR_OWNER, endpoint->app_name)) {
+
+                    printbuf_strappend (pb, "\"");
+                    printbuf_memappend (pb, bubble_name, 0);
+                    printbuf_strappend (pb, "\",");
+
+                    nr_methods++;
+                }
+            }
+
+            if (nr_methods > 0) {
+                printbuf_shrink (pb, 1);
+            }
+            printbuf_strappend (pb, "]},");
+
+            n++;
+        }
+    }
+
     if (n > 0) {
         printbuf_shrink (pb, 1);
     }
-
     printbuf_strappend (pb, "]");
 
     *ret_code = HIBUS_SC_OK;
@@ -583,7 +699,7 @@ builtin_method_list_event_subscribers (BusServer *bus_srv,
 
     assert (from->type != ET_BUILTIN);
     assert (to->type == ET_BUILTIN);
-    assert (strcasecmp (method_name, "subscribeEvent") == 0);
+    assert (strcasecmp (method_name, "listEventSubscribers") == 0);
 
     struct printbuf my_buff, *pb = &my_buff;
 
