@@ -25,8 +25,15 @@
 
 #include <termio.h>
 
-#define LEN_COMMAND         63
-#define LEN_LAST_ARGUMENT   1023
+#define NR_CMD_ARGS         4
+
+#define LEN_COMMAND         31
+#define LEN_NORMAL_ARG      HIBUS_LEN_ENDPOINT_NAME
+#define LEN_LAST_ARG        1023
+#define LEN_GAME_NAME       31
+
+#define LEN_EDIT_BUFF       1023
+
 #define TABLESIZE(table)    (sizeof(table)/sizeof(table[0]))
 
 /* original terminal modes */
@@ -42,13 +49,16 @@ struct run_info {
 
     hibus_json *jo_endpoints;
 
+#if 0
     // buffers for current command
     char cmd [LEN_COMMAND + 1];
-    char endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
-    char method_bubble [HIBUS_LEN_METHOD_NAME + 1];
-    char last_arg [LEN_LAST_ARGUMENT + 1];
+    char arg_1st [LEN_NORMAL_ARG + 1];
+    char arg_2nd [LEN_NORMAL_ARG + 1];
+    char arg_3rd [LEN_NORMAL_ARG + 1];
+    char arg_lst [LEN_LAST_ARG + 1];
+#endif
 
-    char* curr_edit_buff;
+    char edit_buff [LEN_EDIT_BUFF + 1];
     int curr_edit_pos;
 
     /* fields for drum-game */

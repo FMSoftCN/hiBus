@@ -49,12 +49,14 @@ static struct run_info the_client;
 enum {
     CMD_HELP = 0,
     CMD_EXIT,
+    CMD_PLAY,
     CMD_CALL,
     CMD_SUBSCRIBE,
     CMD_UNSUBSCRIBE,
     CMD_LIST_ENDPOINTS,
     CMD_LIST_METHODS,
     CMD_LIST_BUBBLES,
+    CMD_LIST_SUBSCRIBERS,
 };
 
 /* argument type */
@@ -63,6 +65,9 @@ enum {
     AT_ENDPOINT,
     AT_METHOD,
     AT_BUBBLE,
+    AT_GAME,
+    AT_INTEGER,
+    AT_STRING,
     AT_JSON,
     AT_MAX_NR_ARGS = AT_JSON,
 };
@@ -71,28 +76,52 @@ static struct cmd_info {
     int cmd;
     const char* long_name;
     const char* short_name;
-    int nr_arguments;
+    const char* sample;
     int type_1st_arg;
     int type_2nd_arg;
     int type_3rd_arg;
     int type_4th_arg;
-} cmd_info [] = {
+} sg_cmd_info [] = {
     { CMD_HELP,
-        "help", "h", 0},
+        "help", "h",
+        "help",
+        AT_NONE, AT_NONE, AT_NONE, AT_NONE },
     { CMD_EXIT,
-        "exit", "x", 0},
+        "exit", "x",
+        "exit",
+        AT_NONE, AT_NONE, AT_NONE, AT_NONE },
+    { CMD_PLAY,
+        "play", "p",
+        "play drum 10 This is a secret",
+        AT_GAME, AT_INTEGER, AT_NONE, AT_STRING, },
     { CMD_CALL,
-        "call", "c", 3, AT_ENDPOINT, AT_METHOD, AT_JSON, },
+        "call", "c", 
+        "call @localhost/cn.fmsoft.hybridos.hibus/builtin echo Hi, there",
+        AT_ENDPOINT, AT_METHOD, AT_NONE, AT_STRING, },
     { CMD_SUBSCRIBE,
-        "subscribe", "sub", 2, AT_ENDPOINT, AT_BUBBLE, },
+        "subscribe", "sub",
+        "sub @localhost/cn.fmsoft.hybridos.hibus/builtin NEWENDPOINT",
+        AT_ENDPOINT, AT_BUBBLE, AT_NONE, AT_NONE, },
     { CMD_UNSUBSCRIBE,
-        "unsubscribe", "unsub", 2, AT_ENDPOINT, AT_BUBBLE, },
+        "unsubscribe", "unsub",
+        "unsub @localhost/cn.fmsoft.hybridos.hibus/builtin NEWENDPOINT" ,
+        AT_ENDPOINT, AT_BUBBLE, AT_NONE, AT_NONE, },
     { CMD_LIST_ENDPOINTS,
-        "listendpoints", "le", 0 },
+        "listendpoints", "le", 
+        "le",
+        AT_NONE, AT_NONE, AT_NONE, AT_NONE, },
     { CMD_LIST_METHODS,
-        "listmethods", "lm", 1, AT_ENDPOINT, },
+        "listmethods", "lm",
+        "lm @localhost/cn.fmsoft.hybridos.hibus/builtin",
+        AT_ENDPOINT, AT_NONE, AT_NONE, AT_NONE, },
     { CMD_LIST_BUBBLES,
-        "listbubbles", "lb", 1, AT_ENDPOINT, },
+        "listbubbles", "lb",
+        "lb @localhost/cn.fmsoft.hybridos.hibus/builtin",
+        AT_ENDPOINT, AT_NONE, AT_NONE, AT_NONE, },
+    { CMD_LIST_SUBSCRIBERS,
+        "listsubscribers", "ls",
+        "ls @localhost/cn.fmsoft.hybridos.hibus/builtin NEWENDPOINT",
+        AT_ENDPOINT, AT_BUBBLE, AT_NONE, AT_NONE, },
 };
 
 static int setup_tty (void)
@@ -278,35 +307,145 @@ static void print_prompt (hibus_conn *conn)
     fputs ("\x1B[0G\x1B[2K", stderr);
     fputs ("hiBusCL >> ", stderr);
 
-    // reset the command information
+    // reset the command line buffers
+#if 0
     info->cmd [0] = '\0';
-    info->endpoint [0] = '\0';
-    info->method_bubble [0] = '\0';
-    info->last_arg [0] = '\0';
-    info->curr_edit_buff = info->cmd;
+    info->arg_1st [0] = '\0';
+    info->arg_2nd [0] = '\0';
+    info->arg_3rd [0] = '\0';
+    info->arg_lst [0] = '\0';
+#endif
+    info->edit_buff [0] = '\0';
     info->curr_edit_pos = 0;
+}
+
+static void on_cmd_play (hibus_conn *conn,
+        const char* game, long nr_players, const char* param)
+{
+}
+
+static void on_cmd_call (hibus_conn *conn,
+        const char* endpoint, const char* method, const char* param)
+{
+}
+
+static void on_cmd_subscribe (hibus_conn *conn,
+        const char* endpoint, const char* bubble)
+{
+}
+
+static void on_cmd_unsubscribe (hibus_conn *conn,
+        const char* endpoint, const char* bubble)
+{
+}
+
+static void on_cmd_list_endpoints (hibus_conn *conn)
+{
+}
+
+static void on_cmd_list_methods (hibus_conn *conn,
+        const char* endpoint)
+{
+}
+
+static void on_cmd_list_bubbles (hibus_conn *conn,
+        const char* endpoint)
+{
+}
+
+static void on_cmd_list_subscribers (hibus_conn *conn,
+        const char* endpoint, const char* bubble)
+{
 }
 
 static void on_confirm_command (hibus_conn *conn)
 {
-    int i, cmd = -1;
+    int i;
     struct run_info *info = hibus_conn_get_user_data (conn);
-    
-    assert (info);
+    struct cmd_info* curr_cmd = NULL;
+    const char* cmd;
+    const char* args [NR_CMD_ARGS] = { NULL };
+    int *arg_types;
+    char *saveptr;
 
-    // fputs ("\n", stderr);
-    // fputs (info->cmd, stderr);
+    cmd = strtok_r (info->edit_buff, " ", &saveptr);
+    if (cmd == NULL) {
+        goto bad_cmd_line;
+    }
 
-    for (i = 0; i < TABLESIZE (cmd_info); i++) {
-        if (strcasecmp (info->cmd, cmd_info[i].short_name) == 0
-                || strcasecmp (info->cmd, cmd_info[i].long_name) == 0) {
+    for (i = 0; i < TABLESIZE (sg_cmd_info); i++) {
+        if (strcasecmp (cmd, sg_cmd_info[i].short_name) == 0
+                || strcasecmp (cmd, sg_cmd_info[i].long_name) == 0) {
 
-            cmd = cmd_info[i].cmd;
+            curr_cmd = sg_cmd_info + i;
             break;
         }
     }
 
-    switch (cmd) {
+    if (curr_cmd == NULL) {
+        goto bad_cmd_line;
+    }
+
+    // check arguments
+    arg_types = &curr_cmd->type_1st_arg;
+    for (i = 0; i < NR_CMD_ARGS; i++) {
+        if (arg_types [i] == AT_NONE) {
+            args [i] = NULL;
+        }
+        else if (i < (NR_CMD_ARGS - 1)) {
+            args [i] = strtok_r (NULL, " ", &saveptr);
+            if (args [i] == NULL)
+                goto bad_cmd_line;
+        }
+        else {
+            args [i] = strtok_r (NULL, "", &saveptr);
+            if (args [i] == NULL)
+                goto bad_cmd_line;
+        }
+
+        switch (arg_types [i]) {
+            case AT_NONE:
+                break;
+
+            case AT_ENDPOINT:
+                if (!hibus_is_valid_endpoint_name (args [i]))
+                    goto bad_cmd_line;
+                break;
+
+            case AT_METHOD:
+                if (!hibus_is_valid_method_name (args [i]))
+                    goto bad_cmd_line;
+                break;
+
+            case AT_BUBBLE:
+                if (!hibus_is_valid_bubble_name (args [i]))
+                    goto bad_cmd_line;
+                break;
+
+            case AT_GAME:
+                if (!hibus_is_valid_token (args [i], LEN_GAME_NAME))
+                    goto bad_cmd_line;
+                break;
+
+            case AT_INTEGER:
+                {
+                    char* endptr;
+                    long l = strtol (args [i], &endptr, 0);
+                    if (l == 0 && endptr == args [i])
+                        goto bad_cmd_line;
+
+                    break;
+                }
+
+            case AT_STRING:
+                break;
+
+            case AT_JSON:
+                break;
+        }
+    }
+
+    switch (curr_cmd->cmd) {
         case CMD_HELP:
             on_cmd_help (conn);
             break;
@@ -315,14 +454,52 @@ static void on_confirm_command (hibus_conn *conn)
             on_cmd_exit (conn);
             return;
 
+        case CMD_PLAY:
+            on_cmd_play (conn, args[0], strtol (args [1], NULL, 0), args [3]);
+            break;
+
         case CMD_CALL:
+            on_cmd_call (conn, args[0], args [1], args [3]);
+            break;
+
         case CMD_SUBSCRIBE:
+            on_cmd_subscribe (conn, args[0], args [1]);
+            break;
+
         case CMD_UNSUBSCRIBE:
+            on_cmd_unsubscribe (conn, args[0], args [1]);
+            break;
+
         case CMD_LIST_ENDPOINTS:
+            on_cmd_list_endpoints (conn);
+            break;
+
         case CMD_LIST_METHODS:
+            on_cmd_list_methods (conn, args[0]);
+            break;
+
         case CMD_LIST_BUBBLES:
+            on_cmd_list_bubbles (conn, args[0]);
+            break;
+
+        case CMD_LIST_SUBSCRIBERS:
+            on_cmd_list_subscribers (conn, args[0], args[1]);
+            break;
+
         default:
             break;
+    }
+
+    print_prompt (conn);
+    return;
+
+bad_cmd_line:
+    if (curr_cmd) {
+        fputs (curr_cmd->sample, stderr);
+        fputs ("\n", stderr);
+    }
+    else {
+        on_cmd_help (conn);
     }
 
     print_prompt (conn);
@@ -332,28 +509,26 @@ static void on_append_char (hibus_conn *conn, int ch)
 {
     struct run_info *info = hibus_conn_get_user_data (conn);
 
-    if (info->curr_edit_buff) {
-        int pos = strlen (info->curr_edit_buff);
-        if (pos < LEN_COMMAND) {
-            info->curr_edit_buff [pos++] = ch;
-            info->curr_edit_buff [pos] = '\0';
-            putc (ch, stderr);
-        }
+    if (info->curr_edit_pos < LEN_EDIT_BUFF) {
+        info->edit_buff [info->curr_edit_pos++] = ch;
+        info->edit_buff [info->curr_edit_pos] = '\0';
+        putc (ch, stderr);
+    }
+    else {
+        putc (0x07, stderr);    // beep
     }
 }
 
 static void on_delete_char (hibus_conn *conn)
 {
-    int pos;
     struct run_info *info = hibus_conn_get_user_data (conn);
 
-    assert (info);
-    if (info->curr_edit_buff) {
-        pos = strlen (info->curr_edit_buff);
-        if (pos > 0) {
-            info->curr_edit_buff [--pos] = '\0';
-            fputs ("\x1B[1D\x1B[1X", stderr);
-        }
+    if (info->curr_edit_pos > 0) {
+        info->edit_buff [--info->curr_edit_pos] = '\0';
+        fputs ("\x1B[1D\x1B[1X", stderr);
+    }
+    else {
+        putc (0x07, stderr);    // beep
     }
 }
 
@@ -593,7 +768,8 @@ static void my_clock_event (hibus_conn* conn,
         const char* from_endpoint, const char* from_bubble,
         const char* bubble_data)
 {
-    ULOG_INFO ("Got an event of (%s): %s\n", from_bubble, bubble_data);
+    fprintf (stderr, "Got an event from (%s/%s):\n%s\n",
+            from_endpoint, from_bubble, bubble_data);
 }
 
 static void format_current_time (char* buff, size_t sz)
