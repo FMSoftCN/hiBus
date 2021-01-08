@@ -702,6 +702,7 @@ static const char* history_get_next (struct run_info *info)
         info->curr_history_idx++;
     }
     else {
+        info->curr_history_idx = -1;
         return NULL;
     }
 
@@ -723,6 +724,7 @@ static const char* history_get_prev (struct run_info *info)
         info->curr_history_idx--;
     }
     else {
+        info->curr_history_idx = -1;
         return NULL;
     }
 
@@ -783,12 +785,12 @@ static void on_confirm_command (hibus_conn *conn)
     int *arg_types;
     char *saveptr;
 
+    fputs ("\n", stderr);
+
     if (info->edit_buff [0] == '\0')
         goto done;
 
     history_save_command (info, info->edit_buff);
-
-    fputs ("\n", stderr);
 
     cmd = strtok_r (info->edit_buff, " ", &saveptr);
     if (cmd == NULL) {
