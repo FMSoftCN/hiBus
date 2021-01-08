@@ -165,7 +165,6 @@ static int us_accept (int listenfd, pid_t *pidptr, uid_t *uidptr)
     pid_str++;
 
     *pidptr = atoi (pid_str);
-    ULOG_INFO ("Got pid from peer address: %d\n", *pidptr);
     
     unlink (unix_addr.sun_path);        /* we're done with pathname now */
     return (clifd);
@@ -413,127 +412,208 @@ again:
     return bytes;
 }
 
-int us_handle_reads (USServer* server, USClient* usc)
+/*
+ * return values:
+ * < 0: error
+ * 0: payload read
+ * 1: got packet;
+ */
+static int try_to_read_payload (USServer* server, USClient* usc)
 {
-    int err_code = 0, sta_code = 0;
-    ssize_t n = 0;
-    USFrameHeader header;
+    ssize_t n;
 
-    n = my_read (usc->fd, &header, sizeof (USFrameHeader));
-    if (n < sizeof (USFrameHeader)) {
-        ULOG_ERR ("Failed to read frame header from Unix socket.\n");
-        err_code = HIBUS_EC_IO;
-        sta_code = HIBUS_SC_EXPECTATION_FAILED;
-        goto done;
-    }
-
-    switch (header.op) {
-    case US_OPCODE_PING:
-        header.op = US_OPCODE_PONG;
-        header.fragmented = 0;
-        header.sz_payload = 0;
-        n = us_write (server, usc, &header, sizeof (USFrameHeader));
-        if (n < 0) {
-            ULOG_ERR ("Error when wirting socket: %s\n", strerror (errno));
-            err_code = HIBUS_EC_IO;
-            sta_code = HIBUS_SC_IOERR;
-        }
-        break;
-
-    case US_OPCODE_CLOSE:
-        ULOG_WARN ("Peer closed\n");
-        err_code = HIBUS_EC_CLOSED;
-        sta_code = 0;
-        break;
-
+    switch (usc->header.op) {
     case US_OPCODE_TEXT:
-    case US_OPCODE_BIN: {
-        if (header.fragmented > 0 && header.fragmented > header.sz_payload) {
-            usc->sz_packet = header.fragmented;
-        }
-        else {
-            usc->sz_packet = header.sz_payload;
-        }
-
-        if (usc->sz_packet > HIBUS_MAX_INMEM_PAYLOAD_SIZE) {
-            err_code = HIBUS_EC_PROTOCOL;
-            sta_code = HIBUS_SC_PACKET_TOO_LARGE;
-            break;
-        }
-
-        clock_gettime (CLOCK_REALTIME, &usc->ts);
-        if (header.op == US_OPCODE_TEXT)
-            usc->t_packet = PT_TEXT;
-        else
-            usc->t_packet = PT_BINARY;
-
-        /* always reserve a space for null character */
-        usc->packet = malloc (usc->sz_packet + 1);
-        if (usc->packet == NULL) {
-            ULOG_ERR ("Failed to allocate memory for packet (size: %u)\n", usc->sz_packet);
-            err_code = HIBUS_EC_NOMEM;
-            sta_code = HIBUS_SC_INSUFFICIENT_STORAGE;
-            break;
-        }
-        update_upper_entity_stats (usc->entity, usc->sz_pending, usc->sz_packet);
-
-        if ((n = my_read (usc->fd, usc->packet, header.sz_payload))
-                < header.sz_payload) {
-            ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
+    case US_OPCODE_BIN:
+        if ((n = read (usc->fd, usc->packet, usc->header.sz_payload))
+                < usc->header.sz_payload) {
+            ULOG_ERR ("Failed to read payload from Unix socket: %s\n",
                     strerror (errno));
-            err_code = HIBUS_EC_IO;
-            sta_code = HIBUS_SC_EXPECTATION_FAILED;
-            break;
-        }
-        usc->sz_read = header.sz_payload;
-
-        if (header.fragmented == 0) {
-            goto got_packet;
+            return HIBUS_EC_IO;
         }
 
+        usc->sz_read = usc->header.sz_payload;
+        if (usc->header.fragmented == 0) {
+            return 1;
+        }
         break;
-    }
 
     case US_OPCODE_CONTINUATION:
     case US_OPCODE_END:
         if (usc->packet == NULL ||
-                (usc->sz_read + header.sz_payload) > usc->sz_packet) {
+                (usc->sz_read + usc->header.sz_payload) > usc->sz_packet) {
+            return HIBUS_EC_PROTOCOL;
+        }
+
+        if ((n = read (usc->fd, usc->packet + usc->sz_read,
+                usc->header.sz_payload)) < usc->header.sz_payload) {
+            ULOG_ERR ("Failed to read payload from Unix socket: %s\n",
+                    strerror (errno));
+            return HIBUS_EC_IO;
+        }
+
+        usc->sz_read += usc->header.sz_payload;
+        if (usc->header.op == US_OPCODE_END) {
+            return 1;
+        }
+        break;
+
+    default:
+        return HIBUS_EC_PROTOCOL;
+    }
+
+    return 0;
+}
+
+int us_handle_reads (USServer* server, USClient* usc)
+{
+    int retv, err_code = 0, sta_code = 0;
+    ssize_t n = 0;
+
+    /* if it is not waiting for payload, read a frame header */
+    if (usc->status & US_WATING_FOR_PAYLOAD) {
+
+        usc->status &= ~US_WATING_FOR_PAYLOAD;
+        retv = try_to_read_payload (server, usc);
+        if (retv > 0) {
+            goto got_packet;
+        }
+        else if (retv == 0) {
+            goto done;
+        }
+        else if (retv < 0) {
+            err_code = retv;
+            sta_code = HIBUS_SC_EXPECTATION_FAILED;
+            goto done;
+        }
+    }
+    else {
+        n = read (usc->fd, &usc->header, sizeof (USFrameHeader));
+        if (n < sizeof (USFrameHeader)) {
+            ULOG_ERR ("Failed to read frame header from Unix socket.\n");
+            err_code = HIBUS_EC_IO;
+            sta_code = HIBUS_SC_EXPECTATION_FAILED;
+            goto done;
+        }
+
+        switch (usc->header.op) {
+        case US_OPCODE_PING: {
+            USFrameHeader header;
+            header.op = US_OPCODE_PONG;
+            header.fragmented = 0;
+            header.sz_payload = 0;
+            n = us_write (server, usc, &header, sizeof (USFrameHeader));
+            if (n < 0) {
+                ULOG_ERR ("Error when wirting socket: %s\n", strerror (errno));
+                err_code = HIBUS_EC_IO;
+                sta_code = HIBUS_SC_IOERR;
+            }
+            break;
+        }
+
+        case US_OPCODE_CLOSE:
+            ULOG_WARN ("Peer closed\n");
+            err_code = HIBUS_EC_CLOSED;
+            sta_code = 0;
+            break;
+
+        case US_OPCODE_TEXT:
+        case US_OPCODE_BIN: {
+            if (usc->header.fragmented > 0 &&
+                    usc->header.fragmented > usc->header.sz_payload) {
+                usc->sz_packet = usc->header.fragmented;
+            }
+            else {
+                usc->sz_packet = usc->header.sz_payload;
+            }
+
+            if (usc->sz_packet > HIBUS_MAX_INMEM_PAYLOAD_SIZE ||
+                    usc->sz_packet == 0 ||
+                    usc->header.sz_payload == 0) {
+                err_code = HIBUS_EC_PROTOCOL;
+                sta_code = HIBUS_SC_PACKET_TOO_LARGE;
+                break;
+            }
+
+            clock_gettime (CLOCK_REALTIME, &usc->ts);
+            if (usc->header.op == US_OPCODE_TEXT)
+                usc->t_packet = PT_TEXT;
+            else
+                usc->t_packet = PT_BINARY;
+
+            /* always reserve a space for null character */
+            usc->packet = malloc (usc->sz_packet + 1);
+            if (usc->packet == NULL) {
+                ULOG_ERR ("Failed to allocate memory for packet (size: %u)\n",
+                        usc->sz_packet);
+                err_code = HIBUS_EC_NOMEM;
+                sta_code = HIBUS_SC_INSUFFICIENT_STORAGE;
+                break;
+            }
+
+            update_upper_entity_stats (usc->entity, usc->sz_pending, usc->sz_packet);
+
+            retv = try_to_read_payload (server, usc);
+            if (retv > 0) {
+                goto got_packet;
+            }
+            else if (retv == 0) {
+                goto done;
+            }
+            else if (retv == HIBUS_EC_IO) {
+                usc->status |= US_WATING_FOR_PAYLOAD;
+                goto done;
+            }
+            else {
+                err_code = retv;
+                sta_code = HIBUS_SC_EXPECTATION_FAILED;
+                goto done;
+            }
+            break;
+        }
+
+        case US_OPCODE_CONTINUATION:
+        case US_OPCODE_END:
+            if (usc->header.sz_payload == 0) {
+                err_code = HIBUS_EC_PROTOCOL;
+                sta_code = HIBUS_SC_PACKET_TOO_LARGE;
+                break;
+            }
+
+            retv = try_to_read_payload (server, usc);
+            if (retv > 0) {
+                goto got_packet;
+            }
+            else if (retv == 0) {
+                goto done;
+            }
+            else if (retv == HIBUS_EC_IO) {
+                usc->status |= US_WATING_FOR_PAYLOAD;
+                goto done;
+            }
+            else {
+                err_code = retv;
+                sta_code = HIBUS_SC_EXPECTATION_FAILED;
+                goto done;
+            }
+            break;
+
+        case US_OPCODE_PONG: {
+            BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
+
+            assert (endpoint);
+
+            ULOG_INFO ("Got a PONG frame from endpoint @%s/%s/%s\n",
+                    endpoint->host_name, endpoint->app_name, endpoint->runner_name);
+            break;
+        }
+
+        default:
+            ULOG_ERR ("Unknown frame opcode: %d\n", usc->header.op);
             err_code = HIBUS_EC_PROTOCOL;
             sta_code = HIBUS_SC_EXPECTATION_FAILED;
             break;
         }
-
-        if ((n = my_read (usc->fd, usc->packet + usc->sz_read, header.sz_payload))
-                < header.sz_payload) {
-            ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
-                    strerror (errno));
-            err_code = HIBUS_EC_IO;
-            sta_code = HIBUS_SC_EXPECTATION_FAILED;
-            break;
-        }
-
-        usc->sz_read += header.sz_payload;
-        if (header.op == US_OPCODE_END) {
-            goto got_packet;
-        }
-
-        break;
-
-    case US_OPCODE_PONG: {
-        BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
-
-        assert (endpoint);
-
-        ULOG_INFO ("Got a PONG frame from endpoint @%s/%s/%s\n",
-                endpoint->host_name, endpoint->app_name, endpoint->runner_name);
-        break;
-    }
-
-    default:
-        ULOG_ERR ("Unknown frame opcode: %d\n", header.op);
-        err_code = HIBUS_EC_PROTOCOL;
-        sta_code = HIBUS_SC_EXPECTATION_FAILED;
-        break;
     }
 
 done:

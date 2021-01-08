@@ -30,12 +30,13 @@
 #include <hibox/list.h>
 
 typedef enum USSTATUS {
-  US_OK = 0,
-  US_ERR = (1 << 0),
-  US_CLOSE = (1 << 1),
-  US_READING = (1 << 2),
-  US_SENDING = (1 << 3),
-  US_THROTTLING = (1 << 4),
+    US_OK = 0,
+    US_ERR = (1 << 0),
+    US_CLOSE = (1 << 1),
+    US_READING = (1 << 2),
+    US_SENDING = (1 << 3),
+    US_THROTTLING = (1 << 4),
+    US_WATING_FOR_PAYLOAD = (1 << 5),
 } USStatus;
 
 typedef struct USPendingData_ {
@@ -65,6 +66,9 @@ typedef struct USClient_
     /* fields for pending data to write */
     size_t              sz_pending;
     struct list_head    pending;
+
+    /* current frame header */
+    USFrameHeader   header;
 
     /* fields for current reading packet */
     int         t_packet;   /* type of packet */
