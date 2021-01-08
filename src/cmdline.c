@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <termio.h>
 #include <signal.h>
+#include <getopt.h>
 #include <assert.h>
 #include <sys/select.h>
 #include <sys/time.h>
@@ -247,7 +248,7 @@ static int setup_signals (void)
 
 static void print_copying (void)
 {
-    fprintf (stderr,
+    fprintf (stdout,
             "\n"
             "hiBus - the data bus system for HybridOS.\n"
             "\n"
@@ -265,7 +266,7 @@ static void print_copying (void)
             "You should have received a copy of the GNU General Public License\n"
             "along with this program.  If not, see http://www.gnu.org/licenses/.\n"
             );
-    fprintf (stderr, "\n");
+    fprintf (stdout, "\n");
 }
 
 // move cursor to the start of the current line and erase whole line
@@ -1245,6 +1246,71 @@ static void on_new_broken_endpoint (hibus_conn* conn,
     json_object_put (jo);
 }
 
+static char short_options[] = "a:vh";
+static struct option long_opts[] = {
+    {"app"            , required_argument , 0 , 'a' } ,
+    {"version"        , no_argument       , 0 , 'v' } ,
+    {"help"           , no_argument       , 0 , 'h' } ,
+    {0, 0, 0, 0}
+};
+
+/* Command line help. */
+static void print_usage (void)
+{
+    printf ("hiBusCL (%s) - the command line of data bus system for HybridOS\n\n", HIBUS_VERSION);
+
+    printf (
+            "Usage: "
+            "hibuscl [ options ... ]\n\n"
+            ""
+            "The following options can be supplied to the command:\n\n"
+            ""
+            "  -a --app=<app_name>      - Connect to hiBus with the specified app name.\n"
+            "  -h --help                - This help.\n"
+            "  -v --version             - Display version information and exit.\n"
+            "\n"
+            );
+}
+
+static void parse_long_opt (const char *name, const char *oarg)
+{
+    if (!strcmp ("app", name) && strlen (oarg) < HIBUS_LEN_APP_NAME)
+        strcpy (the_client.app_name, oarg);
+}
+
+static int read_option_args (int argc, char **argv)
+{
+    int o, idx = 0;
+
+    while ((o = getopt_long (argc, argv, short_options, long_opts, &idx)) >= 0) {
+        if (-1 == o || EOF == o)
+            break;
+        switch (o) {
+            case 'h':
+                print_usage ();
+                return -1;
+            case 'v':
+                fprintf (stdout, "hiBusCL: %s\n", HIBUS_VERSION);
+                return -1;
+            case 'a':
+                parse_long_opt (long_opts[idx].name, optarg);
+                break;
+            case '?':
+                print_usage ();
+                return -1;
+            default:
+                return -1;
+        }
+    }
+
+    if (optind < argc) {
+        print_usage ();
+        return -1;
+    }
+
+    return 0;
+}
+
 int main (int argc, char **argv)
 {
     int cnnfd = -1, ttyfd = -1, maxfd;
@@ -1254,6 +1320,14 @@ int main (int argc, char **argv)
     char curr_time [16];
 
     print_copying ();
+
+    if (read_option_args (argc, argv)) {
+        return EXIT_SUCCESS;
+    }
+
+    if (!the_client.app_name[0]) {
+        strcpy (the_client.app_name, HIBUS_APP_HIBUS);
+    }
 
     ulog_open (-1, -1, "hiBusCL");
 
@@ -1266,7 +1340,7 @@ int main (int argc, char **argv)
         goto failed;
 
     cnnfd = hibus_connect_via_unix_socket (HIBUS_US_PATH,
-            HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE, &conn);
+            the_client.app_name, HIBUS_RUNNER_CMDLINE, &conn);
 
     if (cnnfd < 0) {
         fprintf (stderr, "Failed to connect to hiBus server: %s\n",
@@ -1281,7 +1355,7 @@ int main (int argc, char **argv)
 
     hibus_assemble_endpoint_name (
             hibus_conn_own_host_name (conn),
-            HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE,
+            the_client.app_name, HIBUS_RUNNER_CMDLINE,
             the_client.self_endpoint);
 
     the_client.ttyfd = ttyfd;
@@ -1325,7 +1399,6 @@ int main (int argc, char **argv)
                     on_new_broken_endpoint))) {
         fprintf (stderr, "Failed to subscribe builtin event `NEWENDPOINT` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
-        goto failed;
     }
 
     if ((err_code = hibus_subscribe_event (conn,
@@ -1333,7 +1406,6 @@ int main (int argc, char **argv)
                     on_new_broken_endpoint))) {
         fprintf (stderr, "Failed to subscribe builtin event `BROKENENDPOINT` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
-        goto failed;
     }
 
     console_print_prompt (conn, true);
@@ -1360,9 +1432,10 @@ int main (int argc, char **argv)
             if (FD_ISSET (cnnfd, &rfds)) {
                 int err_code = hibus_read_and_dispatch_packet (conn);
                 if (err_code) {
-                    fprintf (stderr, "Failed to read and dispatch packet: %s",
+                    fprintf (stderr, "Failed to read and dispatch packet: %s\n",
                             hibus_get_err_message (err_code));
-                    break;
+                    if (err_code == HIBUS_EC_IO)
+                        break;
                 }
 
                 console_print_prompt (conn, true);

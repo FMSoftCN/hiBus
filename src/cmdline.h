@@ -46,6 +46,7 @@ struct run_info {
 
     struct termios startup_termios;
 
+    char app_name [HIBUS_LEN_APP_NAME + 1];
     char builtin_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
     char self_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
 
