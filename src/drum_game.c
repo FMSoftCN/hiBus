@@ -83,6 +83,12 @@ static char* on_method_get_ball (hibus_conn* conn,
     return NULL;
 }
 
+static inline void my_log (const char* str)
+{
+    ssize_t n = write (2, str, strlen (str));
+    n = n & n;
+}
+
 static int get_ball_from_previous_player (hibus_conn* conn, int pn, const char *player_name)
 {
     char to_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
@@ -114,13 +120,11 @@ static int get_ball_from_previous_player (hibus_conn* conn, int pn, const char *
         struct player_info *info = hibus_conn_get_user_data (conn);
         struct tm tm;
         time_t curr_time = time (NULL);
-        char signature [64], buff [10];
+        char signature [128], buff [10];
 
         localtime_r (&curr_time, &tm);
         strftime (buff, sizeof (buff), "%H:%M", &tm);
-
-        strcpy (signature, "\n-- I got this ball at ");
-        strcat (signature, buff);
+        sprintf (signature, "\n-- I (%s) got this ball at %s", player_name, buff);
 
         info->ball_content = malloc (strlen (ret_value) + strlen (signature) + 1);
         if (info->ball_content) {
@@ -129,9 +133,19 @@ static int get_ball_from_previous_player (hibus_conn* conn, int pn, const char *
         }
         else
             return -1;
+
+        //my_log (signature);
     }
-    else
+    else {
+#if 0
+        char buff[1204];
+        sprintf (buff, "Failed to call getBall: %d (%s); %d (%s)\n",
+                err_code, hibus_get_err_message (err_code),
+                ret_code, hibus_get_ret_message (ret_code));
+        my_log (buff);
+#endif
         return -1;
+    }
 
     return 0;
 }
@@ -254,8 +268,14 @@ static int fork_a_player (hibus_conn* conn, int pn)
         close (1);
         close (2);
 
-        /* redirect 0, 1, and 2 to /dev/null */
+        /* redirect 0, 1, and 2 */
+#if 0
+        char filename [32];
+        sprintf (filename, "player%d.log", pn);
+        fd = open (filename, O_RDWR | O_APPEND | O_CREAT, 00644);
+#else
         fd = open ("/dev/null", O_RDWR);
+#endif
         fd = dup (fd);
         fd = dup (fd);
 
@@ -330,7 +350,10 @@ static char* on_method_notify_ready (hibus_conn* conn,
                     HIBUS_DEF_TIME_EXPECTED,
                     &ret_code, &ret_value);
             if (my_err_code == 0 && ret_code == HIBUS_SC_OK) {
-                ULOG_INFO ("The ball content:\n%s\n", ret_value);
+                fprintf (stderr, "The ball content:\n%s\n", ret_value);
+            }
+            else {
+                ULOG_ERR ("Failed to call getBall\n");
             }
 
             my_err_code = hibus_fire_event (conn, "GameOver", "Ok");
