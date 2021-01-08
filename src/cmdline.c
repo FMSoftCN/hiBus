@@ -408,9 +408,10 @@ static void on_cmd_subscribe (hibus_conn *conn,
     err_code = hibus_subscribe_event (conn, endpoint, bubble, cb_generic_event);
 
     if (err_code) {
+        int ret_code = hibus_conn_get_last_ret_code (conn);
         fprintf (stderr, "Failed to subscribe event: %s/%s: %s (%d)\n",
                 endpoint, bubble,
-                hibus_get_err_message (err_code), err_code);
+                hibus_get_ret_message (ret_code), ret_code);
     }
     else {
         fprintf (stderr, "Subscribed event: %s/%s\n",
@@ -426,9 +427,10 @@ static void on_cmd_unsubscribe (hibus_conn *conn,
     err_code = hibus_unsubscribe_event (conn, endpoint, bubble);
 
     if (err_code) {
+        int ret_code = hibus_conn_get_last_ret_code (conn);
         fprintf (stderr, "Failed to unsubscribe event: %s/%s: %s (%d)\n",
                 endpoint, bubble,
-                hibus_get_err_message (err_code), err_code);
+                hibus_get_ret_message (ret_code), ret_code);
     }
     else {
         fprintf (stderr, "Unsubscribed event: %s/%s\n",
@@ -529,7 +531,7 @@ static void on_cmd_list_procedures (hibus_conn *conn,
 
     if (err_code) {
         fprintf (stderr, "Failed to call listProcedures on endpoint %s: %s\n",
-                endpoint, hibus_get_err_message (err_code));
+                endpoint, hibus_get_ret_message (ret_code));
     }
     else {
         hibus_json *jo;
@@ -568,7 +570,7 @@ static void on_cmd_list_events (hibus_conn *conn,
 
     if (err_code) {
         fprintf (stderr, "Failed to call listEvents for endpoint %s: %s\n",
-                endpoint, hibus_get_err_message (err_code));
+                endpoint, hibus_get_ret_message (ret_code));
     }
     else {
         hibus_json *jo;
@@ -621,7 +623,7 @@ static void on_cmd_list_subscribers (hibus_conn *conn,
 
     if (err_code) {
         fprintf (stderr, "Failed to call listEventSubscribers for endpoint bubble %s/%s: %s\n",
-                endpoint, bubble, hibus_get_err_message (err_code));
+                endpoint, bubble, hibus_get_ret_message (ret_code));
     }
     else {
         hibus_json *jo;
