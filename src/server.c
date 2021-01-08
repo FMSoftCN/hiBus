@@ -678,9 +678,9 @@ cleanup_bus_server (void)
         //memcpy (&endpoint, data, sizeof (BusEndpoint*));
         endpoint = *(BusEndpoint **)data;
 
-        ULOG_INFO ("Deleting endpoint: %s (%p) in cleanup_bus_server\n", name, endpoint);
-
         if (endpoint->type != ET_BUILTIN) {
+            ULOG_INFO ("Deleting endpoint: %s (%p) in cleanup_bus_server\n", name, endpoint);
+
             if (endpoint->type == ET_UNIX_SOCKET && endpoint->entity.client) {
                 // avoid a duplicated call of del_endpoint
                 endpoint->entity.client->entity = NULL;
@@ -691,12 +691,16 @@ cleanup_bus_server (void)
                 endpoint->entity.client->entity = NULL;
                 ws_cleanup_client (the_server.ws_srv, (WSClient *)endpoint->entity.client);
             }
-        }
 
-        del_endpoint (&the_server, endpoint, CDE_EXITING);
-        kvlist_delete (&the_server.endpoint_list, name);
-        the_server.nr_endpoints--;
+            del_endpoint (&the_server, endpoint, CDE_EXITING);
+            kvlist_delete (&the_server.endpoint_list, name);
+            the_server.nr_endpoints--;
+        }
     }
+
+    ULOG_INFO ("Deleting builtin endpoint in cleanup_bus_server\n");
+    del_endpoint (&the_server, the_server.endpoint_builtin, CDE_EXITING);
+    the_server.nr_endpoints--;
 
     kvlist_free (&the_server.endpoint_list);
 
