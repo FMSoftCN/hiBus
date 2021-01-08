@@ -400,6 +400,7 @@ static ssize_t us_write (USServer *server, USClient *client,
     return bytes;
 }
 
+/* TODO: tune this for noblocking read */
 static inline ssize_t my_read (int fd, void* buff, size_t sz)
 {
     ssize_t bytes;
