@@ -400,13 +400,25 @@ static ssize_t us_write (USServer *server, USClient *client,
     return bytes;
 }
 
+static inline ssize_t my_read (int fd, void* buff, size_t sz)
+{
+    ssize_t bytes;
+
+again:
+    bytes = read (fd, buff, sz);
+    if (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+        goto again;
+
+    return bytes;
+}
+
 int us_handle_reads (USServer* server, USClient* usc)
 {
     int err_code = 0, sta_code = 0;
     ssize_t n = 0;
     USFrameHeader header;
 
-    n = read (usc->fd, &header, sizeof (USFrameHeader));
+    n = my_read (usc->fd, &header, sizeof (USFrameHeader));
     if (n < sizeof (USFrameHeader)) {
         ULOG_ERR ("Failed to read frame header from Unix socket.\n");
         err_code = HIBUS_EC_IO;
@@ -464,7 +476,7 @@ int us_handle_reads (USServer* server, USClient* usc)
         }
         update_upper_entity_stats (usc->entity, usc->sz_pending, usc->sz_packet);
 
-        if ((n = read (usc->fd, usc->packet, header.sz_payload))
+        if ((n = my_read (usc->fd, usc->packet, header.sz_payload))
                 < header.sz_payload) {
             ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
                     strerror (errno));
@@ -490,7 +502,7 @@ int us_handle_reads (USServer* server, USClient* usc)
             break;
         }
 
-        if ((n = read (usc->fd, usc->packet + usc->sz_read, header.sz_payload))
+        if ((n = my_read (usc->fd, usc->packet + usc->sz_read, header.sz_payload))
                 < header.sz_payload) {
             ULOG_ERR ("Failed to read packet from Unix socket: %s\n",
                     strerror (errno));
