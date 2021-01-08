@@ -804,7 +804,7 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
     }
 
     if (register_procedure (bus_srv, builtin, "revokeProcedure",
-            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_revoke_procedure) != HIBUS_SC_OK) {
         return false;
     }
@@ -816,7 +816,7 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
     }
 
     if (register_procedure (bus_srv, builtin, "revokeEvent",
-            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_revoke_event) != HIBUS_SC_OK) {
         return false;
     }
@@ -828,7 +828,7 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
     }
 
     if (register_procedure (bus_srv, builtin, "unsubscribeEvent",
-            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_unsubscribe_event) != HIBUS_SC_OK) {
         return false;
     }
@@ -840,19 +840,19 @@ bool init_builtin_endpoint (BusServer *bus_srv, BusEndpoint* builtin)
     }
 
     if (register_procedure (bus_srv, builtin, "listProcedures",
-            HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_list_procedures) != HIBUS_SC_OK) {
         return false;
     }
 
     if (register_procedure (bus_srv, builtin, "listEvents",
-            HIBUS_PATTERN_ANY, HIBUS_APP_HIBUS,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_list_events) != HIBUS_SC_OK) {
         return false;
     }
 
     if (register_procedure (bus_srv, builtin, "listEventSubscribers",
-            HIBUS_PATTERN_ANY, HIBUS_PATTERN_OWNER ", ;" HIBUS_APP_HIBUS,
+            HIBUS_PATTERN_ANY, HIBUS_PATTERN_ANY,
             builtin_method_list_event_subscribers) != HIBUS_SC_OK) {
         return false;
     }
