@@ -151,8 +151,6 @@ static char* read_text_payload_from_us (int fd, int* len)
             *len = header.sz_payload;
     }
 
-    ULOG_INFO ("Got payload: \n%s\n", payload);
-
     return payload;
 
 failed:
@@ -187,7 +185,6 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
     if (json_object_object_get_ex (jo, "packetType", &jo_tmp)) {
         const char *pack_type;
         pack_type = json_object_get_string (jo_tmp);
-        // ULOG_INFO ("packetType: %s\n", pack_type);
 
         if (strcasecmp (pack_type, "error") == 0) {
             const char* prot_name = HIBUS_NOT_AVAILABLE;
@@ -224,7 +221,6 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
 
             if (json_object_object_get_ex (jo, "challengeCode", &jo_tmp)) {
                 ch_code = json_object_get_string (jo_tmp);
-                // ULOG_INFO ("challengeCode: %s\n", ch_code);
             }
 
             if (json_object_object_get_ex (jo, "protocolName", &jo_tmp)) {
@@ -233,8 +229,6 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
             if (json_object_object_get_ex (jo, "protocolVersion", &jo_tmp)) {
                 prot_ver = json_object_get_int (jo_tmp);
             }
-
-            // ULOG_INFO ("Protocol :%s/%d\n", prot_name, prot_ver);
 
             if (ch_code == NULL) {
                 ULOG_WARN ("Null challenge code\n");
@@ -319,7 +313,6 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
         goto failed;
     }
 
-    // ULOG_INFO ("auth packate: \n%s\n", buff);
     if (hibus_send_text_packet (conn, buff, n)) {
         ULOG_ERR ("Failed to send text packet to hiBus server in send_auth_info.\n");
         err_code = HIBUS_EC_IO;
@@ -490,8 +483,6 @@ static int check_auth_result (hibus_conn* conn)
         return err_code;
     }
 
-    ULOG_INFO ("Got a packet: \n%s\n", (char*)packet);
-
     retval = hibus_json_packet_to_object (packet, data_len, &jo);
     free (packet);
 
@@ -564,8 +555,6 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     /* On Linux sun_path is 108 bytes in size */
     sprintf (unix_addr.sun_path, "%s%s-%05d", CLI_PATH, peer_name, getpid());
     len = sizeof (unix_addr.sun_family) + strlen (unix_addr.sun_path);
-
-    ULOG_INFO ("The client addres: %s\n", unix_addr.sun_path);
 
     unlink (unix_addr.sun_path);        /* in case it already exists */
     if (bind (fd, (struct sockaddr *) &unix_addr, len) < 0) {
@@ -643,33 +632,6 @@ int hibus_connect_via_web_socket (const char* host_name, int port,
     return HIBUS_EC_NOT_IMPLEMENTED;
 }
 
-int hibus_free_connection (hibus_conn* conn)
-{
-    assert (conn);
-
-    if (conn->srv_host_name)
-        free (conn->srv_host_name);
-    free (conn->own_host_name);
-    free (conn->app_name);
-    free (conn->runner_name);
-    close (conn->fd);
-
-    kvlist_free (&conn->method_list);
-    kvlist_free (&conn->bubble_list);
-    kvlist_free (&conn->call_list);
-    kvlist_free (&conn->subscribed_list);
-
-    free (conn);
-
-    return 0;
-}
-
-int hibus_disconnect (hibus_conn* conn)
-{
-    /* TODO: send CLOSE packet to the server */
-    return hibus_free_connection (conn);
-}
-
 const char* hibus_conn_srv_host_name (hibus_conn* conn)
 {
     return conn->srv_host_name;
@@ -718,6 +680,55 @@ static inline int conn_write (int fd, const void *data, ssize_t sz)
     return HIBUS_EC_IO;
 }
 
+int hibus_free_connection (hibus_conn* conn)
+{
+    assert (conn);
+
+    if (conn->srv_host_name)
+        free (conn->srv_host_name);
+    free (conn->own_host_name);
+    free (conn->app_name);
+    free (conn->runner_name);
+    close (conn->fd);
+
+    kvlist_free (&conn->method_list);
+    kvlist_free (&conn->bubble_list);
+    kvlist_free (&conn->call_list);
+    kvlist_free (&conn->subscribed_list);
+
+    free (conn);
+
+    return 0;
+}
+
+int hibus_disconnect (hibus_conn* conn)
+{
+    int err_code = 0;
+
+    if (conn->type == CT_UNIX_SOCKET) {
+        USFrameHeader header;
+
+        header.op = US_OPCODE_CLOSE;
+        header.fragmented = 0;
+        header.sz_payload = 0;
+        if (conn_write (conn->fd, &header, sizeof (USFrameHeader))) {
+            ULOG_ERR ("Error when wirting to Unix Socket: %s\n", strerror (errno));
+            err_code = HIBUS_EC_IO;
+        }
+    }
+    else if (conn->type == CT_WEB_SOCKET) {
+        /* TODO */
+        err_code = HIBUS_EC_NOT_IMPLEMENTED;
+    }
+    else {
+        err_code = HIBUS_EC_INVALID_VALUE;
+    }
+
+    hibus_free_connection (conn);
+
+    return err_code;
+}
+
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len)
 {
     unsigned int offset;
@@ -753,8 +764,9 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
             }
             else if (header.op == US_OPCODE_TEXT ||
                     header.op == US_OPCODE_BIN) {
+                unsigned int left;
 
-                if (header.fragmented > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
+                if (header.fragmented > HIBUS_MAX_INMEM_PAYLOAD_SIZE) {
                     err_code = HIBUS_EC_TOO_LARGE;
                     goto done;
                 }
@@ -773,18 +785,21 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
                     goto done;
                 }
 
+                if (header.fragmented > header.sz_payload) {
+                    left = header.fragmented - header.sz_payload;
+                }
+                else
+                    left = 0;
                 offset = header.sz_payload;
-                while (header.fragmented) {
+                while (left > 0) {
                     if (conn_read (conn->fd, &header, sizeof (USFrameHeader))) {
                         ULOG_ERR ("Failed to read frame header from Unix socket\n");
                         err_code = HIBUS_EC_IO;
                         goto done;
                     }
 
-                    if (header.op == US_OPCODE_END) {
-                        break;
-                    }
-                    else if (header.op != US_OPCODE_CONTINUATION ) {
+                    if (header.op != US_OPCODE_CONTINUATION &&
+                            header.op != US_OPCODE_END) {
                         ULOG_ERR ("Not a continuation frame\n");
                         err_code = HIBUS_EC_PROTOCOL;
                         goto done;
@@ -797,6 +812,11 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
                     }
 
                     offset += header.sz_payload;
+                    left -= header.sz_payload;
+
+                    if (header.op == US_OPCODE_END) {
+                        break;
+                    }
                 }
 
                 if (is_text) {
@@ -825,10 +845,15 @@ done:
     return err_code;
 }
 
+static inline void my_log (const char* str)
+{
+    ssize_t n = write (2, str, strlen (str));
+    n = n & n;
+}
+
 int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *packet_len)
 {
     void* packet_buf = NULL;
-    unsigned int offset;
     int err_code = 0;
 
     if (conn->type == CT_UNIX_SOCKET) {
@@ -862,9 +887,11 @@ int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *pack
             }
             else if (header.op == US_OPCODE_TEXT ||
                     header.op == US_OPCODE_BIN) {
+                unsigned int total_len, left;
+                unsigned int offset;
                 int is_text;
 
-                if (header.fragmented > HIBUS_MAX_FRAME_PAYLOAD_SIZE) {
+                if (header.fragmented > HIBUS_MAX_INMEM_PAYLOAD_SIZE) {
                     err_code = HIBUS_EC_TOO_LARGE;
                     goto done;
                 }
@@ -876,7 +903,18 @@ int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *pack
                     is_text = 0;
                 }
 
-                if ((packet_buf = malloc (header.sz_payload + 1)) == NULL) {
+                if (header.fragmented > header.sz_payload) {
+                    total_len = header.fragmented;
+                    offset = header.sz_payload;
+                    left = total_len - header.sz_payload;
+                }
+                else {
+                    total_len = header.sz_payload;
+                    offset = header.sz_payload;
+                    left = 0;
+                }
+
+                if ((packet_buf = malloc (total_len + 1)) == NULL) {
                     err_code = HIBUS_EC_NOMEM;
                     goto done;
                 }
@@ -887,26 +925,17 @@ int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *pack
                     goto done;
                 }
 
-                offset = header.sz_payload;
-                while (header.fragmented) {
+                while (left > 0) {
                     if (conn_read (conn->fd, &header, sizeof (USFrameHeader))) {
                         ULOG_ERR ("Failed to read frame header from Unix socket\n");
                         err_code = HIBUS_EC_IO;
                         goto done;
                     }
 
-                    if (header.op == US_OPCODE_END) {
-                        break;
-                    }
-                    else if (header.op != US_OPCODE_CONTINUATION ) {
+                    if (header.op != US_OPCODE_CONTINUATION &&
+                            header.op != US_OPCODE_END) {
                         ULOG_ERR ("Not a continuation frame\n");
                         err_code = HIBUS_EC_PROTOCOL;
-                        goto done;
-                    }
-
-                    if ((packet_buf = realloc (packet_buf, offset + header.sz_payload + 1))
-                            == NULL) {
-                        err_code = HIBUS_EC_NOMEM;
                         goto done;
                     }
 
@@ -916,7 +945,11 @@ int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *pack
                         goto done;
                     }
 
+                    left -= header.sz_payload;
                     offset += header.sz_payload;
+                    if (header.op == US_OPCODE_END) {
+                        break;
+                    }
                 }
 
                 if (is_text) {
@@ -1602,6 +1635,9 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
                 sz_packet_buff = HIBUS_MIN_PACKET_BUFF_SIZE + len_value;
                 packet_buff = malloc (HIBUS_MIN_PACKET_BUFF_SIZE + len_value);
                 if (packet_buff == NULL) {
+                    packet_buff = buff_in_stack;
+                    sz_packet_buff = sizeof (buff_in_stack);
+
                     err_code = HIBUS_EC_NOMEM;
                     goto done;
                 }
@@ -1609,7 +1645,6 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
 
             if (ret_value) {
                 escaped_value = hibus_escape_string_for_json (ret_value);
-                free (ret_value);
                 if (escaped_value == NULL) {
                     err_code = HIBUS_EC_NOMEM;
                     goto done;
@@ -1621,6 +1656,9 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
     }
 
 done:
+    if (ret_value)
+        free (ret_value);
+
     ret_code = hibus_errcode_to_retcode (err_code);
     n = snprintf (packet_buff, sz_packet_buff, 
             "{"
@@ -1803,7 +1841,7 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
         time_to_return = time (NULL) + time_expected;
     }
 
-    while (time (NULL) < time_to_return) {
+    while (1 /* time (NULL) < time_to_return */) {
         FD_ZERO (&rfds);
         FD_SET (conn->fd, &rfds);
 
@@ -1823,7 +1861,6 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                 break;
             }
 
-            ULOG_INFO ("got a packet (%u bytes long):\n%s\n", data_len, (char *)packet);
             retval = hibus_json_packet_to_object (packet, data_len, &jo);
             free (packet);
 
@@ -1838,7 +1875,6 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                         (str_tmp = json_object_get_string (jo_tmp)) &&
                         strcasecmp (str_tmp, call_id) == 0) {
 
-                    ULOG_INFO ("Got the packet we are wait for\n");
                     if (json_object_object_get_ex (jo, "retCode", &jo_tmp)) {
                         *ret_code = json_object_get_int (jo_tmp);
                     }
@@ -1871,7 +1907,6 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                     }
                 }
                 else {
-                    ULOG_INFO ("Got another result packet\n");
                     err_code = dispatch_result_packet (conn, jo);
                 }
             }
@@ -1902,19 +1937,15 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
                 err_code = 0;
             }
             else if (retval == JPT_CALL) {
-                ULOG_INFO ("Sombody called me\n");
                 err_code = dispatch_call_packet (conn, jo);
             }
             else if (retval == JPT_RESULT_SENT) {
-                ULOG_INFO ("Got a `resultSent` packet\n");
                 err_code = 0;
             }
             else if (retval == JPT_EVENT) {
-                ULOG_INFO ("Got en `event` packet\n");
                 err_code = dispatch_event_packet (conn, jo);
             }
             else if (retval == JPT_EVENT_SENT) {
-                ULOG_INFO ("Got an `eventSent` packet\n");
                 err_code = 0;
             }
             else if (retval == JPT_AUTH_PASSED) {
@@ -1934,7 +1965,6 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
             jo = NULL;
         }
         else {
-            ULOG_INFO ("Timeout\n");
             err_code = HIBUS_EC_TIMEOUT;
             break;
         }
@@ -1959,7 +1989,6 @@ int hibus_read_and_dispatch_packet (hibus_conn* conn)
         goto done;
     }
 
-    ULOG_INFO ("got a packet (%u bytes long):\n%s\n", data_len, (char *)packet);
     retval = hibus_json_packet_to_object (packet, data_len, &jo);
     free (packet);
 
@@ -1979,23 +2008,18 @@ int hibus_read_and_dispatch_packet (hibus_conn* conn)
         err_code = HIBUS_EC_UNEXPECTED;
     }
     else if (retval == JPT_CALL) {
-        ULOG_INFO ("Sombody called me\n");
         err_code = dispatch_call_packet (conn, jo);
     }
     else if (retval == JPT_RESULT) {
-        ULOG_INFO ("I get a result packet\n");
         err_code = dispatch_result_packet (conn, jo);
     }
     else if (retval == JPT_RESULT_SENT) {
-        ULOG_INFO ("I get a resultSent packet\n");
         err_code = 0;
     }
     else if (retval == JPT_EVENT) {
-        ULOG_INFO ("I get an event\n");
         err_code = dispatch_event_packet (conn, jo);
     }
     else if (retval == JPT_EVENT_SENT) {
-        ULOG_INFO ("I get an eventSent packet\n");
         err_code = 0;
     }
     else if (retval == JPT_AUTH_PASSED) {
@@ -2038,14 +2062,12 @@ int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms)
     }
 
     if (retval == -1) {
-        // ULOG_ERR ("Failed to call select(): %s\n", strerror (errno));
         err_code = HIBUS_EC_BAD_SYSTEM_CALL;
     }
     else if (retval) {
         err_code = hibus_read_and_dispatch_packet (conn);
     }
     else {
-        // ULOG_INFO ("Timeout\n");
         err_code = HIBUS_EC_TIMEOUT;
     }
 
