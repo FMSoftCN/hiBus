@@ -92,13 +92,16 @@ static int get_ball_from_previous_player (hibus_conn* conn, int pn, const char *
     if (pn == 0) {
         hibus_assemble_endpoint_name (
                 hibus_conn_own_host_name (conn),
-                HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE,
+                hibus_conn_app_name (conn), HIBUS_RUNNER_CMDLINE,
                 to_endpoint);
     }
     else {
+        char prev_player_name [HIBUS_LEN_RUNNER_NAME + 1];
+        sprintf (prev_player_name, "%s%d", PREFIX_PLAYER_RUNNER, pn - 1);
+
         hibus_assemble_endpoint_name (
                 hibus_conn_own_host_name (conn),
-                HIBUS_APP_HIBUS, player_name,
+                hibus_conn_app_name (conn), prev_player_name,
                 to_endpoint);
     }
 
@@ -142,7 +145,7 @@ static void on_game_over (hibus_conn* conn,
     info->running = false;
 }
 
-static int main_of_player (int pn)
+static int main_of_player (struct run_info *info, int pn)
 {
     char cmdline_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
     char player_name [HIBUS_LEN_RUNNER_NAME + 1];
@@ -155,7 +158,7 @@ static int main_of_player (int pn)
 
     sprintf (player_name, "%s%d", PREFIX_PLAYER_RUNNER, pn);
     cnnfd = hibus_connect_via_unix_socket (HIBUS_US_PATH,
-            HIBUS_APP_HIBUS, player_name, &conn);
+            info->app_name, player_name, &conn);
 
     if (cnnfd < 0) {
         goto failed;
@@ -163,7 +166,7 @@ static int main_of_player (int pn)
 
     hibus_assemble_endpoint_name (
             hibus_conn_own_host_name (conn),
-            HIBUS_APP_HIBUS, HIBUS_RUNNER_CMDLINE,
+            info->app_name, HIBUS_RUNNER_CMDLINE,
             cmdline_endpoint);
 
     player.running = true;
@@ -175,7 +178,7 @@ static int main_of_player (int pn)
     }
 
     err_code = hibus_register_procedure (conn, "getBall",
-            HIBUS_LOCALHOST, HIBUS_APP_HIBUS, on_method_get_ball);
+            HIBUS_LOCALHOST, info->app_name, on_method_get_ball);
     if (err_code) {
         goto failed;
     }
@@ -241,6 +244,7 @@ static int fork_a_player (hibus_conn* conn, int pn)
     else {
         /* in the child */
         int fd;
+        struct run_info *info = hibus_conn_get_user_data (conn);
 
         /* free connection */
         hibus_free_connection (conn);
@@ -255,7 +259,7 @@ static int fork_a_player (hibus_conn* conn, int pn)
         fd = dup (fd);
         fd = dup (fd);
 
-        if (main_of_player (pn)) {
+        if (main_of_player (info, pn)) {
             exit (EXIT_FAILURE);
         }
         else {
@@ -280,8 +284,8 @@ static void term_drum_game (hibus_conn* conn)
         return;
     }
 
-    if ((err_code = hibus_revoke_event (conn, "PlayerReady"))) {
-        ULOG_ERR ("Failed to revoke event `PlayerReady` (%d): %s\n",
+    if ((err_code = hibus_revoke_procedure (conn, "notifyReady"))) {
+        ULOG_ERR ("Failed to revoke procedure `notifyReady` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
         return;
     }
@@ -309,9 +313,9 @@ static char* on_method_notify_ready (hibus_conn* conn,
     if (strncasecmp (runner_name, PREFIX_PLAYER_RUNNER, LEN_PREFIX) == 0) {
         int pn = atoi (runner_name + LEN_PREFIX);
 
-        ULOG_INFO ("Player #%d is ready now\n", pn);
+        ULOG_INFO ("Player %d (total %d) is ready now\n", pn, info->nr_players);
 
-        if (pn < info->nr_players) {
+        if (pn < info->nr_players - 1) {
             fork_a_player (conn, pn + 1);
         }
         else {
@@ -319,6 +323,7 @@ static char* on_method_notify_ready (hibus_conn* conn,
             char *ret_value;
 
             /* all players are ready now */
+            ULOG_INFO ("Getting ball from %s...\n", from_endpoint);
             my_err_code = hibus_call_procedure_and_wait (conn,
                     from_endpoint, "getBall",
                     HIBUS_RUNNER_CMDLINE,
@@ -350,21 +355,21 @@ int start_drum_game (hibus_conn* conn, int nr_players, const char* ball_content)
     struct run_info *info = hibus_conn_get_user_data (conn);
 
     if ((err_code = hibus_register_event (conn, "GameOver",
-                    HIBUS_LOCALHOST, HIBUS_APP_HIBUS))) {
+                    HIBUS_LOCALHOST, info->app_name))) {
         ULOG_ERR ("Failed to register event `GameOver` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
         return -1;
     }
 
     if ((err_code = hibus_register_procedure (conn, "notifyReady",
-            HIBUS_LOCALHOST, HIBUS_APP_HIBUS, on_method_notify_ready))) {
+            HIBUS_LOCALHOST, info->app_name, on_method_notify_ready))) {
         ULOG_ERR ("Failed to register procedure `notifyReady` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
         return -1;
     }
 
     if ((err_code = hibus_register_procedure (conn, "getBall",
-            HIBUS_LOCALHOST, HIBUS_APP_HIBUS, on_method_get_ball))) {
+            HIBUS_LOCALHOST, info->app_name, on_method_get_ball))) {
         ULOG_ERR ("Failed to register procedure `getBall` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
         return -1;
