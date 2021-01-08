@@ -539,7 +539,7 @@ run_server (void)
                     ULOG_NOTE ("Refused a client\n");
                 }
                 else {
-                    ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
+                    ev.events = EPOLLIN | EPOLLOUT; /* do not use EPOLLET */
                     ev.data.ptr = client;
                     if (epoll_ctl (the_server.epollfd,
                                 EPOLL_CTL_ADD, client->fd, &ev) == -1) {
@@ -555,7 +555,7 @@ run_server (void)
                     ULOG_NOTE ("Refused a client\n");
                 }
                 else {
-                    ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
+                    ev.events = EPOLLIN | EPOLLOUT; /* do not use EPOLLET */
                     ev.data.ptr = client;
                     if (epoll_ctl(the_server.epollfd,
                                 EPOLL_CTL_ADD, client->fd, &ev) == -1) {
