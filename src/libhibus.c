@@ -1913,8 +1913,6 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
             else if (retval == JPT_ERROR) {
                 hibus_json *jo_tmp;
 
-                ULOG_WARN ("Got an `error` packet\n");
-
                 if (json_object_object_get_ex (jo, "retCode", &jo_tmp)) {
                     *ret_code = json_object_get_int (jo_tmp);
                 }
