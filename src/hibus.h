@@ -132,7 +132,7 @@
 #define HIBUS_DEF_TIME_EXPECTED         5   /* 5 seconds */
 
 /* the maximal size of a payload in a frame (4KiB) */
-#define HIBUS_MAX_FRAME_PAYLOAD_SIZE    4096 
+#define HIBUS_MAX_FRAME_PAYLOAD_SIZE    4096
 
 /* the maximal size of a payload which will be held in memory (40KiB) */
 #define HIBUS_MAX_INMEM_PAYLOAD_SIZE    40960
