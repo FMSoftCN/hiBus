@@ -211,8 +211,9 @@ static void handle_signal_action (int sig_number)
 
         while ((pid = waitpid (-1, &status, WNOHANG)) > 0) {
             if (WIFEXITED (status)) {
-                fprintf (stderr, "Player (%d) exited: return value: %d\n", 
-                        pid, WEXITSTATUS(status));
+                if (WEXITSTATUS(status))
+                    fprintf (stderr, "Player (%d) exited: return value: %d\n", 
+                            pid, WEXITSTATUS(status));
             }
             else if (WIFSIGNALED(status)) {
                 fprintf (stderr, "Player (%d) exited because of signal %d\n",
@@ -1115,6 +1116,12 @@ static char* my_echo_method (hibus_conn* conn,
 {
     *err_code = 0;
     return strdup (method_param);
+
+#if 0
+    char *ret_value = calloc (1, 9001);
+    memset(ret_value, 'c', 9000);
+    return ret_value;
+#endif
 }
 
 static int my_echo_result (hibus_conn* conn,
@@ -1228,7 +1235,8 @@ static void on_new_broken_endpoint (hibus_conn* conn,
         const char* from_endpoint, const char* from_bubble,
         const char* bubble_data)
 {
-    hibus_json *jo = hibus_json_object_from_string (bubble_data, sizeof (bubble_data), 2);
+    hibus_json *jo = hibus_json_object_from_string (bubble_data,
+            strlen (bubble_data), 2);
     if (jo == NULL) {
         ULOG_ERR ("Failed to parse bubbleData:\n%s\n", bubble_data);
         return;
