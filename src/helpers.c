@@ -147,7 +147,7 @@ static const char* err_messages [] = {
     /* HIBUS_EC_NOMEM (-3) */
     "No Enough Memory",
     /* HIBUS_EC_TOO_LARGE (-4) */
-    "Tool Large",
+    "Too Large",
     /* HIBUS_EC_PROTOCOL (-5) */
     "Protocol",
     /* HIBUS_EC_UPPER (-6) */
