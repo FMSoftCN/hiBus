@@ -26,6 +26,7 @@
 
 #include <hibox/ulog.h>
 
+#ifdef BUILD_APP_AUTH
 #ifdef HAVE_LIBSSL
 
 #include <openssl/rsa.h>
@@ -158,4 +159,4 @@ int hibus_verify_signature (const char* app_name,
 }
 
 #endif /* HAVE_LIBSSL */
-
+#endif /* BUILD_APP_AUTH */

@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <assert.h>
 
+#ifdef BUILD_APP_AUTH
 #ifndef HAVE_LIBSSL
 
 #include <hibox/ulog.h>
@@ -106,4 +107,4 @@ int hibus_verify_signature (const char* app_name,
 }
 
 #endif /* !HAVE_LIBSSL */
-
+#endif /* BUILD_APP_AUTH */

@@ -33,8 +33,8 @@
 
 /* Constants */
 #define HIBUS_PROTOCOL_NAME             "HIBUS"
-#define HIBUS_PROTOCOL_VERSION          90
-#define HIBUS_MINIMAL_PROTOCOL_VERSION  90
+#define HIBUS_PROTOCOL_VERSION          100
+#define HIBUS_MINIMAL_PROTOCOL_VERSION  100
 
 #define HIBUS_US_PATH                   "/var/tmp/hibus.sock"
 #define HIBUS_WS_PORT                   "7700"

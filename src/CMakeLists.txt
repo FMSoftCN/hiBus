@@ -22,15 +22,15 @@ FIND_PATH(hibox_inc_dir hibox/utils.h)
 INCLUDE_DIRECTORIES(${hibox_inc_dir})
 
 ADD_LIBRARY(hibus SHARED libhibus.c helpers.c
-        sign_verify_rsa_sha256.c sign_verify_hmac_sha256.c)
+        sign_verify_rsa_sha256.c sign_verify_hmac_sha256.c sign_verify_dummy.c)
 TARGET_LINK_LIBRARIES(hibus ${libhibox} ${OPENSSL_LIBRARIES})
 
 ADD_EXECUTABLE(hibuscl cmdline.c drum_game.c libhibus.c helpers.c
-        sign_verify_rsa_sha256.c sign_verify_hmac_sha256.c)
+        sign_verify_rsa_sha256.c sign_verify_hmac_sha256.c sign_verify_dummy.c)
 TARGET_LINK_LIBRARIES(hibuscl ${libhibox} ${OPENSSL_LIBRARIES} -lefence)
 
 ADD_EXECUTABLE(hibusd websocket.c unixsocket.c server.c endpoint.c builtin_endpoint.c
-        helpers.c pattern_list.c sign_verify_rsa_sha256.c sign_verify_hmac_sha256.c)
+        helpers.c pattern_list.c sign_verify_rsa_sha256.c sign_verify_hmac_sha256.c sign_verify_dummy.c)
 TARGET_LINK_LIBRARIES(hibusd ${libhibox} ${libglib} ${OPENSSL_LIBRARIES} -lefence)
 
 INSTALL(TARGETS hibus hibuscl

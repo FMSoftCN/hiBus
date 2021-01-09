@@ -1,10 +1,11 @@
-# hiBus
+# HiBus
 
-hiBus is the data bus for device side of HybridOS.
+HiBus is the data bus for device side of HybridOS.
 
 - [Introduction](#introduction)
 - [Dependencies](#dependencies)
 - [Current Status](#current-status)
+- [Build HiBus for Standalone Use](#build-hibus-for-standalone-use)
 - [TODO List](#todo-list)
 - [Copying](#copying)
    + [Commercial License](#commercial-license)
@@ -32,12 +33,12 @@ But compared to uBus, hiBus has the following important improvements:
 - The redesigned hiBus protocol can avoid deadlock when the same app plays
   different roles.
 
-hiBus includes the following three components:
+HiBus includes the following three components:
 
-1. hiBus server, an executable program which runs as a daemon in the system.
-1. hiBus cmdline, an executable program which provides an interactive command line program
+1. HiBus server, an executable program which runs as a daemon in the system.
+1. HiBus cmdline, an executable program which provides an interactive command line program
    for test and debugging.
-1. hiBus library, an library which provides some APIs for clients to use hiBus easily.
+1. HiBus library, an library which provides some APIs for clients to use hiBus easily.
 
 For more information, please refer to:
 
@@ -45,7 +46,7 @@ For more information, please refer to:
 
 ## Dependencies
 
-hiBus depends on the following libraries:
+HiBus depends on the following libraries:
 
 - [hiBox](https://github.com/FMSoft/hibox) provides some utilities for HybridOS device side in C language.
 - [glib](https://github.com/GNOME/glib) provides data structure handling for C language.
@@ -53,14 +54,27 @@ hiBus depends on the following libraries:
 
 ## Current Status
 
+- Jan. 2021: Version 1.0.
 - Dec. 2020: First release (version 0.9).
 - Oct. 2020: Skeleton of source code.
 
+## Build HiBus for Standalone Use
+
+To build hiBus for your own usage on a generic Linux box without
+the app management of HybridOS, use the following options for `cmake`:
+
+```
+$ cmake -DBUILD_APP_AUTH=OFF <directory_to_source_code>
+```
+
+If you use the `-DBUILD_APP_AUTH=OFF` option, hiBus will use a dummy app
+authentication method to avoid preparing your app authentication system.
+
 ## TODO List
 
-- Version 1.0
-   1. Finish the command line.
+- Version 1.2
    1. Support for WebSocket in `libhibus`.
+   1. Support for plugins of builtin endpoints.
    1. Unit tests.
 
 ## Copying
