@@ -24,6 +24,7 @@
 #define _HIBUS_CMDLIEN_H
 
 #include <termio.h>
+#include <hibox/kvlist.h>
 
 #define NR_CMD_ARGS         4
 
@@ -51,6 +52,7 @@ struct run_info {
     char self_endpoint [HIBUS_LEN_ENDPOINT_NAME + 1];
 
     hibus_json *jo_endpoints;
+    struct kvlist ret_value_list;
 
 #if 0
     // buffers for current command

@@ -51,6 +51,9 @@ enum {
     CMD_HELP = 0,
     CMD_EXIT,
     CMD_PLAY,
+    CMD_REGISTER_METHOD,
+    CMD_REVOKE_METHOD,
+    CMD_SET_RETURN_VALUE,
     CMD_CALL,
     CMD_REGISTER_EVENT,
     CMD_REVOKE_EVENT,
@@ -98,6 +101,18 @@ static struct cmd_info {
         "play", "p",
         "play drum 10 This is a secret",
         AT_GAME, AT_INTEGER, AT_NONE, AT_STRING, },
+    { CMD_REGISTER_METHOD,
+        "registerMethod", "rgm", 
+        "registermethod whoAmI *",
+        AT_NONE, AT_BUBBLE, AT_NONE, AT_STRING, },
+    { CMD_REVOKE_METHOD,
+        "revokeMethod", "rvm", 
+        "revokemethod whoAmI",
+        AT_NONE, AT_BUBBLE, AT_NONE, AT_NONE, },
+    { CMD_SET_RETURN_VALUE,
+        "setretvalue", "srv", 
+        "setretvalue whoAmI Tom Jerry",
+        AT_NONE, AT_BUBBLE, AT_NONE, AT_STRING, },
     { CMD_CALL,
         "call", "c", 
         "call @localhost/cn.fmsoft.hybridos.hibus/builtin echo Hi, there",
@@ -335,14 +350,20 @@ static void on_cmd_help (hibus_conn *conn)
     fprintf (stderr, "    exit this hiBus command line program.\n");
     fprintf (stderr, "  <play | p> <game> <number of players> <parameters>\n");
     fprintf (stderr, "    play a game\n");
+    fprintf (stderr, "  <registerMethod | rgm> <method> <app access pattern list>\n");
+    fprintf (stderr, "    register a method\n");
+    fprintf (stderr, "  <revokeMethod | rvm> <method>\n");
+    fprintf (stderr, "    revoke a method\n");
+    fprintf (stderr, "  <setReturnValue | srv> <method> <return value>\n");
+    fprintf (stderr, "    set the return value of the specified method\n");
+    fprintf (stderr, "  <call | c> <endpoint> <method> <parameters>\n");
+    fprintf (stderr, "    call a procedure\n");
     fprintf (stderr, "  <registerEvent | rge> <BUBBLE> <app access pattern list>\n");
     fprintf (stderr, "    register an event\n");
     fprintf (stderr, "  <revokeEvent | rve> <BUBBLE>\n");
     fprintf (stderr, "    revoke an event\n");
     fprintf (stderr, "  <fire | f> <BUBBLE> <parameters>\n");
     fprintf (stderr, "    fire an event\n");
-    fprintf (stderr, "  <call | c> <endpoint> <method> <parameters>\n");
-    fprintf (stderr, "    call a procedure\n");
     fprintf (stderr, "  <subscribe | sub> <endpoint> <BUBBLE>\n");
     fprintf (stderr, "    suscribe an event.\n");
     fprintf (stderr, "  <unsubscribe | unsub> <endpoint> <BUBBLE>\n");
@@ -406,7 +427,7 @@ static void on_cmd_call (hibus_conn *conn,
                 endpoint, method, param, hibus_get_err_message (err_code));
         if (err_code == HIBUS_EC_SERVER_ERROR) {
             int ret_code = hibus_conn_get_last_ret_code (conn);
-            fprintf (stderr, "Server return info: %s (%d)\n",
+            fprintf (stderr, "Server returned message: %s (%d)\n",
                     hibus_get_ret_message (ret_code), ret_code);
         }
     }
@@ -415,6 +436,93 @@ static void on_cmd_call (hibus_conn *conn,
                 endpoint, method, param, ret_value);
 
         free (ret_value);
+    }
+}
+
+static char* my_method_handler (hibus_conn* conn,
+        const char* from_endpoint, const char* to_method,
+        const char* method_param, int *err_code)
+{
+    char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
+    struct run_info *info = hibus_conn_get_user_data (conn);
+    void* data;
+    char* value;
+
+    hibus_name_tolower_copy (to_method, normalized_name, HIBUS_LEN_METHOD_NAME);
+    if ((data = kvlist_get (&info->ret_value_list, normalized_name)) == NULL) {
+        return strdup ("NULL");
+    }
+
+    value = *(char **)data;
+    return strdup (value);
+}
+
+static void on_cmd_register_method (hibus_conn *conn,
+        const char* method, const char* param)
+{
+    int err_code;
+
+    err_code = hibus_register_procedure (conn, method,
+            "localhost", param, my_method_handler);
+    if (err_code) {
+        struct run_info *info = hibus_conn_get_user_data (conn);
+
+        fprintf (stderr, "Failed to register method %s/%s with app access patterns %s: %s\n",
+                info->self_endpoint, method, param, hibus_get_err_message (err_code));
+        if (err_code == HIBUS_EC_SERVER_ERROR) {
+            int ret_code = hibus_conn_get_last_ret_code (conn);
+
+            fprintf (stderr, "Server returned message: %s (%d)\n",
+                    hibus_get_ret_message (ret_code), ret_code);
+        }
+    }
+    else {
+        fprintf (stderr, "Method registered.\n");
+    }
+}
+
+static void on_cmd_revoke_method (hibus_conn *conn,
+        const char* method)
+{
+    int err_code;
+
+    err_code = hibus_revoke_procedure (conn, method);
+    if (err_code) {
+        struct run_info *info = hibus_conn_get_user_data (conn);
+
+        fprintf (stderr, "Failed to revoke method %s/%s: %s\n",
+                info->self_endpoint, method, hibus_get_err_message (err_code));
+        if (err_code == HIBUS_EC_SERVER_ERROR) {
+            int ret_code = hibus_conn_get_last_ret_code (conn);
+
+            fprintf (stderr, "Server returned message: %s (%d)\n",
+                    hibus_get_ret_message (ret_code), ret_code);
+        }
+    }
+    else {
+        fprintf (stderr, "Method revoked.\n");
+    }
+}
+
+static void on_cmd_set_return_value (hibus_conn *conn,
+        const char* method, const char* ret_value)
+{
+    char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
+    struct run_info *info = hibus_conn_get_user_data (conn);
+    char* value;
+
+    if (!hibus_is_valid_method_name (method)) {
+        fprintf (stderr, "Bad method name: %s\n", method);
+        return;
+    }
+
+    hibus_name_tolower_copy (method, normalized_name, HIBUS_LEN_METHOD_NAME);
+    value = strdup (ret_value);
+    if (kvlist_set (&info->ret_value_list, normalized_name, &value)) {
+        fprintf (stderr, "Value store for method: %s\n", normalized_name);
+    }
+    else {
+        fprintf (stderr, "Failed to store value for method: %s\n", normalized_name);
     }
 }
 
@@ -432,7 +540,7 @@ static void on_cmd_register_event (hibus_conn *conn,
         if (err_code == HIBUS_EC_SERVER_ERROR) {
             int ret_code = hibus_conn_get_last_ret_code (conn);
 
-            fprintf (stderr, "Server return info: %s (%d)\n",
+            fprintf (stderr, "Server returned message: %s (%d)\n",
                     hibus_get_ret_message (ret_code), ret_code);
         }
     }
@@ -455,7 +563,7 @@ static void on_cmd_revoke_event (hibus_conn *conn,
         if (err_code == HIBUS_EC_SERVER_ERROR) {
             int ret_code = hibus_conn_get_last_ret_code (conn);
 
-            fprintf (stderr, "Server return info: %s (%d)\n",
+            fprintf (stderr, "Server returned message: %s (%d)\n",
                     hibus_get_ret_message (ret_code), ret_code);
         }
     }
@@ -477,7 +585,7 @@ static void on_cmd_fire (hibus_conn *conn,
                 info->self_endpoint, bubble, param, hibus_get_err_message (err_code));
         if (err_code == HIBUS_EC_SERVER_ERROR) {
             int ret_code = hibus_conn_get_last_ret_code (conn);
-            fprintf (stderr, "Server return info: %s (%d)\n",
+            fprintf (stderr, "Server returned message: %s (%d)\n",
                     hibus_get_ret_message (ret_code), ret_code);
         }
     }
@@ -978,6 +1086,18 @@ static void on_confirm_command (hibus_conn *conn)
             on_cmd_play (conn, args[0], strtol (args [1], NULL, 0), args [3]);
             break;
 
+        case CMD_REGISTER_METHOD:
+            on_cmd_register_method (conn, args[1], args [3]);
+            break;
+
+        case CMD_REVOKE_METHOD:
+            on_cmd_revoke_method (conn, args[1]);
+            break;
+
+        case CMD_SET_RETURN_VALUE:
+            on_cmd_set_return_value (conn, args[1], args [3]);
+            break;
+
         case CMD_CALL:
             on_cmd_call (conn, args[0], args [1], args [3]);
             break;
@@ -1449,6 +1569,7 @@ int main (int argc, char **argv)
 
     ulog_open (-1, -1, "hiBusCL");
 
+    kvlist_init (&the_client.ret_value_list, NULL);
     the_client.running = true;
     the_client.last_sigint_time = 0;
     if (setup_signals () < 0)
@@ -1591,6 +1712,19 @@ int main (int argc, char **argv)
 
     // cleanup
     json_object_put (the_client.jo_endpoints);
+
+    {
+        const char* name;
+        void* data;
+
+        kvlist_for_each (&the_client.ret_value_list, name, data) {
+            char* value = *(char **)data;
+
+            free (value);
+        }
+
+        kvlist_free (&the_client.ret_value_list);
+    }
 
     history_clear (&the_client);
 
