@@ -52,6 +52,7 @@ enum {
     CMD_EXIT,
     CMD_PLAY,
     CMD_CALL,
+    CMD_FIRE,
     CMD_SUBSCRIBE,
     CMD_UNSUBSCRIBE,
     CMD_LIST_ENDPOINTS,
@@ -99,6 +100,10 @@ static struct cmd_info {
         "call", "c", 
         "call @localhost/cn.fmsoft.hybridos.hibus/builtin echo Hi, there",
         AT_ENDPOINT, AT_METHOD, AT_NONE, AT_STRING, },
+    { CMD_FIRE,
+        "fire", "f", 
+        "fire CLOCK 14:00",
+        AT_NONE, AT_BUBBLE, AT_NONE, AT_STRING, },
     { CMD_SUBSCRIBE,
         "subscribe", "sub",
         "sub @localhost/cn.fmsoft.hybridos.hibus/builtin NEWENDPOINT",
@@ -322,6 +327,8 @@ static void on_cmd_help (hibus_conn *conn)
     fprintf (stderr, "    play a game\n");
     fprintf (stderr, "  <call | c> <endpoint> <method> <parameters>\n");
     fprintf (stderr, "    call a procedure\n");
+    fprintf (stderr, "  <fire | f> <BUBBLE> <parameters>\n");
+    fprintf (stderr, "    fire an event\n");
     fprintf (stderr, "  <subscribe | sub> <endpoint> <BUBBLE>\n");
     fprintf (stderr, "    suscribe an event.\n");
     fprintf (stderr, "  <unsubscribe | unsub> <endpoint> <BUBBLE>\n");
@@ -389,6 +396,24 @@ static void on_cmd_call (hibus_conn *conn,
                 endpoint, method, param, ret_value);
 
         free (ret_value);
+    }
+}
+
+static void on_cmd_fire (hibus_conn *conn,
+        const char* bubble, const char* param)
+{
+    int err_code;
+
+    err_code = hibus_fire_event (conn, bubble, param);
+    if (err_code) {
+        int ret_code = hibus_conn_get_last_ret_code (conn);
+        struct run_info *info = hibus_conn_get_user_data (conn);
+
+        fprintf (stderr, "Failed to fire event %s/%s with parameter %s: %s\n",
+                info->self_endpoint, bubble, param, hibus_get_ret_message (ret_code));
+    }
+    else {
+        fprintf (stderr, "Event fired.\n");
     }
 }
 
@@ -886,6 +911,10 @@ static void on_confirm_command (hibus_conn *conn)
 
         case CMD_CALL:
             on_cmd_call (conn, args[0], args [1], args [3]);
+            break;
+
+        case CMD_FIRE:
+            on_cmd_fire (conn, args[1], args [3]);
             break;
 
         case CMD_SUBSCRIBE:
