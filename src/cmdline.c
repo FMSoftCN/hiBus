@@ -52,6 +52,8 @@ enum {
     CMD_EXIT,
     CMD_PLAY,
     CMD_CALL,
+    CMD_REGISTER_EVENT,
+    CMD_REVOKE_EVENT,
     CMD_FIRE,
     CMD_SUBSCRIBE,
     CMD_UNSUBSCRIBE,
@@ -100,6 +102,14 @@ static struct cmd_info {
         "call", "c", 
         "call @localhost/cn.fmsoft.hybridos.hibus/builtin echo Hi, there",
         AT_ENDPOINT, AT_METHOD, AT_NONE, AT_STRING, },
+    { CMD_REGISTER_EVENT,
+        "registerEvent", "rge", 
+        "registerevent MYEVENT *",
+        AT_NONE, AT_BUBBLE, AT_NONE, AT_STRING, },
+    { CMD_REVOKE_EVENT,
+        "revokeEvent", "rve", 
+        "revokeevent MYEVENT",
+        AT_NONE, AT_BUBBLE, AT_NONE, AT_NONE, },
     { CMD_FIRE,
         "fire", "f", 
         "fire CLOCK 14:00",
@@ -325,10 +335,14 @@ static void on_cmd_help (hibus_conn *conn)
     fprintf (stderr, "    exit this hiBus command line program.\n");
     fprintf (stderr, "  <play | p> <game> <number of players> <parameters>\n");
     fprintf (stderr, "    play a game\n");
-    fprintf (stderr, "  <call | c> <endpoint> <method> <parameters>\n");
-    fprintf (stderr, "    call a procedure\n");
+    fprintf (stderr, "  <registerEvent | rge> <BUBBLE> <app access pattern list>\n");
+    fprintf (stderr, "    register an event\n");
+    fprintf (stderr, "  <revokeEvent | rve> <BUBBLE>\n");
+    fprintf (stderr, "    revoke an event\n");
     fprintf (stderr, "  <fire | f> <BUBBLE> <parameters>\n");
     fprintf (stderr, "    fire an event\n");
+    fprintf (stderr, "  <call | c> <endpoint> <method> <parameters>\n");
+    fprintf (stderr, "    call a procedure\n");
     fprintf (stderr, "  <subscribe | sub> <endpoint> <BUBBLE>\n");
     fprintf (stderr, "    suscribe an event.\n");
     fprintf (stderr, "  <unsubscribe | unsub> <endpoint> <BUBBLE>\n");
@@ -389,13 +403,64 @@ static void on_cmd_call (hibus_conn *conn,
 
     if (err_code) {
         fprintf (stderr, "Failed to call procedure %s/%s with parameter %s: %s\n",
-                endpoint, method, param, hibus_get_ret_message (ret_code));
+                endpoint, method, param, hibus_get_err_message (err_code));
+        if (err_code == HIBUS_EC_SERVER_ERROR) {
+            int ret_code = hibus_conn_get_last_ret_code (conn);
+            fprintf (stderr, "Server return info: %s (%d)\n",
+                    hibus_get_ret_message (ret_code), ret_code);
+        }
     }
     else {
         fprintf (stderr, "Got result from procedure %s/%s with parameter %s: \n%s\n",
                 endpoint, method, param, ret_value);
 
         free (ret_value);
+    }
+}
+
+static void on_cmd_register_event (hibus_conn *conn,
+        const char* bubble, const char* param)
+{
+    int err_code;
+
+    err_code = hibus_register_event (conn, bubble, "localhost", param);
+    if (err_code) {
+        struct run_info *info = hibus_conn_get_user_data (conn);
+
+        fprintf (stderr, "Failed to register event %s/%s with app access patterns %s: %s\n",
+                info->self_endpoint, bubble, param, hibus_get_err_message (err_code));
+        if (err_code == HIBUS_EC_SERVER_ERROR) {
+            int ret_code = hibus_conn_get_last_ret_code (conn);
+
+            fprintf (stderr, "Server return info: %s (%d)\n",
+                    hibus_get_ret_message (ret_code), ret_code);
+        }
+    }
+    else {
+        fprintf (stderr, "Event registered.\n");
+    }
+}
+
+static void on_cmd_revoke_event (hibus_conn *conn,
+        const char* bubble)
+{
+    int err_code;
+
+    err_code = hibus_revoke_event (conn, bubble);
+    if (err_code) {
+        struct run_info *info = hibus_conn_get_user_data (conn);
+
+        fprintf (stderr, "Failed to revoke event %s/%s: %s\n",
+                info->self_endpoint, bubble, hibus_get_err_message (err_code));
+        if (err_code == HIBUS_EC_SERVER_ERROR) {
+            int ret_code = hibus_conn_get_last_ret_code (conn);
+
+            fprintf (stderr, "Server return info: %s (%d)\n",
+                    hibus_get_ret_message (ret_code), ret_code);
+        }
+    }
+    else {
+        fprintf (stderr, "Event revoked.\n");
     }
 }
 
@@ -406,11 +471,15 @@ static void on_cmd_fire (hibus_conn *conn,
 
     err_code = hibus_fire_event (conn, bubble, param);
     if (err_code) {
-        int ret_code = hibus_conn_get_last_ret_code (conn);
         struct run_info *info = hibus_conn_get_user_data (conn);
 
         fprintf (stderr, "Failed to fire event %s/%s with parameter %s: %s\n",
-                info->self_endpoint, bubble, param, hibus_get_ret_message (ret_code));
+                info->self_endpoint, bubble, param, hibus_get_err_message (err_code));
+        if (err_code == HIBUS_EC_SERVER_ERROR) {
+            int ret_code = hibus_conn_get_last_ret_code (conn);
+            fprintf (stderr, "Server return info: %s (%d)\n",
+                    hibus_get_ret_message (ret_code), ret_code);
+        }
     }
     else {
         fprintf (stderr, "Event fired.\n");
@@ -436,7 +505,7 @@ static void on_cmd_subscribe (hibus_conn *conn,
         int ret_code = hibus_conn_get_last_ret_code (conn);
         fprintf (stderr, "Failed to subscribe event: %s/%s: %s (%d)\n",
                 endpoint, bubble,
-                hibus_get_ret_message (ret_code), ret_code);
+                hibus_get_err_message (err_code), ret_code);
     }
     else {
         fprintf (stderr, "Subscribed event: %s/%s\n",
@@ -455,7 +524,7 @@ static void on_cmd_unsubscribe (hibus_conn *conn,
         int ret_code = hibus_conn_get_last_ret_code (conn);
         fprintf (stderr, "Failed to unsubscribe event: %s/%s: %s (%d)\n",
                 endpoint, bubble,
-                hibus_get_ret_message (ret_code), ret_code);
+                hibus_get_err_message (err_code), ret_code);
     }
     else {
         fprintf (stderr, "Unsubscribed event: %s/%s\n",
@@ -911,6 +980,14 @@ static void on_confirm_command (hibus_conn *conn)
 
         case CMD_CALL:
             on_cmd_call (conn, args[0], args [1], args [3]);
+            break;
+
+        case CMD_REGISTER_EVENT:
+            on_cmd_register_event (conn, args[1], args [3]);
+            break;
+
+        case CMD_REVOKE_EVENT:
+            on_cmd_revoke_event (conn, args[1]);
             break;
 
         case CMD_FIRE:

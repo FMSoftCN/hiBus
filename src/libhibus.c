@@ -349,7 +349,7 @@ static void on_lost_event_generator (hibus_conn* conn,
             (endpoint_name = json_object_get_string (jo_tmp))) {
     }
     else {
-        ULOG_ERR ("Fatal error: no endpintName in authPassed packet!\n");
+        ULOG_ERR ("Fatal error: no endpointName field in the packet!\n");
         return;
     }
 
@@ -365,19 +365,19 @@ static void on_lost_event_generator (hibus_conn* conn,
     }
 }
 
-static void on_lost_bubble (hibus_conn* conn,
+static void on_lost_event_bubble (hibus_conn* conn,
         const char* from_endpoint, const char* from_bubble,
         const char* bubble_data)
 {
+    int n;
     hibus_json *jo = NULL, *jo_tmp;
     const char *endpoint_name = NULL;
     const char *bubble_name = NULL;
-    const char* event_name;
-    void *next, *data;
+    char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
 
     jo = hibus_json_object_from_string (bubble_data, strlen (bubble_data), 2);
     if (jo == NULL) {
-        ULOG_ERR ("Failed to parse bubble data for bubble `LOSTEVENTGENERATOR`\n");
+        ULOG_ERR ("Failed to parse bubble data for bubble `LOSTEVENTBUBBLE`\n");
         return;
     }
 
@@ -385,7 +385,7 @@ static void on_lost_bubble (hibus_conn* conn,
             (endpoint_name = json_object_get_string (jo_tmp))) {
     }
     else {
-        ULOG_ERR ("Fatal error: no endpintName in authPassed packet!\n");
+        ULOG_ERR ("Fatal error: no endpointName in the packet!\n");
         return;
     }
 
@@ -393,21 +393,18 @@ static void on_lost_bubble (hibus_conn* conn,
             (bubble_name = json_object_get_string (jo_tmp))) {
     }
     else {
-        ULOG_ERR ("Fatal error: no endpintName in authPassed packet!\n");
+        ULOG_ERR ("Fatal error: no bubbleName in the packet!\n");
         return;
     }
 
-    kvlist_for_each_safe (&conn->subscribed_list, event_name, next, data) {
-        const char* end_of_endpoint = strrchr (event_name, '/');
+    n = hibus_name_tolower_copy (endpoint_name, event_name, HIBUS_LEN_ENDPOINT_NAME);
+    event_name [n++] = '/';
+    event_name [n] = '\0';
+    hibus_name_toupper_copy (bubble_name, event_name + n, HIBUS_LEN_BUBBLE_NAME);
+    if (!kvlist_get (&conn->subscribed_list, event_name))
+        return;
 
-        if (strncasecmp (event_name, endpoint_name, end_of_endpoint - event_name) == 0 &&
-                strcasecmp (end_of_endpoint + 1, bubble_name) == 0) {
-            ULOG_INFO ("Matched a event (%s) in subscribed events for %s/%s\n",
-                    event_name, endpoint_name, bubble_name);
-
-            kvlist_delete (&conn->subscribed_list, event_name);
-        }
-    }
+    kvlist_delete (&conn->subscribed_list, event_name);
 }
 
 /* add systen event handlers here */
@@ -418,6 +415,7 @@ static int on_auth_passed (hibus_conn* conn, const hibus_json *jo)
     char event_name [HIBUS_LEN_ENDPOINT_NAME + HIBUS_LEN_BUBBLE_NAME + 2];
     const char* srv_host_name;
     const char* own_host_name;
+    hibus_event_handler event_handler;
 
     if (json_object_object_get_ex (jo, "serverHostName", &jo_tmp) &&
             (srv_host_name = json_object_get_string (jo_tmp))) {
@@ -446,11 +444,11 @@ static int on_auth_passed (hibus_conn* conn, const hibus_json *jo)
     n = hibus_assemble_endpoint_name (srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, event_name);
     event_name [n++] = '/';
-    event_name [n + 1] = '\0';
+    event_name [n] = '\0';
     strcat (event_name, "LOSTEVENTGENERATOR");
 
-    if (!kvlist_set (&conn->subscribed_list, event_name,
-                &on_lost_event_generator)) {
+    event_handler = on_lost_event_generator;
+    if (!kvlist_set (&conn->subscribed_list, event_name, &event_handler)) {
         ULOG_ERR ("Failed to register callback for system event `LOSTEVENTGENERATOR`!\n");
         return HIBUS_EC_UNEXPECTED;
     }
@@ -458,12 +456,12 @@ static int on_auth_passed (hibus_conn* conn, const hibus_json *jo)
     n = hibus_assemble_endpoint_name (srv_host_name,
             HIBUS_APP_HIBUS, HIBUS_RUNNER_BUILITIN, event_name);
     event_name [n++] = '/';
-    event_name [n + 1] = '\0';
-    strcat (event_name, "LOSTBUBBLE");
+    event_name [n] = '\0';
+    strcat (event_name, "LOSTEVENTBUBBLE");
 
-    if (!kvlist_set (&conn->subscribed_list, event_name,
-                &on_lost_bubble)) {
-        ULOG_ERR ("Failed to register callback for system event `LOSTBUBBLE`!\n");
+    event_handler = on_lost_event_bubble;
+    if (!kvlist_set (&conn->subscribed_list, event_name, &event_handler)) {
+        ULOG_ERR ("Failed to register callback for system event `LOSTEVENTBUBBLE`!\n");
         return HIBUS_EC_UNEXPECTED;
     }
 
@@ -1245,8 +1243,7 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
         return HIBUS_EC_INVALID_VALUE;
     }
 
-    hibus_name_tolower_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
-
+    hibus_name_toupper_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
     if (kvlist_get (&conn->bubble_list, normalized_bubble))
         return HIBUS_EC_DUPLICATED;
 
@@ -1295,8 +1292,7 @@ int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
     if (!hibus_is_valid_bubble_name (bubble_name))
         return HIBUS_EC_INVALID_VALUE;
 
-    hibus_name_tolower_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
-
+    hibus_name_toupper_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
     if (!kvlist_get (&conn->bubble_list, normalized_bubble))
         return HIBUS_EC_INVALID_VALUE;
 
@@ -1349,7 +1345,7 @@ int hibus_subscribe_event (hibus_conn* conn,
 
     n = hibus_name_tolower_copy (endpoint, event_name, HIBUS_LEN_ENDPOINT_NAME);
     event_name [n++] = '/';
-    event_name [n + 1] = '\0';
+    event_name [n] = '\0';
     hibus_name_toupper_copy (bubble_name, event_name + n, HIBUS_LEN_BUBBLE_NAME);
     if (kvlist_get (&conn->subscribed_list, event_name))
         return HIBUS_EC_INVALID_VALUE;
@@ -1401,7 +1397,7 @@ int hibus_unsubscribe_event (hibus_conn* conn,
 
     n = hibus_name_tolower_copy (endpoint, event_name, HIBUS_LEN_ENDPOINT_NAME);
     event_name [n++] = '/';
-    event_name [n + 1] = '\0';
+    event_name [n] = '\0';
     hibus_name_toupper_copy (bubble_name, event_name + n, HIBUS_LEN_BUBBLE_NAME);
     if (!kvlist_get (&conn->subscribed_list, event_name))
         return HIBUS_EC_INVALID_VALUE;
@@ -1504,7 +1500,7 @@ int hibus_fire_event (hibus_conn* conn,
         return HIBUS_EC_INVALID_VALUE;
     }
 
-    hibus_name_tolower_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
+    hibus_name_toupper_copy (bubble_name, normalized_bubble, HIBUS_LEN_BUBBLE_NAME);
     if (!kvlist_get (&conn->bubble_list, normalized_bubble)) {
         err_code = HIBUS_EC_INVALID_VALUE;
         return HIBUS_EC_INVALID_VALUE;
@@ -1807,9 +1803,10 @@ static int dispatch_event_packet (hibus_conn* conn, const hibus_json *jo)
 
     n = hibus_name_tolower_copy (from_endpoint, event_name, HIBUS_LEN_ENDPOINT_NAME);
     event_name [n++] = '/';
-    event_name [n + 1] = '\0';
+    event_name [n] = '\0';
     hibus_name_toupper_copy (from_bubble, event_name + n, HIBUS_LEN_BUBBLE_NAME);
     if ((data = kvlist_get (&conn->subscribed_list, event_name)) == NULL) {
+        fprintf (stderr, "Got a unsubscribed event: %s\n", event_name);
         return HIBUS_EC_UNKNOWN_EVENT;
     }
     else {
