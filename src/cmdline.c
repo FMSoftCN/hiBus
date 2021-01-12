@@ -439,7 +439,7 @@ static void on_cmd_call (hibus_conn *conn,
     }
 }
 
-static char* my_method_handler (hibus_conn* conn,
+static const char* my_method_handler (hibus_conn* conn,
         const char* from_endpoint, const char* to_method,
         const char* method_param, int *err_code)
 {
@@ -450,11 +450,11 @@ static char* my_method_handler (hibus_conn* conn,
 
     hibus_name_tolower_copy (to_method, normalized_name, HIBUS_LEN_METHOD_NAME);
     if ((data = kvlist_get (&info->ret_value_list, normalized_name)) == NULL) {
-        return strdup ("NULL");
+        return "NULL";
     }
 
     value = *(char **)data;
-    return strdup (value);
+    return value;
 }
 
 static void on_cmd_register_method (hibus_conn *conn,
@@ -462,7 +462,7 @@ static void on_cmd_register_method (hibus_conn *conn,
 {
     int err_code;
 
-    err_code = hibus_register_procedure (conn, method,
+    err_code = hibus_register_procedure_const (conn, method,
             "localhost", param, my_method_handler);
     if (err_code) {
         struct run_info *info = hibus_conn_get_user_data (conn);
@@ -1340,12 +1340,12 @@ static const char *a_json =
     "\"retValue\": \"I am here\""
 "}";
 
-static char* my_echo_method (hibus_conn* conn,
+static const char* my_echo_method (hibus_conn* conn,
         const char* from_endpoint, const char* to_method,
         const char* method_param, int *err_code)
 {
     *err_code = 0;
-    return strdup (method_param);
+    return method_param;
 
 #if 0
     char *ret_value = calloc (1, 9001);
@@ -1427,7 +1427,7 @@ static int test_basic_functions (hibus_conn *conn)
     ULOG_INFO ("error message for hibus_revoke_event: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
-    err_code = hibus_register_procedure (conn, "echo", NULL, NULL, my_echo_method);
+    err_code = hibus_register_procedure_const (conn, "echo", NULL, NULL, my_echo_method);
     ULOG_INFO ("error message for hibus_register_procedure: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
@@ -1607,7 +1607,7 @@ int main (int argc, char **argv)
     format_current_time (curr_time, sizeof (curr_time) - 1);
 
     int err_code;
-    err_code = hibus_register_procedure (conn, "echo", NULL, NULL, my_echo_method);
+    err_code = hibus_register_procedure_const (conn, "echo", NULL, NULL, my_echo_method);
     ULOG_INFO ("error message for hibus_register_procedure: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 

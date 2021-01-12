@@ -47,7 +47,7 @@ struct player_info {
     char *ball_content;
 };
 
-static char* on_method_get_ball (hibus_conn* conn,
+static const char* on_method_get_ball (hibus_conn* conn,
         const char* from_endpoint, const char* to_method,
         const char* method_param, int *err_code)
 {
@@ -65,18 +65,18 @@ static char* on_method_get_ball (hibus_conn* conn,
         if (pn == 0) {
             /* get the original ball content */
             struct run_info *info = hibus_conn_get_user_data (conn);
-            return strdup (info->ball_content);
+            return info->ball_content;
         }
         else {
             /* get ball content of the current player */
             struct player_info *player = hibus_conn_get_user_data (conn);
-            return strdup (player->ball_content);
+            return player->ball_content;
         }
     }
     else if (strcasecmp (runner_name, HIBUS_RUNNER_CMDLINE) == 0) {
         /* must from the runner `cmdline` */
         struct player_info *player = hibus_conn_get_user_data (conn);
-        return strdup (player->ball_content);
+        return player->ball_content;
     }
 
     *err_code = HIBUS_EC_UNEXPECTED;
@@ -191,7 +191,7 @@ static int main_of_player (struct run_info *info, int pn)
         goto failed;
     }
 
-    err_code = hibus_register_procedure (conn, "getBall",
+    err_code = hibus_register_procedure_const (conn, "getBall",
             HIBUS_LOCALHOST, info->app_name, on_method_get_ball);
     if (err_code) {
         goto failed;
@@ -391,7 +391,7 @@ int start_drum_game (hibus_conn* conn, int nr_players, const char* ball_content)
         return -1;
     }
 
-    if ((err_code = hibus_register_procedure (conn, "getBall",
+    if ((err_code = hibus_register_procedure_const (conn, "getBall",
             HIBUS_LOCALHOST, info->app_name, on_method_get_ball))) {
         ULOG_ERR ("Failed to register procedure `getBall` (%d): %s\n",
                 err_code, hibus_get_err_message (err_code));
