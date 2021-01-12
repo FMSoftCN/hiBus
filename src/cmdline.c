@@ -1519,7 +1519,6 @@ static int read_option_args (int argc, char **argv)
     while ((o = getopt_long (argc, argv, short_options, long_opts, &idx)) >= 0) {
         if (-1 == o || EOF == o)
             break;
-        ULOG_INFO ("option index: %d\n", idx);
         switch (o) {
             case 'h':
                 print_usage ();
