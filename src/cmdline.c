@@ -1484,14 +1484,6 @@ static void on_new_broken_endpoint (hibus_conn* conn,
     json_object_put (jo);
 }
 
-static char short_options[] = "a:vh";
-static struct option long_opts[] = {
-    {"app"            , required_argument , 0 , 'a' } ,
-    {"version"        , no_argument       , 0 , 'v' } ,
-    {"help"           , no_argument       , 0 , 'h' } ,
-    {0, 0, 0, 0}
-};
-
 /* Command line help. */
 static void print_usage (void)
 {
@@ -1503,18 +1495,22 @@ static void print_usage (void)
             ""
             "The following options can be supplied to the command:\n\n"
             ""
-            "  -a --app=<app_name>      - Connect to hiBus with the specified app name.\n"
-            "  -h --help                - This help.\n"
-            "  -v --version             - Display version information and exit.\n"
+            "  -a --app=<app_name>          - Connect to hiBus with the specified app name.\n"
+            "  -r --runner=<runner_name>    - Connect to hiBus with the specified runner name.\n"
+            "  -h --help                    - This help.\n"
+            "  -v --version                 - Display version information and exit.\n"
             "\n"
             );
 }
 
-static void parse_long_opt (const char *name, const char *oarg)
-{
-    if (!strcmp ("app", name) && strlen (oarg) < HIBUS_LEN_APP_NAME)
-        strcpy (the_client.app_name, oarg);
-}
+static char short_options[] = "a:r:vh";
+static struct option long_opts[] = {
+    {"app"            , required_argument , NULL , 'a' } ,
+    {"runner"         , required_argument , NULL , 'r' } ,
+    {"version"        , no_argument       , NULL , 'v' } ,
+    {"help"           , no_argument       , NULL , 'h' } ,
+    {0, 0, 0, 0}
+};
 
 static int read_option_args (int argc, char **argv)
 {
@@ -1523,6 +1519,7 @@ static int read_option_args (int argc, char **argv)
     while ((o = getopt_long (argc, argv, short_options, long_opts, &idx)) >= 0) {
         if (-1 == o || EOF == o)
             break;
+        ULOG_INFO ("option index: %d\n", idx);
         switch (o) {
             case 'h':
                 print_usage ();
@@ -1531,7 +1528,12 @@ static int read_option_args (int argc, char **argv)
                 fprintf (stdout, "hiBusCL: %s\n", HIBUS_VERSION);
                 return -1;
             case 'a':
-                parse_long_opt (long_opts[idx].name, optarg);
+                if (strlen (optarg) < HIBUS_LEN_APP_NAME)
+                    strcpy (the_client.app_name, optarg);
+                break;
+            case 'r':
+                if (strlen (optarg) < HIBUS_LEN_RUNNER_NAME)
+                    strcpy (the_client.runner_name, optarg);
                 break;
             case '?':
                 print_usage ();
@@ -1563,8 +1565,14 @@ int main (int argc, char **argv)
         return EXIT_SUCCESS;
     }
 
-    if (!the_client.app_name[0]) {
+    if (!the_client.app_name[0] ||
+            !hibus_is_valid_app_name (the_client.app_name)) {
         strcpy (the_client.app_name, HIBUS_APP_HIBUS);
+    }
+
+    if (!the_client.runner_name[0] ||
+            !hibus_is_valid_runner_name (the_client.runner_name)) {
+        strcpy (the_client.runner_name, HIBUS_RUNNER_CMDLINE);
     }
 
     ulog_open (-1, -1, "hiBusCL");
@@ -1579,7 +1587,7 @@ int main (int argc, char **argv)
         goto failed;
 
     cnnfd = hibus_connect_via_unix_socket (HIBUS_US_PATH,
-            the_client.app_name, HIBUS_RUNNER_CMDLINE, &conn);
+            the_client.app_name, the_client.runner_name, &conn);
 
     if (cnnfd < 0) {
         fprintf (stderr, "Failed to connect to hiBus server: %s\n",
@@ -1594,7 +1602,7 @@ int main (int argc, char **argv)
 
     hibus_assemble_endpoint_name (
             hibus_conn_own_host_name (conn),
-            the_client.app_name, HIBUS_RUNNER_CMDLINE,
+            the_client.app_name, the_client.runner_name,
             the_client.self_endpoint);
 
     the_client.ttyfd = ttyfd;
