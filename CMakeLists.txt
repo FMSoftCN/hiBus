@@ -3,7 +3,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 PROJECT(hibus C)
 
 SET(PROJECT_NAME "hibus")
-SET(PROJECT_VERSION "1.0")
+SET(PROJECT_VERSION "1.0.2")
 
 ADD_DEFINITIONS(-O2 -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations -fmax-errors=10)
 

@@ -1,24 +1,25 @@
-/*
-** hibus.h -- The code for hiBus library.
-**
-** Copyright (c) 2020 FMSoft (http://www.fmsoft.cn)
-**
-** Author: Vincent Wei (https://github.com/VincentWei)
-**
-** This file is part of hiBus.
-**
-** hiBus is free software: you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation, either version 3 of the License, or
-** (at your option) any later version.
-**
-** hiBus is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-** GNU General Public License for more details.
-** You should have received a copy of the GNU General Public License
-** along with this program.  If not, see http://www.gnu.org/licenses/.
-*/
+/**
+ * @file hibus.h
+ * @author Vincent Wei (https://github.com/VincentWei)
+ * @date 2021/01/12
+ * @brief This file declares API for clients of hiBus.
+ *
+ * Copyright (c) 2020 FMSoft (http://www.fmsoft.cn)
+ *
+ * This file is part of hiBus.
+ *
+ * hiBus is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * hiBus is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see http://www.gnu.org/licenses/.
+ */
 
 #ifndef _HIBUS_H_
 #define _HIBUS_H_
@@ -198,13 +199,16 @@ typedef struct _hibus_pattern_list hibus_pattern_list;
 extern "C" {
 #endif
 
-/*
- * helper functions - implemented in helpers.c, for both server and clients.
+/**
+ * @defgroup Helpers Helper functions
+ *  implemented in helpers.c, for both server and clients.
+ * @{
  */
 
 /**
- * hibus_get_ret_message:
- * @ret_code: the return code.
+ * Get the return message of a return code.
+ * 
+ * @param ret_code: the return code.
  *
  * Returns the pointer to the message string of the specific return code.
  *
@@ -215,8 +219,10 @@ extern "C" {
 const char* hibus_get_ret_message (int ret_code);
 
 /**
+ * Get the error message of an error code.
+ * 
  * hibus_get_err_message:
- * @err_code: the error code.
+ * @param err_code: the error code.
  *
  * Returns the pointer to the message string of the specific error code.
  *
@@ -227,8 +233,10 @@ const char* hibus_get_ret_message (int ret_code);
 const char* hibus_get_err_message (int err_code);
 
 /**
+ * Convert an error code to a return code.
+ * 
  * hibus_errcode_to_retcode:
- * @err_code: the internal error code of hiBus.
+ * @param err_code: the internal error code of hiBus.
  *
  * Returns the return code of the hiBus protocol according to
  * the internal error code.
@@ -240,12 +248,14 @@ const char* hibus_get_err_message (int err_code);
 int hibus_errcode_to_retcode (int err_code);
 
 /**
+ * Parse a JSON string to a hibus_json object.
+ * 
  * hibus_json_object_from_string:
- * @json: the pointer to the JSON string.
- * @len: the length of the JSON string. If it is equal to or less then 0,
+ * @param json: the pointer to the JSON string.
+ * @param len: the length of the JSON string. If it is equal to or less then 0,
  *      the function will get the whole length of the string by calling
  *      strlen().
- * @depth: the maximal nesting depth for the JSON tokenzer.
+ * @param depth: the maximal nesting depth for the JSON tokenzer.
  *
  * Parses a JSON string and returns a JSON object.
  *
@@ -259,14 +269,15 @@ int hibus_errcode_to_retcode (int err_code);
 hibus_json *hibus_json_object_from_string (const char* json, int len, int depth);
 
 /**
- * hibus_is_valid_token:
- * @token: the pointer to the token string.
- * @max_len: The maximal possible length of the token string.
+ * Check whether a string is a valid token.
+ * 
+ * @param token: the pointer to the token string.
+ * @param max_len: The maximal possible length of the token string.
  *
  * Checks whether a token string is valid. According to hiBus protocal,
  * the runner name, method name, bubble name should be a valid token.
  *
- * Note that a string with a length longer than @max_len will
+ * Note that a string with a length longer than \a max_len will
  * be considered as an invalid token.
  *
  * Returns: true for a valid token, otherwise false.
@@ -276,8 +287,9 @@ hibus_json *hibus_json_object_from_string (const char* json, int len, int depth)
 bool hibus_is_valid_token (const char* token, int max_len);
 
 /**
- * hibus_is_valid_wildcard_pattern_list:
- * @pattern_list: the pointer to the wildcard pattern list such as
+ * Check whether a string is a valid pattern list.
+ * 
+ * @param pattern_list: the pointer to the wildcard pattern list such as
  * "*, com.example.?; $self, !com.foo.bar.*".
  *
  * Checks whether a wildcard pattern list string is valid. According to
@@ -291,8 +303,9 @@ bool hibus_is_valid_token (const char* token, int max_len);
 bool hibus_is_valid_wildcard_pattern_list (const char* pattern_list);
 
 /**
- * hibus_is_valid_host_name:
- * @host_name: the pointer to a string contains a host name.
+ * Check whether a string is a valid host name.
+ * 
+ * @param host_name: the pointer to a string contains a host name.
  *
  * Checks whether a host name is valid.
  *
@@ -303,8 +316,9 @@ bool hibus_is_valid_wildcard_pattern_list (const char* pattern_list);
 bool hibus_is_valid_host_name (const char* host_name);
 
 /**
- * hibus_is_valid_app_name:
- * @app_name: the pointer to a string contains an app name.
+ * Check whether a string is a valid app name.
+ * 
+ * @param app_name: the pointer to a string contains an app name.
  *
  * Checks whether an app name is valid.
  *
@@ -315,13 +329,14 @@ bool hibus_is_valid_host_name (const char* host_name);
 bool hibus_is_valid_app_name (const char* app_name);
 
 /**
- * hibus_is_valid_endpoint_name:
- * @endpoint_name: the pointer to a string contains an endpoint name.
+ * Check whether a string is a valid endpoint name.
+ * 
+ * @param endpoint_name: the pointer to a string contains an endpoint name.
  *
  * Checks whether an enpoint name is valid. According to hiBus
  * protocol, a valid endpoint name should having the following pattern:
  *
- *  @<host_name>/<app_name>/<runner_name>
+ *      @<host_name>/<app_name>/<runner_name>
  *
  * Returns: true for a valid endpoint name, otherwise false.
  *
@@ -330,16 +345,17 @@ bool hibus_is_valid_app_name (const char* app_name);
 bool hibus_is_valid_endpoint_name (const char* endpoint_name);
 
 /**
- * hibus_extract_host_name:
- * @endpoint: the pointer to a string contains an endpoint name.
- * @buff: the buffer used to return the host name in the endpoint name.
+ * Extract host name from endpoint name.
+ * 
+ * @param endpoint: the pointer to a string contains an endpoint name.
+ * @param buff: the buffer used to return the host name in the endpoint name.
  *
  * Extracts the part of host name from an endpoint name.
  *
  * Note that the buffer should be large enough to contain a host name.
- * See @HIBUS_LEN_HOST_NAME.
+ * See \a HIBUS_LEN_HOST_NAME.
  *
- * Returns: the length of the host name; <= 0 means @endpoint contains
+ * Returns: the length of the host name; <= 0 means \a endpoint contains
  * an invalid endpoint name.
  *
  * Since: 1.0
@@ -347,14 +363,15 @@ bool hibus_is_valid_endpoint_name (const char* endpoint_name);
 int hibus_extract_host_name (const char* endpoint, char* buff);
 
 /**
- * hibus_extract_app_name:
- * @endpoint: the pointer to a string contains an endpoint name.
- * @buff: the buffer used to return the sub-string of app name in
+ * Extract app name from endpoint name.
+ * 
+ * @param endpoint: the pointer to a string contains an endpoint name.
+ * @param buff: the buffer used to return the sub-string of app name in
  * the endpoint name.
  *
  * Extracts the part of app name from an endpoint name.
  *
- * Returns: the length of the app name; <= 0 means @endpoint contains
+ * Returns: the length of the app name; <= 0 means \a endpoint contains
  * an invalid endpoint name.
  *
  * Since: 1.0
@@ -362,14 +379,15 @@ int hibus_extract_host_name (const char* endpoint, char* buff);
 int hibus_extract_app_name (const char* endpoint, char* buff);
 
 /**
- * hibus_extract_runner_name:
- * @endpoint: the pointer to a string contains an endpoint name.
- * @buff: the buffer used to return the sub-string of runner name in
+ * Extract runner name from endpoint name.
+ * 
+ * @param endpoint: the pointer to a string contains an endpoint name.
+ * @param buff: the buffer used to return the sub-string of runner name in
  * the endpoint name.
  *
  * Extracts the part of runner name from an endpoint name.
  *
- * Returns: the length of the runner name; <= 0 means @endpoint contains
+ * Returns: the length of the runner name; <= 0 means \a endpoint contains
  * an invalid endpoint name.
  *
  * Since: 1.0
@@ -377,8 +395,9 @@ int hibus_extract_app_name (const char* endpoint, char* buff);
 int hibus_extract_runner_name (const char* endpoint, char* buff);
 
 /**
- * hibus_extract_host_name_alloc:
- * @endpoint: the pointer to a string contains an endpoint name.
+ * Extract host name from endpoint name (allocation version).
+ * 
+ * @param endpoint: the pointer to a string contains an endpoint name.
  *
  * Extracts the part of host name from an endpoint name,
  * allocates a new buffer, copies the host name to the buffer,
@@ -394,8 +413,9 @@ int hibus_extract_runner_name (const char* endpoint, char* buff);
 char* hibus_extract_host_name_alloc (const char* endpoint);
 
 /**
- * hibus_extract_app_name_alloc:
- * @endpoint: the pointer to a string contains an endpoint name.
+ * Extract app name from endpoint name (allocation version).
+ * 
+ * @param endpoint: the pointer to a string contains an endpoint name.
  *
  * Extracts the part of app name from an endpoint name,
  * allocates a new buffer, copies the app name to the buffer,
@@ -411,8 +431,9 @@ char* hibus_extract_host_name_alloc (const char* endpoint);
 char* hibus_extract_app_name_alloc (const char* endpoint);
 
 /**
- * hibus_extract_runner_name_alloc:
- * @endpoint: the pointer to a string contains an endpoint name.
+ * Extract runner name from endpoint name (allocation version).
+ *
+ * @param endpoint: the pointer to a string contains an endpoint name.
  *
  * Extracts the part of runner name from an endpoint name,
  * allocates a new buffer, copies the runner name to the buffer,
@@ -428,16 +449,17 @@ char* hibus_extract_app_name_alloc (const char* endpoint);
 char* hibus_extract_runner_name_alloc (const char* endpoint);
 
 /**
- * hibus_assemble_endpoint_name:
- * @host_name: the pointer to a string contains the host name.
- * @app_name: the pointer to a string contains the app name.
- * @runner_name: the pointer to a string contains the runner name.
- * @buff: the buffer used to return the endpoint name string.
+ * Assemble endpoint name.
+ *
+ * @param host_name: the pointer to a string contains the host name.
+ * @param app_name: the pointer to a string contains the app name.
+ * @param runner_name: the pointer to a string contains the runner name.
+ * @param buff: the buffer used to return the endpoint name string.
  *
  * Assembles an endpoint name from a host name, app name, and
  * runner name.
  * 
- * Note that the caller should prepare the buffer (@buff) to
+ * Note that the caller should prepare the buffer (\a buff) to
  * return the assembled endpoint name.
  *
  * Returns: the lenght of the endpoint name if succes; <= 0
@@ -450,10 +472,11 @@ int hibus_assemble_endpoint_name (const char *host_name, const char *app_name,
         const char *runner_name, char *buff);
 
 /**
- * hibus_assemble_endpoint_name_alloc:
- * @host_name: the pointer to a string contains the host name.
- * @app_name: the pointer to a string contains the app name.
- * @runner_name: the pointer to a string contains the runner name.
+ * Assemble endpoint name (allocation version).
+ *
+ * @param host_name: the pointer to a string contains the host name.
+ * @param app_name: the pointer to a string contains the app name.
+ * @param runner_name: the pointer to a string contains the runner name.
  *
  * Assembles an endpoint name from a host name, app name, and
  * runner name, and returns it in a new allocated buffer.
@@ -469,13 +492,14 @@ char* hibus_assemble_endpoint_name_alloc (const char* host_name,
         const char* app_name, const char* runner_name);
 
 /**
- * hibus_sign_data:
- * @app_name: the pointer to a string contains the app name.
- * @data: the pointer to the data will be signed.
- * @data_len: the length of the data in bytes.
- * @sig: the pointer to a buffer for returning
+ * Sign a data.
+ *
+ * @param app_name: the pointer to a string contains the app name.
+ * @param data: the pointer to the data will be signed.
+ * @param data_len: the length of the data in bytes.
+ * @param sig: the pointer to a buffer for returning
  *      the pointer to the newly allocated signature if success.
- * @sig_len: the pointer to an unsigned integer for returning the length
+ * @param sig_len: the pointer to an unsigned integer for returning the length
  *      of the signature.
  *
  * Signs the specified data with the private key of a specific app
@@ -493,12 +517,13 @@ int hibus_sign_data (const char *app_name,
         unsigned char **sig, unsigned int *sig_len);
 
 /**
- * hibus_verify_signature:
- * @app_name: the pointer to a string contains the app name.
- * @data: the pointer to the data will be verified.
- * @data_len: the length of the data in bytes.
- * @sig: the pointer to the signature.
- * @sig_len: the length of the signature.
+ * Verify a signature.
+ *
+ * @param app_name: the pointer to a string contains the app name.
+ * @param data: the pointer to the data will be verified.
+ * @param data_len: the length of the data in bytes.
+ * @param sig: the pointer to the signature.
+ * @param sig_len: the length of the signature.
  *
  * Signs the specified data with the private key of a specific app
  * and returns the signature.
@@ -516,10 +541,12 @@ int hibus_verify_signature (const char* app_name,
         const unsigned char* sig, unsigned int sig_len);
 
 /**
+ * Parse a JSON string to a hibus_json object.
+ *
  * hibus_json_packet_to_object:
- * @json: the string contains the JSON text.
- * @json_len: the length of the JSON text.
- * @jo: a pointer to hibus_json* for returning the json object.
+ * @param json: the string contains the JSON text.
+ * @param json_len: the length of the JSON text.
+ * @param jo: a pointer to hibus_json* for returning the json object.
  *
  * Parses a text packet in JSON format, returns the packet type and
  * a hibus_json object.
@@ -534,11 +561,12 @@ int hibus_json_packet_to_object (const char* json, unsigned int json_len,
         hibus_json **jo);
 
 /**
- * hibus_generate_unique_id:
- * @id_buff: the buffer to save the identifier.
- * @prefix: the prefix used for the identifier.
+ * Generate an unique identifier.
  *
- * Generates a unique id; the size of @id_buff should be at least 64 long.
+ * @param id_buff: the buffer to save the identifier.
+ * @param prefix: the prefix used for the identifier.
+ *
+ * Generates a unique id; the size of \a id_buff should be at least 64 long.
  *
  * Returns: none.
  *
@@ -547,12 +575,13 @@ int hibus_json_packet_to_object (const char* json, unsigned int json_len,
 void hibus_generate_unique_id (char* id_buff, const char* prefix);
 
 /**
- * hibus_generate_md5_id:
- * @id_buff: the buffer to save the identifier.
- * @prefix: the prefix used for the identifier.
+ * Generate an unique MD5 identifier.
+ *
+ * @param id_buff: the buffer to save the identifier.
+ * @param prefix: the prefix used for the identifier.
  *
  * Generates a unique id by using MD5 digest algorithm.
- * The size of @id_buff should be at least 33 bytes long.
+ * The size of \a id_buff should be at least 33 bytes long.
  *
  * Returns: none.
  *
@@ -561,8 +590,9 @@ void hibus_generate_unique_id (char* id_buff, const char* prefix);
 void hibus_generate_md5_id (char* id_buff, const char* prefix);
 
 /**
- * hibus_is_valid_unique_id:
- * @id: the unique identifier.
+ * Check whether a string is a valid unique identifier.
+ *
+ * @param id: the unique identifier.
  *
  * Checks whether a unique id is valid.
  *
@@ -573,8 +603,9 @@ void hibus_generate_md5_id (char* id_buff, const char* prefix);
 bool hibus_is_valid_unique_id (const char* id);
 
 /**
- * hibus_is_valid_md5_id:
- * @id: the unique identifier.
+ * Check whether a string is a valid MD5 identifier.
+ *
+ * @param id: the unique identifier.
  *
  * Checks whether a unique identifier is valid.
  *
@@ -585,12 +616,13 @@ bool hibus_is_valid_unique_id (const char* id);
 bool hibus_is_valid_md5_id (const char* id);
 
 /**
- * hibus_get_elapsed_seconds:
- * @ts1: the earlier time.
- * @ts2 (nullable): the later time.
+ * Get the elapsed seconds.
+ *
+ * @param ts1: the earlier time.
+ * @param ts2 (nullable): the later time.
  *
  * Calculates the elapsed seconds between two times.
- * If @ts2 is NULL, the function uses the current time.
+ * If \a ts2 is NULL, the function uses the current time.
  *
  * Returns: the elapsed time in seconds (a double).
  *
@@ -599,8 +631,9 @@ bool hibus_is_valid_md5_id (const char* id);
 double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct timespec *ts2);
 
 /**
- * hibus_escape_string_for_json:
- * @str: the string to escape.
+ * Escape a string for JSON.
+ *
+ * @param str: the string to escape.
  *
  * Escapes a string for JSON.
  *
@@ -611,17 +644,23 @@ double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct times
  * Since: 1.0
  */
 char* hibus_escape_string_for_json (const char* str);
+ 
+/**@}*/
 
-/*
- * connection functions - implemented in libhibus.c, only for clients.
+/**
+ * @defgroup Connection Connection functions
+ *
+ * The connection functions are implemented in libhibus.c, only for clients.
+ * @{
  */
 
 /**
- * hibus_connect_via_unix_socket:
- * @path_to_socket: the path to the unix socket.
- * @app_name: the app name.
- * @runner_name: the runner name.
- * @conn: the pointer to a hibus_conn* to return the hiBus connection.
+ * Connect to the server via UnixSocket.
+ *
+ * @param path_to_socket: the path to the unix socket.
+ * @param app_name: the app name.
+ * @param runner_name: the runner name.
+ * @param conn: the pointer to a hibus_conn* to return the hiBus connection.
  *
  * Connects to a hiBus server via WebSocket.
  *
@@ -633,12 +672,13 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
         const char* app_name, const char* runner_name, hibus_conn** conn);
 
 /**
- * hibus_connect_via_web_socket:
- * @srv_host_name: the host name of the server.
- * @port: the port.
- * @app_name: the app name.
- * @runner_name: the runner name.
- * @conn: the pointer to a hibus_conn* to return the hiBus connection.
+ * Connect to the server via WebSocket.
+ *
+ * @param srv_host_name: the host name of the server.
+ * @param port: the port.
+ * @param app_name: the app name.
+ * @param runner_name: the runner name.
+ * @param conn: the pointer to a hibus_conn* to return the hiBus connection.
  *
  * Connects to a hiBus server via WebSocket.
  *
@@ -650,8 +690,9 @@ int hibus_connect_via_web_socket (const char* srv_host_name, int port,
         const char* app_name, const char* runner_name, hibus_conn** conn);
 
 /**
- * hibus_disconnect:
- * @conn: the pointer to the hiBus connection.
+ * Disconnect to the server.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Disconnects the hiBus connection.
  *
@@ -662,8 +703,9 @@ int hibus_connect_via_web_socket (const char* srv_host_name, int port,
 int hibus_disconnect (hibus_conn* conn);
 
 /**
- * hibus_free_connection:
- * @conn: the pointer to the hiBus connection.
+ * Free a connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Frees the space used by the connection, including the connection itself.
  *
@@ -674,11 +716,10 @@ int hibus_disconnect (hibus_conn* conn);
 int hibus_free_connection (hibus_conn* conn);
 
 /**
- * hibus_error_handler:
  * The prototype of an error handler.
  *
- * @conn: the pointer to the hiBus connection.
- * @jo: the json object contains the error information.
+ * @param conn: the pointer to the hiBus connection.
+ * @param jo: the json object contains the error information.
  *
  * Since: 1.0
  */
@@ -686,7 +727,7 @@ typedef void (*hibus_error_handler)(hibus_conn* conn, const hibus_json *jo);
 
 /**
  * hibus_conn_get_error_handler:
- * @conn: the pointer to the hiBus connection.
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the current error handler of the hiBus connection.
  *
@@ -695,9 +736,10 @@ typedef void (*hibus_error_handler)(hibus_conn* conn, const hibus_json *jo);
 hibus_error_handler hibus_conn_get_error_handler (hibus_conn* conn);
 
 /**
- * hibus_conn_set_error_handler:
- * @conn: the pointer to the hiBus connection.
- * @error_handler: the new error handler.
+ * Set the error handler of the connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param error_handler: the new error handler.
  *
  * Sets the error handler of the hiBus connection, and returns the old one.
  *
@@ -707,8 +749,9 @@ hibus_error_handler hibus_conn_set_error_handler (hibus_conn* conn,
         hibus_error_handler error_handler);
 
 /**
- * hibus_conn_get_user_data:
- * @conn: the pointer to the hiBus connection.
+ * Get the user data associated with the connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the current user data (a pointer) bound with the hiBus connection.
  *
@@ -717,9 +760,10 @@ hibus_error_handler hibus_conn_set_error_handler (hibus_conn* conn,
 void *hibus_conn_get_user_data (hibus_conn* conn);
 
 /**
- * hibus_conn_set_user_data:
- * @conn: the pointer to the hiBus connection.
- * @user_data: the new user data (a pointer).
+ * Set the user data associated with the connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param user_data: the new user data (a pointer).
  *
  * Sets the user data of the hiBus connection, and returns the old one.
  *
@@ -728,8 +772,9 @@ void *hibus_conn_get_user_data (hibus_conn* conn);
 void *hibus_conn_set_user_data (hibus_conn* conn, void* user_data);
 
 /**
- * hibus_conn_get_last_ret_code:
- * @conn: the pointer to the hiBus connection.
+ * Get the last return code from the server.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the last return code of hiBus result or error packet.
  *
@@ -738,8 +783,9 @@ void *hibus_conn_set_user_data (hibus_conn* conn, void* user_data);
 int hibus_conn_get_last_ret_code (hibus_conn* conn);
 
 /**
- * hibus_conn_srv_host_name:
- * @conn: the pointer to the hiBus connection.
+ * Get the server host name of a connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the host name of the hiBus server.
  *
@@ -748,8 +794,9 @@ int hibus_conn_get_last_ret_code (hibus_conn* conn);
 const char* hibus_conn_srv_host_name (hibus_conn* conn);
 
 /**
- * hibus_conn_own_host_name:
- * @conn: the pointer to the hiBus connection.
+ * Get the own host name of a connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the host name of the current hiBus client.
  *
@@ -758,8 +805,9 @@ const char* hibus_conn_srv_host_name (hibus_conn* conn);
 const char* hibus_conn_own_host_name (hibus_conn* conn);
 
 /**
- * hibus_conn_app_name:
- * @conn: the pointer to the hiBus connection.
+ * Get the app name of a connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the app name of the current hiBus client.
  *
@@ -768,8 +816,9 @@ const char* hibus_conn_own_host_name (hibus_conn* conn);
 const char* hibus_conn_app_name (hibus_conn* conn);
 
 /**
- * hibus_conn_runner_name:
- * @conn: the pointer to the hiBus connection.
+ * Get the runner name of a connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the runner name of the current hiBus client.
  *
@@ -778,24 +827,26 @@ const char* hibus_conn_app_name (hibus_conn* conn);
 const char* hibus_conn_runner_name (hibus_conn* conn);
 
 /**
- * hibus_conn_endpoint_name:
- * @conn: the pointer to the hiBus connection.
- * @buff: the pointer to a buffer to contain the endpoint name.
+ * Copy the endpoint name of a connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param buff: the pointer to a buffer to contain the endpoint name.
  *
  * Gets the endpoint name of the hiBus connection and
  * returns the length of the endpoint name.
  *
  * Returns: the length of the endpoint name; <= 0 means error.
  *
- * Note that the buffer should be long enough, see @HIBUS_LEN_ENDPOINT_NAME.
+ * Note that the buffer should be long enough, see \a HIBUS_LEN_ENDPOINT_NAME.
  *
  * Since: 1.0
  */
 int hibus_conn_endpoint_name (hibus_conn* conn, char *buff);
 
 /**
- * hibus_conn_endpoint_name_alloc:
- * @conn: the pointer to the hiBus connection.
+ * Get the endpoint name of connection (allocation version).
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns a copy of the endpoint name of the hiBus connection.
  *
@@ -809,8 +860,9 @@ int hibus_conn_endpoint_name (hibus_conn* conn, char *buff);
 char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
 
 /**
- * hibus_conn_socket_fd:
- * @conn: the pointer to the hiBus connection.
+ * Get the file descriptor of the connection.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the file descriptor of the hiBus connection socket.
  *
@@ -821,22 +873,24 @@ char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
 int hibus_conn_socket_fd (hibus_conn* conn);
 
 /**
- * hibus_conn_socket_type:
- * @conn: the pointer to the hiBus connection.
+ * Get the connnection socket type.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Returns the socket type of the hiBus connection.
  *
- * Returns: @CT_UNIX_SOCKET for UnixSocket, and @CT_WEB_SOCKET for WebSocket.
+ * Returns: \a CT_UNIX_SOCKET for UnixSocket, and \a CT_WEB_SOCKET for WebSocket.
  *
  * Since: 1.0
  */
 int hibus_conn_socket_type (hibus_conn* conn);
 
 /**
- * hibus_read_packet:
- * @conn: the pointer to the hiBus connection.
- * @packet_buf: the pointer to a buffer for saving the contents of the packet.
- * @packet_len: the pointer to a unsigned integer for returning
+ * Read a packet (allocation version).
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param packet_buf: the pointer to a buffer for saving the contents of the packet.
+ * @param packet_len: the pointer to a unsigned integer for returning
  *      the length of the packet.
  *
  * Reads a packet and saves the contents of the packet and returns
@@ -853,11 +907,12 @@ int hibus_conn_socket_type (hibus_conn* conn);
 int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
 
 /**
- * hibus_read_packet_alloc:
- * @conn: the pointer to the hiBus connection.
- * @packet: the pointer to a pointer to a buffer for returning
+ * Read a packet (allocation version).
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param packet: the pointer to a pointer to a buffer for returning
  *      the contents of the packet.
- * @packet_len: the pointer to a unsigned integer for returning
+ * @param packet_len: the pointer to a unsigned integer for returning
  *      the length of the packet.
  *
  * Reads a packet and allocates a buffer for the contents of the packet
@@ -872,10 +927,11 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
 int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *packet_len);
 
 /**
- * hibus_send_text_packet:
- * @conn: the pointer to the hiBus connection.
- * @text: the pointer to the text to send.
- * @txt_len: the length to send.
+ * Send a text packet to the server.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param text: the pointer to the text to send.
+ * @param txt_len: the length to send.
  *
  * Sends a text packet to the hiBus server.
  *
@@ -886,8 +942,9 @@ int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *pack
 int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt_len);
 
 /**
- * hibus_ping_server:
- * @conn: the pointer to the hiBus connection.
+ * Ping the server.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * Pings the hiBus server. The client should ping the server
  * about every 30 seconds to tell the server "I am alive".
@@ -902,16 +959,15 @@ int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt
 int hibus_ping_server (hibus_conn* conn);
 
 /**
- * hibus_method_handler:
  * The prototype of a method handler.
  *
- * @conn: the pointer to the hiBus connection.
- * @from_endpoint: the endpoint name emited the call.
- * @to_method: the method name of the call.
- * @method_param: the method parameter (a string).
- * @err_code: the pointer to an integer for the error code.
+ * @param conn: the pointer to the hiBus connection.
+ * @param from_endpoint: the endpoint name emited the call.
+ * @param to_method: the method name of the call.
+ * @param method_param: the method parameter (a string).
+ * @param err_code: the pointer to an integer for the error code.
  *
- * Returns: the return value (a string) if @err_code contains 0.
+ * Returns: the return value (a string) if \a err_code contains 0.
  *
  * Since: 1.0
  */
@@ -920,12 +976,13 @@ typedef char* (*hibus_method_handler)(hibus_conn* conn,
         const char* method_param, int *err_code);
 
 /**
- * hibus_register_procedure:
- * @conn: the pointer to the hiBus connection.
- * @method_name: the method name of the procedure.
- * @for_host: the pattern list for allowed hosts.
- * @for_app: the pattern list for allowed apps.
- * @method_handler: the local method handler for this procedure.
+ * Register a procedure.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param method_name: the method name of the procedure.
+ * @param for_host: the pattern list for allowed hosts.
+ * @param for_app: the pattern list for allowed apps.
+ * @param method_handler: the local method handler for this procedure.
  *
  * Registers an procedure to the hiBus server.
  *
@@ -938,16 +995,15 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
         hibus_method_handler method_handler);
 
 /**
- * hibus_method_handler_const:
  * The prototype of a method handler (const version).
  *
- * @conn: the pointer to the hiBus connection.
- * @from_endpoint: the endpoint name emited the call.
- * @to_method: the method name of the call.
- * @method_param: the method parameter (a string).
- * @err_code: the pointer to an integer for the error code.
+ * @param conn: the pointer to the hiBus connection.
+ * @param from_endpoint: the endpoint name emited the call.
+ * @param to_method: the method name of the call.
+ * @param method_param: the method parameter (a string).
+ * @param err_code: the pointer to an integer for the error code.
  *
- * Returns: the return value (a const string) if @err_code contains 0.
+ * Returns: the return value (a const string) if \a err_code contains 0.
  *
  * Since: 1.0
  */
@@ -956,12 +1012,13 @@ typedef const char* (*hibus_method_handler_const)(hibus_conn* conn,
         const char* method_param, int *err_code);
 
 /**
- * hibus_register_procedure_const:
- * @conn: the pointer to the hiBus connection.
- * @method_name: the method name of the procedure.
- * @for_host: the pattern list for allowed hosts.
- * @for_app: the pattern list for allowed apps.
- * @method_handler_const: the local method handler (const version)
+ * Register a procedure with a const method handler.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param method_name: the method name of the procedure.
+ * @param for_host: the pattern list for allowed hosts.
+ * @param for_app: the pattern list for allowed apps.
+ * @param method_handler: the local method handler (const version)
  *  for this procedure.
  *
  * Registers an procedure to the hiBus server.
@@ -975,9 +1032,10 @@ int hibus_register_procedure_const (hibus_conn* conn, const char* method_name,
         hibus_method_handler_const method_handler);
 
 /**
- * hibus_revoke_procedure:
- * @conn: the pointer to the hiBus connection.
- * @method_name: the method name of the procedure.
+ * Revoke a registered procedure.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param method_name: the method name of the procedure.
  *
  * Revokes an procedure from the hiBus server.
  *
@@ -988,11 +1046,12 @@ int hibus_register_procedure_const (hibus_conn* conn, const char* method_name,
 int hibus_revoke_procedure (hibus_conn* conn, const char* method_name);
 
 /**
- * hibus_register_event:
- * @conn: the pointer to the hiBus connection.
- * @bubble_name: the bubble name of the event.
- * @for_host: the pattern list for allowed hosts.
- * @for_app: the pattern list for allowed apps.
+ * Register an event.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param bubble_name: the bubble name of the event.
+ * @param for_host: the pattern list for allowed hosts.
+ * @param for_app: the pattern list for allowed apps.
  *
  * Registers an event to the hiBus server.
  *
@@ -1004,9 +1063,10 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
         const char* for_host, const char* for_app);
 
 /**
- * hibus_revoke_event:
- * @conn: the pointer to the hiBus connection.
- * @bubble_name: the bubble name of the event.
+ * Revoke a registered event.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param bubble_name: the bubble name of the event.
  *
  * Revokes an event from the hiBus server.
  *
@@ -1017,10 +1077,11 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
 int hibus_revoke_event (hibus_conn* conn, const char* bubble_name);
 
 /**
- * hibus_fire_event:
- * @conn: the pointer to the hiBus connection.
- * @bubble_name: the bubble name of the event.
- * @bubble_data: the bubble data (a string) of the event.
+ * Fire an event.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param bubble_name: the bubble name of the event.
+ * @param bubble_data: the bubble data (a string) of the event.
  *
  * Fires an event for the specified bubble name.
  *
@@ -1032,13 +1093,12 @@ int hibus_fire_event (hibus_conn* conn,
         const char* bubble_name, const char* bubble_data);
 
 /**
- * hibus_event_handler:
  * The prototype of an event handler.
  *
- * @conn: the pointer to the hiBus connection.
- * @from_endpoint: the endpoint name of the event.
- * @from_bubble: the bubble name of the event.
- * @bubble_data: the bubble data (a string) of the event.
+ * @param conn: the pointer to the hiBus connection.
+ * @param from_endpoint: the endpoint name of the event.
+ * @param from_bubble: the bubble name of the event.
+ * @param bubble_data: the bubble data (a string) of the event.
  *
  * Since: 1.0
  */
@@ -1047,14 +1107,15 @@ typedef void (*hibus_event_handler)(hibus_conn* conn,
         const char* bubble_data);
 
 /**
- * hibus_subscribe_event:
- * @conn: the pointer to the hiBus connection.
- * @endpoint: the endpoint name of the event.
- * @bubble_name: the bubble name of the event.
- * @event_handler: the event handler.
+ * Subscribe an event.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param endpoint: the endpoint name of the event.
+ * @param bubble_name: the bubble name of the event.
+ * @param event_handler: the event handler.
  *
  * This function subscribes the specified event. When
- * there is an event, @event_handler will be called with
+ * there is an event, \a event_handler will be called with
  * the bubble data.
  *
  * Returns: the error code; zero means everything is ok.
@@ -1066,10 +1127,11 @@ int hibus_subscribe_event (hibus_conn* conn,
         hibus_event_handler event_handler);
 
 /**
- * hibus_unsubscribe_event:
- * @conn: the pointer to the hiBus connection.
- * @endpoint: the endpoint name of the event.
- * @bubble_name: the bubble name of the event.
+ * Unsubscribe an event.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param endpoint: the endpoint name of the event.
+ * @param bubble_name: the bubble name of the event.
  *
  * This function unsubscribes the specified event.
  *
@@ -1081,14 +1143,13 @@ int hibus_unsubscribe_event (hibus_conn* conn,
         const char* endpoint, const char* bubble_name);
 
 /**
- * hibus_result_handler:
- * The prototype of an result handler.
+ * The prototype of a result handler.
  *
- * @conn: the pointer to the hiBus connection.
- * @from_endpoint: the endpoint name of the result.
- * @from_method: the method name of the result.
- * @ret_code: the return code of the result.
- * @ret_value: the return value (a string) of the result.
+ * @param conn: the pointer to the hiBus connection.
+ * @param from_endpoint: the endpoint name of the result.
+ * @param from_method: the method name of the result.
+ * @param ret_code: the return code of the result.
+ * @param ret_value: the return value (a string) of the result.
  *
  * Returns: 0 for finished the handle of the result; otherwise -1.
  *
@@ -1099,37 +1160,39 @@ typedef int (*hibus_result_handler)(hibus_conn* conn,
         int ret_code, const char* ret_value);
 
 /**
- * hibus_call_procedure:
- * @conn: the pointer to the hiBus connection.
- * @endpoint: the endpoint name of the procedure.
- * @method_name: the method of the procedure.
- * @method_param: the parameter of the method.
- * @time_expected: the expected return time in seconds.
- * @result_handler: the result handler.
+ * Call a procedure and handle the result in a callback handler.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param endpoint: the endpoint name of the procedure.
+ * @param method: the method of the procedure.
+ * @param method_param: the parameter of the method.
+ * @param time_expected: the expected return time in seconds.
+ * @param result_handler: the result handler.
  *
  * This function emits a call to a remote procedure and
  * returns immediately. The result handler will be called
- * in subsequent calls of @hibus_read_and_dispatch_packet().
+ * in subsequent calls of \a hibus_read_and_dispatch_packet().
  *
  * Returns: the error code; zero means everything is ok.
  *
  * Since: 1.0
  */
 int hibus_call_procedure (hibus_conn* conn,
-        const char* from_endpoint, const char* from_method,
+        const char* endpoint, const char* method,
         const char* method_param,
         int time_expected, hibus_result_handler result_handler);
 
 /**
- * hibus_call_procedure_and_wait:
- * @conn: the pointer to the hiBus connection.
- * @endpoint: the endpoint name of the procedure.
- * @method_name: the method of the procedure.
- * @method_param: the parameter of the method.
- * @time_expected: the expected return time in seconds.
- * @ret_code: the pointer to an integer to return the return code
+ * Call a procedure and wait the result.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param endpoint: the endpoint name of the procedure.
+ * @param method_name: the method of the procedure.
+ * @param method_param: the parameter of the method.
+ * @param time_expected: the expected return time in seconds.
+ * @param ret_code: the pointer to an integer to return the return code
  *      of the result.
- * @ret_value: the pointer to a pointer to return the value (a string)
+ * @param ret_value: the pointer to a pointer to return the value (a string)
  *      of the result.
  *
  * This function calls a remote procedure and wait for the result.
@@ -1143,8 +1206,9 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
         int time_expected, int *ret_code, char** ret_value);
 
 /**
- * hibus_read_and_dispatch_packet:
- * @conn: the pointer to the hiBus connection.
+ * Read and dispatch the packet from the server.
+ *
+ * @param conn: the pointer to the hiBus connection.
  *
  * This function read a hiBus packet and dispatches the packet to
  * a event handler, method handler, or result handler.
@@ -1156,9 +1220,10 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
 int hibus_read_and_dispatch_packet (hibus_conn* conn);
 
 /**
- * hibus_wait_and_dispatch_packet:
- * @conn: the pointer to the hiBus connection.
- * @timeout_ms (not nullable): the timeout value in milliseconds.
+ * Wait and dispatch the packet from the server.
+ *
+ * @param conn: the pointer to the hiBus connection.
+ * @param timeout_ms (not nullable): the timeout value in milliseconds.
  *
  * This function waits for a hiBus packet by calling select()
  * and dispatches the packet to event handlers, method handlers,
@@ -1167,25 +1232,33 @@ int hibus_read_and_dispatch_packet (hibus_conn* conn);
  * Returns: the error code; zero means everything is ok.
  *
  * Note that if you need watching multiple file descriptors, you'd
- * better user @hibus_read_and_dispatch_packet.
+ * better user \a hibus_read_and_dispatch_packet.
  *
  * Since: 1.0
  */
 int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms);
+
+/**@}*/
 
 #ifdef __cplusplus
 }
 #endif
 
 /**
- * hibus_is_valid_runner_name:
- * @runner_name: the pointer to the runner name string.
+ * @addtogroup Helpers
+ *  @{
+ */
+
+/**
+ * Check whether a string is a valid runner name.
+ *
+ * @param runner_name: the pointer to the runner name string.
  *
  * Checks whether a runner name is valid. According to hiBus protocal,
  * the runner name should be a valid token and not longer than
- * @HIBUS_LEN_RUNNER_NAME.
+ * \a HIBUS_LEN_RUNNER_NAME.
  *
- * Note that a string with a length longer than @HIBUS_LEN_RUNNER_NAME will
+ * Note that a string with a length longer than \a HIBUS_LEN_RUNNER_NAME will
  * be considered as an invalid runner name.
  *
  * Returns: true for a valid token, otherwise false.
@@ -1199,14 +1272,15 @@ hibus_is_valid_runner_name (const char* runner_name)
 }
 
 /**
- * hibus_is_valid_method_name:
- * @method_name: the pointer to the method name string.
+ * Check whether a string is a valid method name.
+ *
+ * @param method_name: the pointer to the method name string.
  *
  * Checks whether a method name is valid. According to hiBus protocal,
  * the method name should be a valid token and not longer than
- * @HIBUS_LEN_METHOD_NAME.
+ * \a HIBUS_LEN_METHOD_NAME.
  *
- * Note that a string with a length longer than @HIBUS_LEN_METHOD_NAME will
+ * Note that a string with a length longer than \a HIBUS_LEN_METHOD_NAME will
  * be considered as an invalid method name.
  *
  * Returns: true for a valid token, otherwise false.
@@ -1220,14 +1294,15 @@ hibus_is_valid_method_name (const char* method_name)
 }
 
 /**
- * hibus_is_valid_bubble_name:
- * @bubble_name: the pointer to the bubble name string.
+ * Check whether a string is a valid bubble name.
+ *
+ * @param bubble_name: the pointer to the bubble name string.
  *
  * Checks whether a bubble name is valid. According to hiBus protocal,
  * the bubble name should be a valid token and not longer than
- * @HIBUS_LEN_BUBBLE_NAME.
+ * \a HIBUS_LEN_BUBBLE_NAME.
  *
- * Note that a string with a length longer than @HIBUS_LEN_BUBBLE_NAME will
+ * Note that a string with a length longer than \a HIBUS_LEN_BUBBLE_NAME will
  * be considered as an invalid bubble name.
  *
  * Returns: true for a valid token, otherwise false.
@@ -1241,8 +1316,9 @@ hibus_is_valid_bubble_name (const char* bubble_name)
 }
 
 /**
- * hibus_name_tolower:
- * @name (not nullable): the pointer to a name string.
+ * Convert a string to lowercases in place.
+ *
+ * @param name: the pointer to a name string (not nullable).
  *
  * Converts a name string lowercase in place.
  *
@@ -1264,8 +1340,9 @@ hibus_name_tolower (char* name)
 }
 
 /**
- * hibus_name_toupper:
- * @name (not nullable): the pointer to a name string.
+ * Convert a string to uppercases in place.
+ *
+ * @param name: the pointer to a name string (not nullable).
  *
  * Converts a name string uppercase in place.
  *
@@ -1287,15 +1364,16 @@ hibus_name_toupper (char* name)
 }
 
 /**
- * hibus_name_tolower_copy:
- * @name (not nullable): the pointer to a name string.
- * @buff (not nullable): the buffer used to return the converted name string.
- * @max_len: The maximal length of the name string to convert.
+ * Convert a string to lowercases and copy to another buffer.
+ *
+ * @param name: the pointer to a name string (not nullable).
+ * @param buff: the buffer used to return the converted name string (not nullable).
+ * @param max_len: The maximal length of the name string to convert.
  *
  * Converts a name string lowercase and copies the letters to
  * the specified buffer.
  *
- * Note that if @max_len <= 0, the argument will be ignored.
+ * Note that if \a max_len <= 0, the argument will be ignored.
  *
  * Returns: the total number of letters converted.
  *
@@ -1320,15 +1398,16 @@ hibus_name_tolower_copy (const char* name, char* buff, int max_len)
 }
 
 /**
- * hibus_name_toupper_copy:
- * @name (not nullable): the pointer to a name string.
- * @buff (not nullable): the buffer used to return the converted name string.
- * @max_len: The maximal length of the name string to convert.
+ * Convert a string to uppercases and copy to another buffer.
+ *
+ * @param name: the pointer to a name string (not nullable).
+ * @param buff: the buffer used to return the converted name string (not nullable).
+ * @param max_len: The maximal length of the name string to convert.
  *
  * Converts a name string uppercase and copies the letters to
  * the specified buffer.
  *
- * Note that if @max_len <= 0, the argument will be ignored.
+ * Note that if \a max_len <= 0, the argument will be ignored.
  *
  * Returns: the total number of letters converted.
  *
@@ -1351,6 +1430,8 @@ hibus_name_toupper_copy (const char* name, char* buff, int max_len)
     buff [n] = '\0';
     return n;
 }
+
+/**@}*/
 
 #endif /* !_HIBUS_H_ */
 
