@@ -938,6 +938,43 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
         hibus_method_handler method_handler);
 
 /**
+ * hibus_method_handler_const:
+ * The prototype of a method handler (const version).
+ *
+ * @conn: the pointer to the hiBus connection.
+ * @from_endpoint: the endpoint name emited the call.
+ * @to_method: the method name of the call.
+ * @method_param: the method parameter (a string).
+ * @err_code: the pointer to an integer for the error code.
+ *
+ * Returns: the return value (a const string) if @err_code contains 0.
+ *
+ * Since: 1.0
+ */
+typedef const char* (*hibus_method_handler_const)(hibus_conn* conn,
+        const char* from_endpoint, const char* to_method,
+        const char* method_param, int *err_code);
+
+/**
+ * hibus_register_procedure_const:
+ * @conn: the pointer to the hiBus connection.
+ * @method_name: the method name of the procedure.
+ * @for_host: the pattern list for allowed hosts.
+ * @for_app: the pattern list for allowed apps.
+ * @method_handler_const: the local method handler (const version)
+ *  for this procedure.
+ *
+ * Registers an procedure to the hiBus server.
+ *
+ * Returns: the error code; zero means everything is ok.
+ *
+ * Since: 1.0
+ */
+int hibus_register_procedure_const (hibus_conn* conn, const char* method_name,
+        const char* for_host, const char* for_app,
+        hibus_method_handler_const method_handler);
+
+/**
  * hibus_revoke_procedure:
  * @conn: the pointer to the hiBus connection.
  * @method_name: the method name of the procedure.

@@ -63,6 +63,21 @@ struct _hibus_conn {
     void *user_data;
 };
 
+typedef enum  {
+    MHT_STRING  = 0,
+    MHT_CONST_STRING = 1,
+} method_handler_type;
+
+struct method_handler_info {
+    method_handler_type type;
+    void* handler;
+};
+
+static int mhi_get_len (struct kvlist *kv, const void *data)
+{
+    return sizeof (struct method_handler_info);
+}
+
 hibus_error_handler hibus_conn_get_error_handler (hibus_conn *conn)
 {
     return conn->error_handler;
@@ -585,7 +600,7 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
     (*conn)->app_name = strdup (app_name);
     (*conn)->runner_name = strdup (runner_name);
 
-    kvlist_init (&(*conn)->method_list, NULL);
+    kvlist_init (&(*conn)->method_list, mhi_get_len);
     kvlist_init (&(*conn)->bubble_list, NULL);
     kvlist_init (&(*conn)->call_list, NULL);
     kvlist_init (&(*conn)->subscribed_list, NULL);
@@ -1120,9 +1135,9 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
             call_id, time_expected, ret_code, ret_value);
 }
 
-int hibus_register_procedure (hibus_conn* conn, const char* method_name,
+static int my_register_procedure (hibus_conn* conn, const char* method_name,
         const char* for_host, const char* for_app,
-        hibus_method_handler method_handler)
+        const struct method_handler_info* mhi)
 {
     int n, err_code, ret_code;
     char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
@@ -1169,13 +1184,32 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
     }
 
     if (ret_code == HIBUS_SC_OK) {
-        kvlist_set (&conn->method_list, normalized_method, &method_handler);
+        kvlist_set (&conn->method_list, normalized_method, mhi);
         if (ret_value)
             free (ret_value);
     }
 
     return 0;
 }
+
+int hibus_register_procedure (hibus_conn* conn, const char* method_name,
+        const char* for_host, const char* for_app,
+        hibus_method_handler method_handler)
+{
+    struct method_handler_info mhi = { MHT_STRING, method_handler };
+
+    return my_register_procedure (conn, method_name, for_host, for_app, &mhi);
+}
+
+int hibus_register_procedure_const (hibus_conn* conn, const char* method_name,
+        const char* for_host, const char* for_app,
+        hibus_method_handler_const method_handler)
+{
+    struct method_handler_info mhi = { MHT_CONST_STRING, method_handler };
+
+    return my_register_procedure (conn, method_name, for_host, for_app, &mhi);
+}
+
 
 int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
 {
@@ -1558,9 +1592,9 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
     const char* from_endpoint, *call_id, *result_id;
     const char* to_method;
     const char* parameter;
-    char *ret_value = NULL;
     char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
     void *data;
+    char *ret_value = NULL;
     int err_code = 0;
     char buff_in_stack [HIBUS_DEF_PACKET_BUFF_SIZE];
     char* packet_buff = buff_in_stack;
@@ -1615,18 +1649,40 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
     }
     else {
         struct timespec ts;
-        hibus_method_handler method_handler;
+        struct method_handler_info mhi;
+        const char *ret_value_const = NULL;
 
-        method_handler = *(hibus_method_handler *)data;
+        mhi = *(struct method_handler_info *)data;
 
         clock_gettime (CLOCK_REALTIME, &ts);
-        ret_value = method_handler (conn, from_endpoint,
-                normalized_name, parameter, &err_code);
+        if (mhi.type == MHT_CONST_STRING) {
+            hibus_method_handler_const method_handler = mhi.handler;
+            ret_value_const = method_handler (conn, from_endpoint,
+                    normalized_name, parameter, &err_code);
+        }
+        else {
+            hibus_method_handler method_handler = mhi.handler;
+            ret_value = method_handler (conn, from_endpoint,
+                    normalized_name, parameter, &err_code);
+            ret_value_const = ret_value;
+        }
+
         time_consumed = hibus_get_elapsed_seconds (&ts, NULL);
 
         if (err_code == 0) {
-            size_t len_value = ret_value ? (strlen (ret_value) * 2 + 1) : 0;
+            size_t len_value;
 
+            if (ret_value_const) {
+                escaped_value = hibus_escape_string_for_json (ret_value_const);
+                if (escaped_value == NULL) {
+                    err_code = HIBUS_EC_NOMEM;
+                    goto done;
+                }
+            }
+            else
+                escaped_value = NULL;
+
+            len_value = escaped_value ? (strlen (escaped_value) + 2) : 2;
             if (len_value > HIBUS_MIN_PACKET_BUFF_SIZE) {
                 sz_packet_buff = HIBUS_MIN_PACKET_BUFF_SIZE + len_value;
                 packet_buff = malloc (HIBUS_MIN_PACKET_BUFF_SIZE + len_value);
@@ -1638,16 +1694,6 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
                     goto done;
                 }
             }
-
-            if (ret_value) {
-                escaped_value = hibus_escape_string_for_json (ret_value);
-                if (escaped_value == NULL) {
-                    err_code = HIBUS_EC_NOMEM;
-                    goto done;
-                }
-            }
-            else
-                escaped_value = NULL;
         }
     }
 
