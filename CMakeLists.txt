@@ -5,7 +5,7 @@ PROJECT(hibus C)
 SET(PROJECT_NAME "hibus")
 SET(PROJECT_VERSION "1.0.2")
 
-ADD_DEFINITIONS(-O2 -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations -fmax-errors=10)
+ADD_DEFINITIONS(-g -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations -fmax-errors=10)
 
 OPTION(BUILD_APP_AUTH "build with app authentication" ON)
 OPTION(BUILD_PLUGIN "build support for plugin" ON)

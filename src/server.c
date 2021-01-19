@@ -347,7 +347,7 @@ on_accepted (void* sock_srv, SockClient* client)
     int ret_code;
     BusEndpoint* endpoint;
 
-    endpoint = new_endpoint (&the_server, ET_UNIX_SOCKET, client);
+    endpoint = new_endpoint (&the_server, ET_WEB_SOCKET, client);
     if (endpoint == NULL)
         return HIBUS_SC_INSUFFICIENT_STORAGE;
 
@@ -593,7 +593,7 @@ run_server (void)
                     if (events[n].events & EPOLLIN) {
                         retv = ws_handle_reads (the_server.ws_srv, wsc);
                     }
-                    if (retv == 0 && wsc->sockqueue->qlen > 0 &&
+                    if (retv == 0 && wsc->sockqueue && wsc->sockqueue->qlen > 0 &&
                             events[n].events & EPOLLOUT) {
                         ws_handle_writes (the_server.ws_srv, wsc);
                     }
