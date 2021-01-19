@@ -960,8 +960,8 @@ ws_verify_req_headers (WSServer *server, WSHeaders * headers)
     return 1;
   if (server->config->origin && !headers->origin)
     return 1;
-  if (server->config->origin && strcasecmp (server->config->origin, headers->origin) != 0)
-    return 1;
+//  if (server->config->origin && strcasecmp (server->config->origin, headers->origin) != 0)
+//    return 1;
   if (!headers->connection)
     return 1;
   if (!headers->ws_key)
