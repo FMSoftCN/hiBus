@@ -459,7 +459,7 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
         return HIBUS_SC_BAD_REQUEST;
     }
 
-    if (sig_len <= 0) {
+    if ((int)sig_len <= 0) {
         free (sig);
         return HIBUS_SC_BAD_REQUEST;
     }
@@ -536,7 +536,7 @@ static int handle_auth_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                     "{"
                     "\"packetType\":\"authFailed\","
                     "\"retCode\":%d,"
-                    "\"retMsg\":\"%s\","
+                    "\"retMsg\":\"%s\""
                     "}",
                     retv, hibus_get_ret_message (retv));
 

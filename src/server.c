@@ -347,33 +347,36 @@ on_accepted (void* sock_srv, SockClient* client)
     int ret_code;
     BusEndpoint* endpoint;
 
-    // for Handshake in accept
-    struct timeval tv;
-    fd_set rfds;
-    int result = 0;
-    int maxfd = 0;
-    
-    FD_ZERO(&rfds);
-    FD_SET(((WSClient *)client)->fd, &rfds);
-    maxfd = ((WSClient *)client)->fd + 1;
-
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
-
-    result = select(maxfd, &rfds, NULL, NULL, &tv);
-
-    if(result <= 0)
-        return HIBUS_SC_ACCEPTED; 
-    else if(result)
+    if(client->ct == CT_WEB_SOCKET)
     {
-        if(FD_ISSET(((WSClient *)client)->fd, &rfds))
+        // for Handshake in accept
+        struct timeval tv;
+        fd_set rfds;
+        int result = 0;
+        int maxfd = 0;
+
+        FD_ZERO(&rfds);
+        FD_SET(((WSClient *)client)->fd, &rfds);
+        maxfd = ((WSClient *)client)->fd + 1;
+
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+
+        result = select(maxfd, &rfds, NULL, NULL, &tv);
+
+        if(result <= 0)
+            return HIBUS_SC_ACCEPTED; 
+        else if(result)
         {
-            ret_code = ws_handle_reads (the_server.ws_srv, (WSClient *)client);
-            if(ret_code)
+            if(FD_ISSET(((WSClient *)client)->fd, &rfds))
+            {
+                ret_code = ws_handle_reads (the_server.ws_srv, (WSClient *)client);
+                if(ret_code)
+                    return HIBUS_SC_ACCEPTED; 
+            }
+            else
                 return HIBUS_SC_ACCEPTED; 
         }
-        else
-            return HIBUS_SC_ACCEPTED; 
     }
         
     endpoint = new_endpoint (&the_server, ET_WEB_SOCKET, client);
