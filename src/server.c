@@ -377,9 +377,11 @@ on_accepted (void* sock_srv, SockClient* client)
             else
                 return HIBUS_SC_ACCEPTED; 
         }
+        endpoint = new_endpoint (&the_server, ET_WEB_SOCKET, client);
     }
+    else
+        endpoint = new_endpoint (&the_server, ET_UNIX_SOCKET, client);
         
-    endpoint = new_endpoint (&the_server, ET_WEB_SOCKET, client);
     if (endpoint == NULL)
         return HIBUS_SC_INSUFFICIENT_STORAGE;
 
