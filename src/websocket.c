@@ -2042,7 +2042,7 @@ read_client_data (WSServer * server, WSClient * client)
               }
           }
 
-          ULOG_NOTE ("Accepted: %d %s\n", client->fd, client->remote_ip);
+          ULOG_NOTE ("Accepted after handshake: %d %s\n", client->fd, client->remote_ip);
       }
   }
   /* Message */
