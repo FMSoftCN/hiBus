@@ -322,7 +322,11 @@ static int send_auth_info (hibus_conn *conn, const char* ch_code)
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             conn->own_host_name, conn->app_name, conn->runner_name, enc_sig);
 
-    if (n >= sizeof (buff)) {
+    if (n < 0) {
+        err_code = HIBUS_EC_UNEXPECTED;
+        goto failed;
+    }
+    else if ((size_t)n >= sizeof (buff)) {
         ULOG_ERR ("Too small buffer for signature (%s) in send_auth_info.\n", enc_sig);
         err_code = HIBUS_EC_TOO_SMALL_BUFF;
         goto failed;
@@ -1123,7 +1127,10 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
             escaped_param);
     free (escaped_param);
 
-    if (n >= sizeof (buff)) {
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (buff)) {
         return HIBUS_EC_TOO_SMALL_BUFF;
     }
 
@@ -1171,7 +1178,10 @@ static int my_register_procedure (hibus_conn* conn, const char* method_name,
             normalized_method,
             for_host, for_app);
 
-    if (n >= sizeof (param_buff))
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (param_buff))
         return HIBUS_EC_TOO_SMALL_BUFF;
 
     hibus_assemble_endpoint_name (conn->srv_host_name,
@@ -1233,7 +1243,10 @@ int hibus_revoke_procedure (hibus_conn* conn, const char* method_name)
             "}",
             normalized_method);
 
-    if (n >= sizeof (param_buff))
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (param_buff))
         return HIBUS_EC_TOO_SMALL_BUFF;
 
     hibus_assemble_endpoint_name (conn->srv_host_name,
@@ -1290,7 +1303,10 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
             normalized_bubble,
             for_host, for_app);
 
-    if (n >= sizeof (param_buff))
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (param_buff))
         return HIBUS_EC_TOO_SMALL_BUFF;
 
     hibus_assemble_endpoint_name (conn->srv_host_name,
@@ -1336,7 +1352,10 @@ int hibus_revoke_event (hibus_conn* conn, const char* bubble_name)
             "}",
             normalized_bubble);
 
-    if (n >= sizeof (param_buff))
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (param_buff))
         return HIBUS_EC_TOO_SMALL_BUFF;
 
     hibus_assemble_endpoint_name (conn->srv_host_name,
@@ -1392,7 +1411,10 @@ int hibus_subscribe_event (hibus_conn* conn,
             endpoint,
             bubble_name);
 
-    if (n >= sizeof (param_buff))
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (param_buff))
         return HIBUS_EC_TOO_SMALL_BUFF;
 
     hibus_assemble_endpoint_name (conn->srv_host_name,
@@ -1444,7 +1466,10 @@ int hibus_unsubscribe_event (hibus_conn* conn,
             endpoint,
             bubble_name);
 
-    if (n >= sizeof (param_buff))
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (param_buff))
         return HIBUS_EC_TOO_SMALL_BUFF;
 
     hibus_assemble_endpoint_name (conn->srv_host_name,
@@ -1504,7 +1529,10 @@ int hibus_call_procedure (hibus_conn* conn,
             escaped_param);
     free (escaped_param);
 
-    if (n >= sizeof (buff)) {
+    if (n < 0) {
+        return HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sizeof (buff)) {
         return HIBUS_EC_TOO_SMALL_BUFF;
     }
 
@@ -1573,7 +1601,10 @@ int hibus_fire_event (hibus_conn* conn,
     if (escaped_data)
         free (escaped_data);
 
-    if (n >= sz_packet_buff) {
+    if (n < 0) {
+        err_code = HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sz_packet_buff) {
         err_code = HIBUS_EC_TOO_SMALL_BUFF;
     }
     else
@@ -1722,7 +1753,10 @@ done:
     if (escaped_value)
         free (escaped_value);
 
-    if (n >= sz_packet_buff) {
+    if (n < 0) {
+        err_code = HIBUS_EC_UNEXPECTED;
+    }
+    else if ((size_t)n >= sz_packet_buff) {
         err_code = HIBUS_EC_TOO_SMALL_BUFF;
     }
     else

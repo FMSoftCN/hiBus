@@ -416,10 +416,10 @@ on_close (void* sock_srv, SockClient* client)
 static void
 on_error (void* sock_srv, SockClient* client, int err_code)
 {
-    int size;
+    int n;
     char buff [HIBUS_MIN_PACKET_BUFF_SIZE];
 
-    size = snprintf (buff, sizeof (buff), 
+    n = snprintf (buff, sizeof (buff), 
             "{"
             "\"packetType\":\"error\","
             "\"protocolName\":\"%s\","
@@ -430,16 +430,16 @@ on_error (void* sock_srv, SockClient* client, int err_code)
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             err_code, hibus_get_ret_message (err_code));
 
-    if (size >= sizeof (buff)) {
+    if (n < 0 || (size_t)n >= sizeof (buff)) {
         // should never reach here
         assert (0);
     }
 
     if (client->ct == CT_UNIX_SOCKET) {
-        us_send_packet (sock_srv, (USClient *)client, US_OPCODE_TEXT, buff, size);
+        us_send_packet (sock_srv, (USClient *)client, US_OPCODE_TEXT, buff, n);
     }
     else {
-        ws_send_packet (sock_srv, (WSClient *)client, WS_OPCODE_TEXT, buff, size);
+        ws_send_packet (sock_srv, (WSClient *)client, WS_OPCODE_TEXT, buff, n);
     }
 }
 

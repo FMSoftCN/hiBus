@@ -362,10 +362,9 @@ int send_challenge_code (BusServer* bus_srv, BusEndpoint* endpoint)
             HIBUS_PROTOCOL_NAME, HIBUS_PROTOCOL_VERSION,
             ch_code);
 
-    if (n >= sizeof (buff)) {
+    if (n < 0 || (size_t)n >= sizeof (buff)) {
+        ULOG_ERR ("The size of buffer for packet is too small.\n");
         retv = HIBUS_SC_INTERNAL_SERVER_ERROR;
-        // should never reach here
-        assert (0);
     }
     else
         retv = send_packet_to_endpoint (bus_srv, endpoint, buff, n);
@@ -388,7 +387,7 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
     const char *host_name = NULL, *app_name = NULL, *runner_name = NULL;
     const char *encoded_sig = NULL, *encoding = NULL;
     unsigned char *sig;
-    unsigned int sig_len = 0;
+    int sig_len = 0;
     int prot_ver = 0, retv;
     char norm_host_name [HIBUS_LEN_HOST_NAME + 1];
     char norm_app_name [HIBUS_LEN_APP_NAME + 1];
@@ -540,8 +539,13 @@ static int handle_auth_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                     "}",
                     retv, hibus_get_ret_message (retv));
 
-            if (n < sizeof (buff))
+            if (n < 0 || (size_t)n >= sizeof (buff)) {
+                ULOG_ERR ("The size of buffer for packet is too small.\n");
+                return HIBUS_SC_INTERNAL_SERVER_ERROR;
+            }
+            else
                 send_packet_to_endpoint (bus_srv, endpoint, buff, n);
+
             return retv;
         }
 
@@ -557,8 +561,13 @@ static int handle_auth_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                 "}",
                 bus_srv->server_name, endpoint->host_name);
 
-        if (n < sizeof (buff))
+        if (n < 0 || (size_t)n >= sizeof (buff)) {
+            ULOG_ERR ("The size of buffer for packet is too small.\n");
+            return HIBUS_SC_INTERNAL_SERVER_ERROR;
+        }
+        else
             send_packet_to_endpoint (bus_srv, endpoint, buff, n);
+
         return HIBUS_SC_OK;
     }
 
@@ -582,7 +591,8 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     CallInfo call_info;
 
     char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
-    int ret_code, sz_packet_buff = sizeof (buff_in_stack), n = 0;
+    size_t sz_packet_buff = sizeof (buff_in_stack);
+    int ret_code, n = 0;
     char result_id [HIBUS_LEN_UNIQUE_ID + 1], *result, *escaped_result = NULL;
     char* packet_buff = buff_in_stack;
 
@@ -780,7 +790,7 @@ done:
 
     }
 
-    if (n > 0 && n < sz_packet_buff) {
+    if (n > 0 && (size_t)n < sz_packet_buff) {
         send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
     }
     else {
@@ -807,7 +817,8 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     BusEndpoint *to_endpoint;
 
     char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
-    int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
+    size_t sz_packet_buff = sizeof (buff_in_stack);
+    int ret_code, n;
     char* escaped_ret_value = NULL, *packet_buff = buff_in_stack;
 
     if (json_object_object_get_ex (jo, "resultId", &jo_tmp) &&
@@ -939,7 +950,7 @@ static int handle_result_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         real_ret_code, hibus_get_ret_message (real_ret_code),
         escaped_ret_value ? escaped_ret_value : "");
 
-    if (n < sz_packet_buff) {
+    if (n > 0 && (size_t)n < sz_packet_buff) {
         send_packet_to_endpoint (bus_srv, to_endpoint, packet_buff, n);
         ret_code = HIBUS_SC_OK;
     }
@@ -964,7 +975,7 @@ failed:
             result_id ? result_id : "N/A",
             ret_code, hibus_get_ret_message (ret_code));
 
-        if (n < sz_packet_buff) {
+        if (n > 0 && (size_t)n < sz_packet_buff) {
             send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
         }
         else {
@@ -980,7 +991,7 @@ failed:
             "}",
             result_id, time_diff);
 
-        if (n < sz_packet_buff) {
+        if (n > 0 && (size_t)n < sz_packet_buff) {
             send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
         }
         else {
@@ -1007,7 +1018,8 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     const char *bubble_data;
 
     char buff_in_stack [HIBUS_MAX_FRAME_PAYLOAD_SIZE];
-    int ret_code, sz_packet_buff = sizeof (buff_in_stack), n;
+    size_t sz_packet_buff = sizeof (buff_in_stack);
+    int ret_code, n;
     char* escaped_data = NULL, *packet_buff = NULL;
     struct timespec ts_start;
     double time_diff, time_consumed;
@@ -1095,7 +1107,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         bubble_name,
         escaped_data ? escaped_data : "");
 
-    if (n < sz_packet_buff) {
+    if (n > 0 && (size_t)n < sz_packet_buff) {
         const char* name;
         void *next, *data;
         size_t org_len = strlen (packet_buff);
@@ -1117,7 +1129,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                 snprintf (str_time_diff, sizeof (str_time_diff), "%.9f}", my_time_diff);
                 packet_buff [org_len] = '\0';
                 n = org_len + strlen (str_time_diff);
-                if (sz_packet_buff > n) {
+                if (sz_packet_buff > (size_t)n) {
                     strcat (packet_buff, str_time_diff);
                     send_packet_to_endpoint (bus_srv, subscriber, packet_buff, n);
                     ULOG_INFO ("Send event packet to endpoint (@%s/%s/%s): \n%s\n",
@@ -1161,7 +1173,7 @@ failed:
             ret_code,
             hibus_get_ret_message (ret_code));
 
-        if (n < sz_packet_buff) {
+        if (n > 0 && (size_t)n < sz_packet_buff) {
             send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
         }
         else {
@@ -1184,7 +1196,7 @@ failed:
             nr_succeeded, nr_failed,
             time_diff, time_consumed);
 
-        if (n < sz_packet_buff) {
+        if (n > 0 && (size_t)n < sz_packet_buff) {
             send_packet_to_endpoint (bus_srv, endpoint, packet_buff, n);
         }
         else {
