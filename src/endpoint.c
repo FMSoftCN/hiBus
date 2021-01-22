@@ -388,7 +388,7 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
     const char *host_name = NULL, *app_name = NULL, *runner_name = NULL;
     const char *encoded_sig = NULL, *encoding = NULL;
     unsigned char *sig;
-    unsigned int sig_len = 0;
+    int sig_len = 0;
     int prot_ver = 0, retv;
     char norm_host_name [HIBUS_LEN_HOST_NAME + 1];
     char norm_app_name [HIBUS_LEN_APP_NAME + 1];
@@ -459,7 +459,7 @@ static int authenticate_endpoint (BusServer* bus_srv, BusEndpoint* endpoint,
         return HIBUS_SC_BAD_REQUEST;
     }
 
-    if ((int)sig_len <= 0) {
+    if (sig_len <= 0) {
         free (sig);
         return HIBUS_SC_BAD_REQUEST;
     }

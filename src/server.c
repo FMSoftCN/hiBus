@@ -346,39 +346,8 @@ on_accepted (void* sock_srv, SockClient* client)
 {
     int ret_code;
     BusEndpoint* endpoint;
-
     if(client->ct == CT_WEB_SOCKET)
-    {
-        // for Handshake in accept
-        struct timeval tv;
-        fd_set rfds;
-        int result = 0;
-        int maxfd = 0;
-
-        FD_ZERO(&rfds);
-        FD_SET(((WSClient *)client)->fd, &rfds);
-        maxfd = ((WSClient *)client)->fd + 1;
-
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-
-        result = select(maxfd, &rfds, NULL, NULL, &tv);
-
-        if(result <= 0)
-            return HIBUS_SC_ACCEPTED; 
-        else if(result)
-        {
-            if(FD_ISSET(((WSClient *)client)->fd, &rfds))
-            {
-                ret_code = ws_handle_reads (the_server.ws_srv, (WSClient *)client);
-                if(ret_code)
-                    return HIBUS_SC_ACCEPTED; 
-            }
-            else
-                return HIBUS_SC_ACCEPTED; 
-        }
         endpoint = new_endpoint (&the_server, ET_WEB_SOCKET, client);
-    }
     else
         endpoint = new_endpoint (&the_server, ET_UNIX_SOCKET, client);
         
@@ -620,9 +589,12 @@ run_server (void)
                 }
                 else if (usc->ct == CT_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
-                    BusEndpoint *endpoint = container_of (wsc->entity, BusEndpoint, entity);
 
-                    endpoint->t_living = ts.tv_sec;
+                    if ((wsc->headers) && (wsc->headers->reading))
+                    {
+                        BusEndpoint *endpoint = container_of (wsc->entity, BusEndpoint, entity);
+                        endpoint->t_living = ts.tv_sec;
+                    }
 
                     if (events[n].events & EPOLLIN) {
                         retv = ws_handle_reads (the_server.ws_srv, wsc);

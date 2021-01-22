@@ -2027,7 +2027,25 @@ read_client_data (WSServer * server, WSClient * client)
 
   /* Handshake */
   if ((!(client->headers) || (client->headers->reading)))
-    bytes = ws_get_handshake (server, client);
+  {
+      bytes = ws_get_handshake (server, client);
+      if ((client->status & WS_CLOSE)) {
+      }
+      else
+      {
+          if (server->on_accepted) {
+              int ret_code;
+              ret_code = server->on_accepted (server, (SockClient *)client);
+              if (ret_code != HIBUS_SC_OK) {
+                  ULOG_WARN ("Internal error after accepted this WebSocket client (%d): %d\n",
+                          client->fd, ret_code);
+
+                  server->on_error (server, (SockClient *)client, ret_code);
+                  ws_set_status (client, WS_READING, bytes);
+              }
+          }
+      }
+  }
   /* Message */
   else
     bytes = ws_get_message (server, client);
@@ -2110,6 +2128,7 @@ ws_handle_accept (WSServer * server, int listener)
     client->sslstatus |= WS_TLS_ACCEPTING;
 #endif
 
+#if 0 
   /* TODO: call on_accepted */
   if (server->on_accepted) {
       int ret_code;
@@ -2123,7 +2142,7 @@ ws_handle_accept (WSServer * server, int listener)
           return NULL;
       }
   }
-
+#endif
   ULOG_NOTE ("Accepted: %d %s\n", client->fd, client->remote_ip);
   return client;
 }
