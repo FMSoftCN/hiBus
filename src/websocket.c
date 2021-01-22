@@ -2029,17 +2029,15 @@ read_client_data (WSServer * server, WSClient * client)
   if ((!(client->headers) || (client->headers->reading))) {
 
       bytes = ws_get_handshake (server, client);
-      if (!(client->status & WS_CLOSE)) {
-          if (server->on_accepted) {
-              int ret_code;
-              ret_code = server->on_accepted (server, (SockClient *)client);
-              if (ret_code != HIBUS_SC_OK) {
-                  ULOG_WARN ("Internal error after accepted this WebSocket client (%d): %d\n",
-                          client->fd, ret_code);
+      if (!(client->status & WS_CLOSE) && server->on_accepted) {
+          int ret_code;
+          ret_code = server->on_accepted (server, (SockClient *)client);
+          if (ret_code != HIBUS_SC_OK) {
+              ULOG_WARN ("Internal error after accepted this WebSocket client (%d): %d\n",
+                      client->fd, ret_code);
 
-                  server->on_error (server, (SockClient *)client, ret_code);
-                  ws_set_status (client, WS_READING, bytes);
-              }
+              server->on_error (server, (SockClient *)client, ret_code);
+              ws_set_status (client, WS_READING, bytes);
           }
 
           ULOG_NOTE ("Accepted after handshake: %d %s\n", client->fd, client->remote_ip);
