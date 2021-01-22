@@ -346,11 +346,11 @@ on_accepted (void* sock_srv, SockClient* client)
 {
     int ret_code;
     BusEndpoint* endpoint;
-    if(client->ct == CT_WEB_SOCKET)
-        endpoint = new_endpoint (&the_server, ET_WEB_SOCKET, client);
-    else
-        endpoint = new_endpoint (&the_server, ET_UNIX_SOCKET, client);
-        
+
+    endpoint = new_endpoint (&the_server,
+            (client->ct == CT_WEB_SOCKET) ? ET_WEB_SOCKET : ET_UNIX_SOCKET,
+            client);
+
     if (endpoint == NULL)
         return HIBUS_SC_INSUFFICIENT_STORAGE;
 
@@ -578,7 +578,8 @@ run_server (void)
                 if (usc->ct == CT_UNIX_SOCKET) {
                     BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
 
-                    endpoint->t_living = ts.tv_sec;
+                    if (endpoint)
+                        endpoint->t_living = ts.tv_sec;
 
                     if (events[n].events & EPOLLIN) {
                         retv = us_handle_reads (the_server.us_srv, usc);
@@ -589,12 +590,10 @@ run_server (void)
                 }
                 else if (usc->ct == CT_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
+                    BusEndpoint *endpoint = container_of (wsc->entity, BusEndpoint, entity);
 
-                    if ((wsc->headers) && (wsc->headers->reading))
-                    {
-                        BusEndpoint *endpoint = container_of (wsc->entity, BusEndpoint, entity);
+                    if (endpoint)
                         endpoint->t_living = ts.tv_sec;
-                    }
 
                     if (events[n].events & EPOLLIN) {
                         retv = ws_handle_reads (the_server.ws_srv, wsc);

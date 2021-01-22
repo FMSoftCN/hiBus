@@ -960,8 +960,8 @@ ws_verify_req_headers (WSServer *server, WSHeaders * headers)
     return 1;
   if (server->config->origin && !headers->origin)
     return 1;
-//  if (server->config->origin && strcasecmp (server->config->origin, headers->origin) != 0)
-//    return 1;
+  if (server->config->origin && strcasecmp (server->config->origin, headers->origin) != 0)
+    return 1;
   if (!headers->connection)
     return 1;
   if (!headers->ws_key)
@@ -2026,13 +2026,10 @@ read_client_data (WSServer * server, WSClient * client)
   int bytes = 0;
 
   /* Handshake */
-  if ((!(client->headers) || (client->headers->reading)))
-  {
+  if ((!(client->headers) || (client->headers->reading))) {
+
       bytes = ws_get_handshake (server, client);
-      if ((client->status & WS_CLOSE)) {
-      }
-      else
-      {
+      if (!(client->status & WS_CLOSE)) {
           if (server->on_accepted) {
               int ret_code;
               ret_code = server->on_accepted (server, (SockClient *)client);
@@ -2044,6 +2041,8 @@ read_client_data (WSServer * server, WSClient * client)
                   ws_set_status (client, WS_READING, bytes);
               }
           }
+
+          ULOG_NOTE ("Accepted: %d %s\n", client->fd, client->remote_ip);
       }
   }
   /* Message */
@@ -2128,22 +2127,6 @@ ws_handle_accept (WSServer * server, int listener)
     client->sslstatus |= WS_TLS_ACCEPTING;
 #endif
 
-#if 0 
-  /* TODO: call on_accepted */
-  if (server->on_accepted) {
-      int ret_code;
-      ret_code = server->on_accepted (server, (SockClient *)client);
-      if (ret_code != HIBUS_SC_OK) {
-          ULOG_WARN ("Internal error after accepted this WebSocket client (%d): %d\n",
-                  client->fd, ret_code);
-
-          server->on_error (server, (SockClient *)client, ret_code);
-          handle_ws_read_close (server, client);
-          return NULL;
-      }
-  }
-#endif
-  ULOG_NOTE ("Accepted: %d %s\n", client->fd, client->remote_ip);
   return client;
 }
 
