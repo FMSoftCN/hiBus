@@ -194,7 +194,7 @@ const char* hibus_get_err_message (int err_code)
         return UNKNOWN_ERR_CODE;
 
     err_code = -err_code;
-    if (err_code > TABLESIZE (err_messages))
+    if (err_code > (int)TABLESIZE (err_messages))
         return UNKNOWN_ERR_CODE;
 
     return err_messages [err_code];
@@ -615,7 +615,7 @@ void hibus_generate_unique_id (char* id_buff, const char* prefix)
     int i, n = strlen (prefix);
     char my_prefix [8];
 
-    for (i = 0; i < sizeof (my_prefix); i++) {
+    for (i = 0; i < (int)sizeof (my_prefix); i++) {
         if (i < n) {
             my_prefix [i] = toupper (prefix [i]);
         }
@@ -640,7 +640,11 @@ void hibus_generate_md5_id (char* id_buff, const char* prefix)
     clock_gettime (CLOCK_REALTIME, &tp);
     n = snprintf (key, sizeof (key), "%s-%ld-%ld-%ld", prefix,
             tp.tv_sec, tp.tv_nsec, random ());
-    if (n >= sizeof (key))
+
+    if (n < 0) {
+        ULOG_WARN ("Unexpected call to snprintf.\n");
+    }
+    else if ((size_t)n >= sizeof (key))
         ULOG_WARN ("The buffer is too small for resultId.\n");
 
     md5digest (key, md5_digest);

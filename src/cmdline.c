@@ -811,7 +811,7 @@ static void on_cmd_list_subscribers (hibus_conn *conn,
             endpoint,
             bubble);
 
-    if (n >= sizeof (param_buff)) {
+    if (n < 0 || (size_t)n >= sizeof (param_buff)) {
         fprintf (stderr, "Too small parameter buffer.\n");
         return;
     }
@@ -1001,7 +1001,7 @@ static void on_confirm_command (hibus_conn *conn)
         goto bad_cmd_line;
     }
 
-    for (i = 0; i < TABLESIZE (sg_cmd_info); i++) {
+    for (i = 0; i < (int)TABLESIZE (sg_cmd_info); i++) {
         if (strcasecmp (cmd, sg_cmd_info[i].short_name) == 0
                 || strcasecmp (cmd, sg_cmd_info[i].long_name) == 0) {
 

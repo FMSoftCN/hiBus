@@ -80,7 +80,7 @@ default_method_handler (BusServer *bus_srv,
     if (escaped_param)
         free (escaped_param);
 
-    if (n >= sz_packet_buff) {
+    if (n < 0 || (size_t)n >= sz_packet_buff) {
         ULOG_ERR ("The size of buffer for call packet is too small.\n");
         *ret_code = HIBUS_SC_INTERNAL_SERVER_ERROR;
     }
@@ -958,7 +958,7 @@ bool fire_system_event (BusServer* bus_srv, int bubble_type,
         return false;
     }
 
-    if (n > 0 && n < sizeof (bubble_data)) {
+    if (n > 0 && (size_t)n < sizeof (bubble_data)) {
         escaped_bubble_data = hibus_escape_string_for_json (bubble_data);
         if (escaped_bubble_data == NULL)
             return false;
@@ -982,7 +982,7 @@ bool fire_system_event (BusServer* bus_srv, int bubble_type,
         bubble_name,
         escaped_bubble_data);
 
-    if (n < sizeof (packet_buff)) {
+    if (n > 0 && (size_t)n < sizeof (packet_buff)) {
         if (to) {
             send_packet_to_endpoint (bus_srv, to, packet_buff, n);
         }

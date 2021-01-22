@@ -319,7 +319,8 @@ static ssize_t us_write_data (USServer *server, USClient *client,
     }
 
     /* did not send all of it... buffer it for a later attempt */
-    if (bytes < len || (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)))
+    if ((bytes > 0 && (size_t)bytes < len) ||
+            (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)))
         us_queue_data (client, buffer + bytes, len - bytes);
 
     return bytes;
@@ -489,7 +490,7 @@ int us_handle_reads (USServer* server, USClient* usc)
     }
     else {
         n = read (usc->fd, &usc->header, sizeof (USFrameHeader));
-        if (n < sizeof (USFrameHeader)) {
+        if (n < (ssize_t)sizeof (USFrameHeader)) {
             ULOG_ERR ("Failed to read frame header from Unix socket.\n");
             err_code = HIBUS_EC_IO;
             sta_code = HIBUS_SC_EXPECTATION_FAILED;
