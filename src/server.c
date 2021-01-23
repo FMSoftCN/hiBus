@@ -590,10 +590,12 @@ run_server (void)
                 }
                 else if (usc->ct == CT_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
-                    BusEndpoint *endpoint = container_of (wsc->entity, BusEndpoint, entity);
-
-                    if (endpoint)
+                    BusEndpoint *endpoint;
+                   
+                    if (wsc->entity) {
+                        endpoint = container_of (wsc->entity, BusEndpoint, entity);
                         endpoint->t_living = ts.tv_sec;
+                    }
 
                     if (events[n].events & EPOLLIN) {
                         retv = ws_handle_reads (the_server.ws_srv, wsc);
@@ -752,7 +754,6 @@ main (int argc, char **argv)
     int retval;
 
     srv_set_config_websocket (1);
-    srv_set_config_origin ("localhost");
     srv_set_config_host ("localhost");
     srv_set_config_port (HIBUS_WS_PORT);
     srv_set_config_unixsocket (HIBUS_US_PATH);
