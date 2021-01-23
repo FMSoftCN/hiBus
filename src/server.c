@@ -590,9 +590,9 @@ run_server (void)
                 }
                 else if (usc->ct == CT_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
-                    BusEndpoint *endpoint;
                    
                     if (wsc->entity) {
+                        BusEndpoint *endpoint;
                         endpoint = container_of (wsc->entity, BusEndpoint, entity);
                         endpoint->t_living = ts.tv_sec;
                     }
