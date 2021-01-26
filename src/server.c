@@ -383,6 +383,22 @@ on_packet (void* sock_srv, SockClient* client,
 }
 
 static int
+on_pending (void* sock_srv, SockClient* client)
+{
+    struct epoll_event ev;
+
+    ev.events = EPOLLIN | EPOLLOUT;
+    ev.data.ptr = client;
+    if (epoll_ctl (the_server.epollfd, EPOLL_CTL_MOD, client->fd, &ev) == -1) {
+        ULOG_ERR ("Failed epoll_ctl to the client fd (%d): %s\n",
+                client->fd, strerror (errno));
+        assert (0);
+    }
+
+    return 0;
+}
+
+static int
 on_close (void* sock_srv, SockClient* client)
 {
     if (epoll_ctl (the_server.epollfd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
@@ -456,8 +472,8 @@ run_server (void)
 {
     int us_listener = -1, ws_listener = -1;
     struct epoll_event ev, events[MAX_EVENTS];
-    time_t t_last = time (NULL);
-    time_t t_diff;
+    time_t t_start = time (NULL);
+    time_t t_elapsed, t_elapsed_last = 0;
 
     // create unix socket
     if ((us_listener = us_listen (the_server.us_srv)) < 0) {
@@ -469,6 +485,7 @@ run_server (void)
 
     the_server.us_srv->on_accepted = on_accepted;
     the_server.us_srv->on_packet = on_packet;
+    the_server.us_srv->on_pending = on_pending;
     the_server.us_srv->on_close = on_close;
     the_server.us_srv->on_error = on_error;
 
@@ -495,6 +512,7 @@ run_server (void)
 
         the_server.ws_srv->on_accepted = on_accepted;
         the_server.ws_srv->on_packet = on_packet;
+        the_server.ws_srv->on_pending = on_pending;
         the_server.ws_srv->on_close = on_close;
         the_server.ws_srv->on_error = on_error;
     }
@@ -528,11 +546,27 @@ run_server (void)
     while (the_server.running) {
         int nfds, n;
 
-        nfds = epoll_wait (the_server.epollfd, events, MAX_EVENTS, -1);
-        if (nfds == -1) {
-            ULOG_ERR ("Failed to call epoll_wait: %s\n",
-                    strerror (errno));
+        nfds = epoll_wait (the_server.epollfd, events, MAX_EVENTS, 10);
+        if (nfds < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            ULOG_ERR ("Failed to call epoll_wait: %s\n", strerror (errno));
             goto error;
+        }
+        else if (nfds == 0) {
+            t_elapsed = time (NULL) - t_start;
+            if (t_elapsed != t_elapsed_last) {
+                if (t_elapsed % 10 == 0) {
+                    check_no_responding_endpoints (&the_server);
+                }
+                else if (t_elapsed % 5 == 0) {
+                    check_dangling_endpoints (&the_server);
+                }
+
+                t_elapsed_last = t_elapsed;
+            }
         }
 
         for (n = 0; n < nfds; ++n) {
@@ -542,7 +576,7 @@ run_server (void)
                     ULOG_NOTE ("Refused a client\n");
                 }
                 else {
-                    ev.events = EPOLLIN | EPOLLOUT; /* do not use EPOLLET */
+                    ev.events = EPOLLIN; /* do not use EPOLLET */
                     ev.data.ptr = client;
                     if (epoll_ctl (the_server.epollfd,
                                 EPOLL_CTL_ADD, client->fd, &ev) == -1) {
@@ -558,7 +592,7 @@ run_server (void)
                     ULOG_NOTE ("Refused a client\n");
                 }
                 else {
-                    ev.events = EPOLLIN | EPOLLOUT; /* do not use EPOLLET */
+                    ev.events = EPOLLIN; /* do not use EPOLLET */
                     ev.data.ptr = client;
                     if (epoll_ctl(the_server.epollfd,
                                 EPOLL_CTL_ADD, client->fd, &ev) == -1) {
@@ -570,39 +604,58 @@ run_server (void)
             }
             else {
                 USClient *usc = (USClient *)events[n].data.ptr;
-                struct timespec ts;
-                int retv = 0;
-
-                clock_gettime (CLOCK_REALTIME, &ts);
-
                 if (usc->ct == CT_UNIX_SOCKET) {
-                    BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
-
-                    if (endpoint)
-                        endpoint->t_living = ts.tv_sec;
 
                     if (events[n].events & EPOLLIN) {
-                        retv = us_handle_reads (the_server.us_srv, usc);
+
+                        if (usc->entity) {
+                            BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
+                            update_endpoint_living_time (&the_server, endpoint);
+                        }
+
+                        us_handle_reads (the_server.us_srv, usc);
                     }
-                    if (retv == 0 && usc->sz_pending > 0 && events[n].events & EPOLLOUT) {
+
+                    if (events[n].events & EPOLLOUT) {
                         us_handle_writes (the_server.us_srv, usc);
+
+                        if (!(usc->status & US_SENDING) && !(usc->status & US_CLOSE)) {
+                            ev.events = EPOLLIN;
+                            ev.data.ptr = usc;
+                            if (epoll_ctl (the_server.epollfd,
+                                        EPOLL_CTL_MOD, usc->fd, &ev) == -1) {
+                                ULOG_ERR ("Failed epoll_ctl for unix socket (%d): %s\n",
+                                        usc->fd, strerror (errno));
+                                goto error;
+                            }
+                        }
                     }
                 }
                 else if (usc->ct == CT_WEB_SOCKET) {
                     WSClient *wsc = (WSClient *)events[n].data.ptr;
                    
-                    if (wsc->entity) {
-                        BusEndpoint *endpoint;
-                        endpoint = container_of (wsc->entity, BusEndpoint, entity);
-                        endpoint->t_living = ts.tv_sec;
+                    if (events[n].events & EPOLLIN) {
+                        if (wsc->entity) {
+                            BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
+                            update_endpoint_living_time (&the_server, endpoint);
+                        }
+
+                        ws_handle_reads (the_server.ws_srv, wsc);
                     }
 
-                    if (events[n].events & EPOLLIN) {
-                        retv = ws_handle_reads (the_server.ws_srv, wsc);
-                    }
-                    if (retv == 0 && wsc->sockqueue && wsc->sockqueue->qlen > 0 &&
-                            events[n].events & EPOLLOUT) {
+                    if (events[n].events & EPOLLOUT) {
                         ws_handle_writes (the_server.ws_srv, wsc);
+
+                        if (!(wsc->status & WS_SENDING) && !(wsc->status & WS_CLOSE)) {
+                            ev.events = EPOLLIN;
+                            ev.data.ptr = wsc;
+                            if (epoll_ctl (the_server.epollfd,
+                                        EPOLL_CTL_MOD, wsc->fd, &ev) == -1) {
+                                ULOG_ERR ("Failed epoll_ctl for web socket (%d): %s\n",
+                                        usc->fd, strerror (errno));
+                                goto error;
+                            }
+                        }
                     }
                 }
                 else {
@@ -611,14 +664,6 @@ run_server (void)
                     goto error;
                 }
             }
-        }
-
-        t_diff = time (NULL) - t_last;
-        if (t_diff % 10) {
-            check_no_responding_endpoints (&the_server);
-        }
-        else if (t_diff % 5) {
-            check_dangling_endpoints (&the_server);
         }
     }
 
@@ -635,6 +680,15 @@ get_waiting_info_len (struct kvlist *kv, const void *data)
 }
 
 static int
+comp_living_time (const void *k1, const void *k2, void *ptr)
+{
+    const BusEndpoint *e1 = k1;
+    const BusEndpoint *e2 = k2;
+
+    return e1->t_living - e2->t_living;
+}
+
+static int
 init_bus_server (void)
 {
     BusEndpoint* builtin;
@@ -645,6 +699,7 @@ init_bus_server (void)
     the_server.server_name = strdup (HIBUS_LOCALHOST);
     kvlist_init (&the_server.endpoint_list, NULL);
     kvlist_init (&the_server.waiting_endpoints, get_waiting_info_len);
+    avl_init (&the_server.living_avl, comp_living_time, true, NULL);
 
     builtin = new_endpoint (&the_server, ET_BUILTIN, NULL);
     if (builtin == NULL) {
@@ -678,6 +733,11 @@ cleanup_bus_server (void)
     const char* name;
     void *next, *data;
     BusEndpoint* endpoint;
+
+    {
+        BusEndpoint *node, *tmp;
+        avl_remove_all_elements (&the_server.living_avl, node, avl, tmp);
+    }
 
     kvlist_free (&the_server.waiting_endpoints);
 

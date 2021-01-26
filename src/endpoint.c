@@ -47,6 +47,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
     clock_gettime (CLOCK_REALTIME, &ts);
     endpoint->t_created = ts.tv_sec;
     endpoint->t_living = ts.tv_sec;
+    endpoint->avl.key = NULL;
 
     switch (type) {
         case ET_BUILTIN:
@@ -109,6 +110,9 @@ int del_endpoint (BusServer* bus_srv, BusEndpoint* endpoint, int cause)
             fire_system_event (bus_srv, SBT_BROKEN_ENDPOINT, endpoint, NULL,
                     (cause == CDE_LOST_CONNECTION) ? "lostConnection" : "noResponding");
         }
+
+        if (endpoint->avl.key)
+            avl_delete (&bus_srv->living_avl, &endpoint->avl);
     }
     else {
         strcpy (endpoint_name, "@endpoint/not/authenticated");
@@ -241,6 +245,13 @@ bool make_endpoint_ready (BusServer* bus_srv,
             return false;
         }
 
+        endpoint->t_living = time (NULL);
+        endpoint->avl.key = endpoint;
+        if (avl_insert (&bus_srv->living_avl, &endpoint->avl)) {
+            ULOG_ERR ("Failed to insert to the living AVL tree: %s\n", endpoint_name);
+            assert (0);
+            return false;
+        }
         bus_srv->nr_endpoints++;
     }
     else {
@@ -266,9 +277,22 @@ static void cleanup_dangling_client (BusServer *bus_srv, BusEndpoint* endpoint)
             endpoint->host_name, endpoint->app_name, endpoint->runner_name);
 }
 
+int update_endpoint_living_time (BusServer *bus_srv, BusEndpoint* endpoint)
+{
+    endpoint->t_living = time (NULL);
+
+    if (endpoint->avl.key) {
+        avl_delete (&bus_srv->living_avl, &endpoint->avl);
+        avl_insert (&bus_srv->living_avl, &endpoint->avl);
+    }
+
+    return 0;
+}
+
 int check_no_responding_endpoints (BusServer *bus_srv)
 {
     int n = 0;
+#if 0
     struct timespec ts;
     const char* name;
     void *next, *data;
@@ -286,6 +310,43 @@ int check_no_responding_endpoints (BusServer *bus_srv)
             n++;
         }
     }
+#else
+    time_t t_curr = time (NULL);
+	BusEndpoint *endpoint, *tmp;
+
+    ULOG_INFO ("Checking no responding endpoints...\n");
+
+	avl_for_each_element_safe (&bus_srv->living_avl, endpoint, avl, tmp) {
+        char name [HIBUS_LEN_ENDPOINT_NAME + 1];
+
+        assert (endpoint->type != ET_BUILTIN);
+
+        assemble_endpoint_name (endpoint, name);
+        if (t_curr > endpoint->t_living + HIBUS_MAX_NO_RESPONDING_TIME) {
+
+            kvlist_delete (&bus_srv->endpoint_list, name);
+            cleanup_dangling_client (bus_srv, endpoint);
+            del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
+            n++;
+
+            ULOG_INFO ("A no-responding client: %s\n", name);
+        }
+        else if (t_curr > endpoint->t_living + HIBUS_MAX_PING_TIME) {
+            if (endpoint->type == ET_UNIX_SOCKET) {
+                us_ping_client (bus_srv->us_srv, (USClient *)endpoint->entity.client);
+            }
+            else if (endpoint->type == ET_WEB_SOCKET) {
+                ws_ping_client (bus_srv->ws_srv, (WSClient *)endpoint->entity.client);
+            }
+
+            ULOG_INFO ("Ping client: %s\n", name);
+        }
+        else {
+            ULOG_INFO ("Skip left endpoints since (%s): %ld\n", name, endpoint->t_living);
+            break;
+        }
+	}
+#endif
 
     return n;
 }

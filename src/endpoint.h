@@ -52,6 +52,7 @@ bool remove_dangling_endpoint (BusServer* bus_srv, BusEndpoint* endpoint);
 bool make_endpoint_ready (BusServer* bus_srv,
         const char* endpoint_name, BusEndpoint* endpoint);
 
+int update_endpoint_living_time (BusServer *bus_srv, BusEndpoint* endpoint);
 int check_no_responding_endpoints (BusServer *bus_srv);
 int check_dangling_endpoints (BusServer *bus_srv);
 

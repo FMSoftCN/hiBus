@@ -120,6 +120,9 @@ typedef struct BusEndpoint_
     /* All event subscribed by this endpoint */
     struct kvlist subscribed_list;
 
+    /* AVL node for the AVL tree sorted by living time */
+    struct avl_node avl;
+
     /* the data for current status, e.g., the challenge code for authentication */
     void* sta_data;
 } BusEndpoint;
@@ -161,6 +164,9 @@ typedef struct BusServer_
 
     /* The accepted endpoints but waiting for authentification */
     gs_list *dangling_endpoints;
+
+    /* the AVL tree of endpoints sorted by living time */
+    struct avl_tree living_avl;
 } BusServer;
 
 /* Config Options */
