@@ -462,6 +462,20 @@ on_error (void* sock_srv, SockClient* client, int err_code)
     }
 }
 
+static inline void
+update_endpoint_living_time (BusServer *bus_srv, BusEndpoint* endpoint)
+{
+    if (endpoint->avl.key) {
+        time_t t_curr = time (NULL);
+
+        if (endpoint->t_living != t_curr) {
+            endpoint->t_living = t_curr;
+            avl_delete (&bus_srv->living_avl, &endpoint->avl);
+            avl_insert (&bus_srv->living_avl, &endpoint->avl);
+        }
+    }
+}
+
 /* max events for epoll */
 #define MAX_EVENTS          10
 #define PTR_FOR_US_LISTENER ((void *)1)
@@ -609,7 +623,8 @@ run_server (void)
                     if (events[n].events & EPOLLIN) {
 
                         if (usc->entity) {
-                            BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
+                            BusEndpoint *endpoint = container_of (usc->entity,
+                                    BusEndpoint, entity);
                             update_endpoint_living_time (&the_server, endpoint);
                         }
 
@@ -636,7 +651,8 @@ run_server (void)
                    
                     if (events[n].events & EPOLLIN) {
                         if (wsc->entity) {
-                            BusEndpoint *endpoint = container_of (usc->entity, BusEndpoint, entity);
+                            BusEndpoint *endpoint = container_of (usc->entity,
+                                    BusEndpoint, entity);
                             update_endpoint_living_time (&the_server, endpoint);
                         }
 
@@ -732,12 +748,9 @@ cleanup_bus_server (void)
 {
     const char* name;
     void *next, *data;
-    BusEndpoint* endpoint;
+    BusEndpoint *endpoint, *tmp;
 
-    {
-        BusEndpoint *node, *tmp;
-        avl_remove_all_elements (&the_server.living_avl, node, avl, tmp);
-    }
+    avl_remove_all_elements (&the_server.living_avl, endpoint, avl, tmp);
 
     kvlist_free (&the_server.waiting_endpoints);
 

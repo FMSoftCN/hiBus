@@ -277,18 +277,6 @@ static void cleanup_dangling_client (BusServer *bus_srv, BusEndpoint* endpoint)
             endpoint->host_name, endpoint->app_name, endpoint->runner_name);
 }
 
-int update_endpoint_living_time (BusServer *bus_srv, BusEndpoint* endpoint)
-{
-    endpoint->t_living = time (NULL);
-
-    if (endpoint->avl.key) {
-        avl_delete (&bus_srv->living_avl, &endpoint->avl);
-        avl_insert (&bus_srv->living_avl, &endpoint->avl);
-    }
-
-    return 0;
-}
-
 int check_no_responding_endpoints (BusServer *bus_srv)
 {
     int n = 0;

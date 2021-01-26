@@ -1474,11 +1474,13 @@ static void on_new_broken_endpoint (hibus_conn* conn,
 
     if (strcasecmp (from_bubble, "NEWENDPOINT") == 0) {
         fputs ("NEW ENDPOINT:\n", stderr);
-        json_object_to_fd (2, jo, JSON_C_TO_STRING_PRETTY);
+        json_object_to_fd (2, jo,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
     }
     else if (strcasecmp (from_bubble, "BROKENENDPOINT") == 0) {
         fputs ("LOST ENDPOINT:\n", stderr);
-        json_object_to_fd (2, jo, JSON_C_TO_STRING_PRETTY);
+        json_object_to_fd (2, jo,
+                    JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_NOSLASHESCAPE);
     }
 
     json_object_put (jo);
