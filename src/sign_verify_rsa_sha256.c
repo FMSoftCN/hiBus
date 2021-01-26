@@ -50,8 +50,8 @@ static RSA* read_private_key_for_app (const char* app_name)
     FILE *fp = NULL;
     RSA *pri_key = NULL;
 
-    size = snprintf (buff, 512, HIBUS_PRIVATE_PEM_KEY_FILE, app_name, app_name);
-    if (size >= sizeof (buff)) {
+    size = snprintf (buff, sizeof (buff), HIBUS_PRIVATE_PEM_KEY_FILE, app_name, app_name);
+    if (size < 0 || (size_t)size >= sizeof (buff)) {
         ULOG_ERR ("Too long app name in read_private_key_for_app: %s\n", app_name);
         return NULL;
     }
@@ -116,7 +116,7 @@ static RSA* read_public_key_for_app (const char* app_name)
     RSA *pub_key = NULL;
 
     size = snprintf (buff, sizeof (buff), HIBUS_PUBLIC_PEM_KEY_FILE, app_name);
-    if (size >= sizeof (buff)) {
+    if (size < 0 || (size_t)size >= sizeof (buff)) {
         ULOG_ERR ("Too long app name in read_public_key_for_app: %s\n", app_name);
         return NULL;
     }

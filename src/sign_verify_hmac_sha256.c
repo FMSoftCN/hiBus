@@ -42,8 +42,8 @@ static int read_private_key_for_app (const char* app_name,
     char buff [512];
     FILE *fp = NULL;
 
-    size = snprintf (buff, 512, HIBUS_PRIVATE_HMAC_KEY_FILE, app_name, app_name);
-    if (size >= sizeof (buff)) {
+    size = snprintf (buff, sizeof (buff), HIBUS_PRIVATE_HMAC_KEY_FILE, app_name, app_name);
+    if (size < 0 || (size_t)size >= sizeof (buff)) {
         ULOG_ERR ("Too long app name in read_private_key_for_app: %s\n", app_name);
         return -1;
     }
@@ -66,7 +66,7 @@ static int read_private_key_for_app (const char* app_name,
 
 int hibus_sign_data (const char *app_name,
         const unsigned char* data, unsigned int data_len,
-        unsigned char **sing, unsigned int *sig_len)
+        unsigned char **sig, unsigned int *sig_len)
 {
     unsigned char key [HIBUS_LEN_PRIVATE_HMAC_KEY];
 
