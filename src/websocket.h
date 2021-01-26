@@ -248,6 +248,7 @@ typedef struct WSServer_
   int (*on_accepted) (void *server, struct SockClient_* client);
   int (*on_packet) (void *server, struct SockClient_ * client,
           const char* body, unsigned int sz_body, int type);
+  int (*on_pending) (void *server, struct SockClient_* client);
   int (*on_close) (void *server, struct SockClient_ * client);
   void (*on_error) (void *server, struct SockClient_* client, int err_code);
 
@@ -261,6 +262,7 @@ typedef struct WSServer_
 size_t pack_uint32 (void *buf, uint32_t val, int convert);
 size_t unpack_uint32 (const void *buf, uint32_t * val, int convert);
 
+int ws_ping_client (WSServer * server, WSClient * client);
 int ws_send_packet (WSServer * server, WSClient * client,
         WSOpcode op, const char *data, int sz);
 int ws_validate_string (const char *str, int len);
