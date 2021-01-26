@@ -1149,8 +1149,12 @@ ws_respond_data (WSServer * server, WSClient * client, const char *buffer, int l
     return ws_set_status (client, WS_ERR | WS_CLOSE, bytes);
 
   /* did not send all of it... buffer it for a later attempt */
-  if (bytes < len || (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)))
+  if (bytes < len || (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))) {
     ws_queue_sockbuf (client, buffer, len, bytes);
+
+    if (client->status & WS_SENDING && server->on_pending)
+        server->on_pending (server, (SockClient *)client);
+  }
 
   return bytes;
 }
@@ -1497,12 +1501,22 @@ ws_get_handshake (WSServer * server, WSClient * client)
   return ws_set_status (client, WS_OK, bytes);
 }
 
+/* Ping client
+ *
+ * On success, 0 is returned. */
+int
+ws_ping_client (WSServer * server, WSClient * client)
+{
+    return ws_send_frame (server, client, WS_OPCODE_PING, NULL, 0);
+}
+
 /* Send a data message to the given client.
  *
  * On success, 0 is returned. */
 int
 ws_send_packet (WSServer * server, WSClient * client, WSOpcode opcode, const char *p, int sz)
 {
+#if 0
   char *buf = NULL;
 
   if (opcode != WS_OPCODE_BIN) {
@@ -1515,6 +1529,32 @@ ws_send_packet (WSServer * server, WSClient * client, WSOpcode opcode, const cha
   free (buf);
 
   return 0;
+#else
+    char *buf = NULL;
+
+    switch (opcode) {
+        case WS_OPCODE_TEXT:
+            buf = sanitize_utf8 (p, sz);
+            break;
+
+        case WS_OPCODE_BIN:
+            break;
+
+        case WS_OPCODE_PING:
+            return ws_ping_client (server, client);
+
+        default:
+            ULOG_WARN ("Unknown WebSocket opcode: %d\n", opcode);
+            return -1;
+    }
+
+    ws_send_frame (server, client, opcode, buf, sz);
+    if (buf && buf != p) {
+        free (buf);
+    }
+
+    return 0;
+#endif
 }
 
 /* Read a websocket frame's header.
