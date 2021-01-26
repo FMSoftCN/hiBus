@@ -292,6 +292,7 @@ static bool us_queue_data (USClient *client, const char *buf, size_t len)
     list_add_tail (&pending_data->list, &client->pending);
     client->sz_pending += len;
     update_upper_entity_stats (client->entity, client->sz_pending, client->sz_packet);
+    client->status |= US_SENDING;
 
     /* client probably is too slow, so stop queueing until everything is
      * sent */
@@ -320,8 +321,12 @@ static ssize_t us_write_data (USServer *server, USClient *client,
 
     /* did not send all of it... buffer it for a later attempt */
     if ((bytes > 0 && (size_t)bytes < len) ||
-            (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)))
+            (bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))) {
         us_queue_data (client, buffer + bytes, len - bytes);
+
+        if (client->status & US_SENDING && server->on_pending)
+            server->on_pending (server, (SockClient *)client);
+    }
 
     return bytes;
 }
