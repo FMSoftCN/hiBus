@@ -14,6 +14,13 @@ SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
 ADD_DEFINITIONS( -DHIBUS_VERSION="${PROJECT_VERSION}")
 
+if(BUILD_APP_AUTH)
+  MESSAGE(STATUS "Build with ppp authentication")
+  ADD_DEFINITIONS(-DBUILD_APP_AUTH)
+else()
+  message(STATUS "Build without ppp authentication")
+endif()
+
 ADD_SUBDIRECTORY(src)
 
 # Packing stuff
