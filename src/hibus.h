@@ -138,6 +138,9 @@
 /* the maximal size of a payload which will be held in memory (40KiB) */
 #define HIBUS_MAX_INMEM_PAYLOAD_SIZE    40960
 
+/* the maximal time to ping client (60 seconds) */
+#define HIBUS_MAX_PING_TIME             60
+
 /* the maximal no responding time (90 seconds) */
 #define HIBUS_MAX_NO_RESPONDING_TIME    90
 
