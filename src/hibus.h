@@ -901,9 +901,12 @@ int hibus_conn_socket_type (hibus_conn* conn);
  *
  * Returns: the error code; zero means everything is ok.
  *
- * Note that you use this function only if you know the length of
+ * Note that use this function only if you know the length of
  * the next packet, and have a long enough buffer to save the
  * contents of the packet.
+ *
+ * Also note that if the length of the packet is 0, there is no data in the packet.
+ * You should ignore the packet in this case.
  *
  * Since: 1.0
  */
@@ -924,6 +927,9 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
  * Returns: the error code; zero means everything is ok.
  *
  * Note that the caller is responsible for releasing the buffer.
+ *
+ * Also note that if the length of the packet is 0, there is no data in the packet.
+ * You should ignore the packet in this case.
  *
  * Since: 1.0
  */
