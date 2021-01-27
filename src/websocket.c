@@ -169,8 +169,6 @@ sanitize_utf8 (const char *str, int len)
   return buf;
 }
 
-/* Allocate memory for a websocket server */
-
 /* Allocate memory for a websocket client */
 static WSClient *
 new_wsclient (void)
@@ -1510,13 +1508,22 @@ ws_ping_client (WSServer * server, WSClient * client)
     return ws_send_frame (server, client, WS_OPCODE_PING, NULL, 0);
 }
 
+/* Close client
+ *
+ * On success, 0 is returned. */
+int
+ws_close_client (WSServer * server, WSClient * client)
+{
+    return ws_send_frame (server, client, WS_OPCODE_CLOSE, NULL, 0);
+}
+
 /* Send a data message to the given client.
  *
  * On success, 0 is returned. */
 int
-ws_send_packet (WSServer * server, WSClient * client, WSOpcode opcode, const char *p, int sz)
+ws_send_packet (WSServer *server, WSClient *client, WSOpcode opcode, const char *p, int sz)
 {
-#if 0
+#if 0   /* bad implementation */
   char *buf = NULL;
 
   if (opcode != WS_OPCODE_BIN) {
@@ -1529,32 +1536,69 @@ ws_send_packet (WSServer * server, WSClient * client, WSOpcode opcode, const cha
   free (buf);
 
   return 0;
-#else
-    char *buf = NULL;
+#endif
+
+    if (sz <= 0)
+        return -1;
 
     switch (opcode) {
         case WS_OPCODE_TEXT:
-            buf = sanitize_utf8 (p, sz);
-            break;
-
         case WS_OPCODE_BIN:
-            break;
+            return ws_send_frame (server, client, opcode, p, sz);
 
         case WS_OPCODE_PING:
-            return ws_ping_client (server, client);
+            return ws_send_frame (server, client, WS_OPCODE_PING, NULL, 0);
+
+        case WS_OPCODE_CLOSE:
+            return ws_send_frame (server, client, WS_OPCODE_CLOSE, NULL, 0);
 
         default:
             ULOG_WARN ("Unknown WebSocket opcode: %d\n", opcode);
             return -1;
     }
 
-    ws_send_frame (server, client, opcode, buf, sz);
-    if (buf && buf != p) {
+    return 0;
+}
+
+/* Send a data message to the given client 
+ *
+ * On success, 0 is returned. */
+int
+ws_send_packet_safe (WSServer *server, WSClient *client,
+        WSOpcode opcode, const char *p, int sz)
+{
+    int retv;
+    char *buf = NULL;
+
+    if (sz <= 0)
+        return -1;
+
+    switch (opcode) {
+        case WS_OPCODE_TEXT:
+            if ((buf = sanitize_utf8 (p, sz)) == NULL)
+                return -1;
+            break;
+
+        case WS_OPCODE_BIN:
+            return ws_send_frame (server, client, WS_OPCODE_BIN, p, sz);
+
+        case WS_OPCODE_PING:
+            return ws_send_frame (server, client, WS_OPCODE_PING, NULL, 0);
+
+        case WS_OPCODE_CLOSE:
+            return ws_send_frame (server, client, WS_OPCODE_CLOSE, NULL, 0);
+
+        default:
+            ULOG_WARN ("Unknown WebSocket opcode: %d\n", opcode);
+            return -1;
+    }
+
+    retv = ws_send_frame (server, client, opcode, buf, sz);
+    if (buf) {
         free (buf);
     }
 
-    return 0;
-#endif
+    return retv;
 }
 
 /* Read a websocket frame's header.

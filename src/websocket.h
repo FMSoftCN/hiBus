@@ -263,7 +263,10 @@ size_t pack_uint32 (void *buf, uint32_t val, int convert);
 size_t unpack_uint32 (const void *buf, uint32_t * val, int convert);
 
 int ws_ping_client (WSServer * server, WSClient * client);
+int ws_close_client (WSServer * server, WSClient * client);
 int ws_send_packet (WSServer * server, WSClient * client,
+        WSOpcode op, const char *data, int sz);
+int ws_send_packet_safe (WSServer * server, WSClient * client,
         WSOpcode op, const char *data, int sz);
 int ws_validate_string (const char *str, int len);
 
