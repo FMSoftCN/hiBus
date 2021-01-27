@@ -696,6 +696,25 @@ int us_ping_client (USServer* server, USClient* usc)
 }
 
 /*
+ * Ping a specific client.
+ *
+ * return zero on success; none-zero on error.
+ */
+int us_close_client (USServer* server, USClient* usc)
+{
+    USFrameHeader header;
+
+    header.op = US_OPCODE_CLOSE;
+    header.fragmented = 0;
+    header.sz_payload = 0;
+    us_write (server, usc, &header, sizeof (USFrameHeader));
+
+    if (usc->status & US_ERR)
+        return -1;
+    return 0;
+}
+
+/*
  * Send a packet
  *
  * return zero on success; none-zero on error.
@@ -711,6 +730,8 @@ int us_send_packet (USServer* server, USClient* usc,
             break;
         case US_OPCODE_PING:
             return us_ping_client (server, usc);
+        case US_OPCODE_CLOSE:
+            return us_close_client (server, usc);
         default:
             ULOG_WARN ("Unknown UnixSocket op code: %d\n", op);
             return -1;

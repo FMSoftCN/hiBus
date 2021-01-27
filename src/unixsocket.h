@@ -109,6 +109,7 @@ int us_remove_dangling_client (USServer * server, USClient *usc);
 int us_cleanup_client (USServer* server, USClient* usc);
 
 int us_ping_client (USServer* server, USClient* usc);
+int us_close_client (USServer* server, USClient* usc);
 int us_send_packet (USServer* server, USClient* usc,
         USOpcode op, const void *data, unsigned int sz);
 
