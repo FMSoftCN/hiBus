@@ -560,7 +560,7 @@ run_server (void)
     while (the_server.running) {
         int nfds, n;
 
-        nfds = epoll_wait (the_server.epollfd, events, MAX_EVENTS, 10);
+        nfds = epoll_wait (the_server.epollfd, events, MAX_EVENTS, 500);
         if (nfds < 0) {
             if (errno == EINTR) {
                 continue;
@@ -750,7 +750,14 @@ cleanup_bus_server (void)
     void *next, *data;
     BusEndpoint *endpoint, *tmp;
 
-    avl_remove_all_elements (&the_server.living_avl, endpoint, avl, tmp);
+    avl_remove_all_elements (&the_server.living_avl, endpoint, avl, tmp) {
+        if (endpoint->type == ET_UNIX_SOCKET) {
+            us_close_client (the_server.us_srv, (USClient *)endpoint->entity.client);
+        }
+        else if (endpoint->type == ET_WEB_SOCKET) {
+            ws_close_client (the_server.ws_srv, (WSClient *)endpoint->entity.client);
+        }
+    }
 
     kvlist_free (&the_server.waiting_endpoints);
 
