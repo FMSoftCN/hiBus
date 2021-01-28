@@ -749,7 +749,7 @@ char* hibus_escape_string_for_json (const char* str)
                             str + start_offset, pos - start_offset);
                 snprintf (sbuf, sizeof (sbuf), "\\u00%c%c",
                         json_hex_chars[c >> 4], json_hex_chars[c & 0xf]);
-                printbuf_memappend_fast (pb, sbuf, sizeof(sbuf) - 1);
+                printbuf_memappend_fast (pb, sbuf, (int)(sizeof(sbuf) - 1));
                 start_offset = ++pos;
             }
             else

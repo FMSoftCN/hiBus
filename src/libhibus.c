@@ -203,7 +203,7 @@ static int get_challenge_code (hibus_conn *conn, char **challenge)
 
         if (strcasecmp (pack_type, "error") == 0) {
             const char* prot_name = HIBUS_NOT_AVAILABLE;
-            int prot_ver = 0, ret_code;
+            int prot_ver = 0, ret_code = 0;
             const char *ret_msg = HIBUS_NOT_AVAILABLE, *extra_msg = HIBUS_NOT_AVAILABLE;
 
             ULOG_WARN ("Refued by server:\n");
@@ -1627,7 +1627,7 @@ int hibus_fire_event (hibus_conn* conn,
 static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
 {
     hibus_json *jo_tmp;
-    const char* from_endpoint, *call_id, *result_id;
+    const char* from_endpoint = NULL, *call_id=NULL, *result_id = NULL;
     const char* to_method;
     const char* parameter;
     char normalized_name [HIBUS_LEN_METHOD_NAME + 1];
@@ -1638,8 +1638,8 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
     char* packet_buff = buff_in_stack;
     size_t sz_packet_buff = sizeof (buff_in_stack);
     char* escaped_value = NULL;
-    int n, ret_code;
-    double time_consumed;
+    int n = 0, ret_code = 0;
+    double time_consumed = 0.0f;
 
     if (json_object_object_get_ex (jo, "fromEndpoint", &jo_tmp) &&
             (from_endpoint = json_object_get_string (jo_tmp))) {
