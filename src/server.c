@@ -825,6 +825,7 @@ cleanup_bus_server (void)
 
     free (the_server.server_name);
 
+    ULOG_INFO ("the_server.nr_endpoints: %d\n", the_server.nr_endpoints);
     assert (the_server.nr_endpoints == 0);
 }
 

@@ -262,7 +262,7 @@ bool make_endpoint_ready (BusServer* bus_srv,
     return true;
 }
 
-static void cleanup_dangling_client (BusServer *bus_srv, BusEndpoint* endpoint)
+static void cleanup_endpoint_client (BusServer *bus_srv, BusEndpoint* endpoint)
 {
     if (endpoint->type == ET_UNIX_SOCKET) {
         endpoint->entity.client->entity = NULL;
@@ -273,7 +273,7 @@ static void cleanup_dangling_client (BusServer *bus_srv, BusEndpoint* endpoint)
         ws_cleanup_client (bus_srv->ws_srv, (WSClient*)endpoint->entity.client);
     }
 
-    ULOG_WARN ("The dangling endpoint (@%s/%s/%s) removed\n",
+    ULOG_WARN ("The endpoint (@%s/%s/%s) client cleaned up\n",
             endpoint->host_name, endpoint->app_name, endpoint->runner_name);
 }
 
@@ -293,12 +293,13 @@ int check_no_responding_endpoints (BusServer *bus_srv)
         if (endpoint->type != ET_BUILTIN &&
                 ts.tv_sec > endpoint->t_living + HIBUS_MAX_NO_RESPONDING_TIME) {
             kvlist_delete (&bus_srv->endpoint_list, name);
-            cleanup_dangling_client (bus_srv, endpoint);
+            cleanup_endpoint_client (bus_srv, endpoint);
             del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
             n++;
         }
     }
-#else
+#endif
+
     time_t t_curr = time (NULL);
 	BusEndpoint *endpoint, *tmp;
 
@@ -313,8 +314,9 @@ int check_no_responding_endpoints (BusServer *bus_srv)
         if (t_curr > endpoint->t_living + HIBUS_MAX_NO_RESPONDING_TIME) {
 
             kvlist_delete (&bus_srv->endpoint_list, name);
-            cleanup_dangling_client (bus_srv, endpoint);
+            cleanup_endpoint_client (bus_srv, endpoint);
             del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
+            bus_srv->nr_endpoints--;
             n++;
 
             ULOG_INFO ("A no-responding client: %s\n", name);
@@ -334,8 +336,8 @@ int check_no_responding_endpoints (BusServer *bus_srv)
             break;
         }
 	}
-#endif
 
+    ULOG_INFO ("Total endpoints removed: %d\n", n);
     return n;
 }
 
@@ -352,7 +354,7 @@ int check_dangling_endpoints (BusServer *bus_srv)
 
         if (ts.tv_sec > endpoint->t_created + HIBUS_MAX_NO_RESPONDING_TIME) {
             gslist_remove_node (&bus_srv->dangling_endpoints, node);
-            cleanup_dangling_client (bus_srv, endpoint);
+            cleanup_endpoint_client (bus_srv, endpoint);
             del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
             n++;
         }
@@ -1182,7 +1184,9 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
                     strcat (packet_buff, str_time_diff);
                     send_packet_to_endpoint (bus_srv, subscriber, packet_buff, n);
                     ULOG_INFO ("Send event packet to endpoint (@%s/%s/%s): \n%s\n",
-                            subscriber->host_name, subscriber->app_name, subscriber->runner_name,
+                            subscriber->host_name,
+                            subscriber->app_name,
+                            subscriber->runner_name,
                             packet_buff);
                 }
                 else {
