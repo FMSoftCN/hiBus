@@ -613,19 +613,20 @@ void hibus_generate_unique_id (char* id_buff, const char* prefix)
     static unsigned long accumulator;
     struct timespec tp;
     int i, n = strlen (prefix);
-    char my_prefix [8];
+    char my_prefix [9];
 
-    for (i = 0; i < (int)sizeof (my_prefix); i++) {
+    for (i = 0; i < 8; i++) {
         if (i < n) {
             my_prefix [i] = toupper (prefix [i]);
         }
         else
             my_prefix [i] = 'X';
     }
+    my_prefix [8] = '\0';
 
     clock_gettime (CLOCK_REALTIME, &tp);
     snprintf (id_buff, HIBUS_LEN_UNIQUE_ID + 1,
-            "%8s-%016lX-%016lX-%016lX",
+            "%s-%016lX-%016lX-%016lX",
             my_prefix, tp.tv_sec, tp.tv_nsec, accumulator);
     accumulator++;
 }
