@@ -2142,8 +2142,8 @@ int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms)
     FD_SET (conn->fd, &rfds);
 
     if (timeout_ms >= 0) {
-        tv.tv_sec = 0;
-        tv.tv_usec = timeout_ms * 1000;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
         retval = select (conn->fd + 1, &rfds, NULL, NULL, &tv);
     }
     else {
