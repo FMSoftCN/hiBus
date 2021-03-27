@@ -1440,6 +1440,23 @@ hibus_name_toupper_copy (const char* name, char* buff, int max_len)
     return n;
 }
 
+/**
+ * Get monotonic time in seconds
+ *
+ * Gets the monotoic time in seconds.
+ *
+ * Returns: the the monotoic time in seconds.
+ *
+ * Since: 1.0
+ */
+static inline time_t hibus_get_monotoic_time (void)
+{
+    struct timespec tp;
+
+    clock_gettime (CLOCK_MONOTONIC, &tp);
+    return tp.tv_sec;
+}
+
 /**@}*/
 
 #endif /* !_HIBUS_H_ */
