@@ -44,7 +44,7 @@ BusEndpoint* new_endpoint (BusServer* bus_srv, int type, void* client)
     if (endpoint == NULL)
         return NULL;
 
-    clock_gettime (CLOCK_REALTIME, &ts);
+    clock_gettime (CLOCK_MONOTONIC, &ts);
     endpoint->t_created = ts.tv_sec;
     endpoint->t_living = ts.tv_sec;
     endpoint->avl.key = NULL;
@@ -245,7 +245,7 @@ bool make_endpoint_ready (BusServer* bus_srv,
             return false;
         }
 
-        endpoint->t_living = time (NULL);
+        endpoint->t_living = hibus_get_monotoic_time ();
         endpoint->avl.key = endpoint;
         if (avl_insert (&bus_srv->living_avl, &endpoint->avl)) {
             ULOG_ERR ("Failed to insert to the living AVL tree: %s\n", endpoint_name);
@@ -285,7 +285,7 @@ int check_no_responding_endpoints (BusServer *bus_srv)
     const char* name;
     void *next, *data;
 
-    clock_gettime (CLOCK_REALTIME, &ts);
+    clock_gettime (CLOCK_MONOTONIC, &ts);
 
     kvlist_for_each_safe (&bus_srv->endpoint_list, name, next, data) {
         BusEndpoint* endpoint = *(BusEndpoint **)data;
@@ -300,7 +300,7 @@ int check_no_responding_endpoints (BusServer *bus_srv)
     }
 #endif
 
-    time_t t_curr = time (NULL);
+    time_t t_curr = hibus_get_monotoic_time ();
 	BusEndpoint *endpoint, *tmp;
 
     ULOG_INFO ("Checking no responding endpoints...\n");
@@ -344,15 +344,14 @@ int check_no_responding_endpoints (BusServer *bus_srv)
 int check_dangling_endpoints (BusServer *bus_srv)
 {
     int n = 0;
-    struct timespec ts;
+    time_t t_curr = hibus_get_monotoic_time ();
     gs_list* node = bus_srv->dangling_endpoints;
 
-    clock_gettime (CLOCK_REALTIME, &ts);
     while (node) {
         gs_list *next = node->next;
         BusEndpoint* endpoint = (BusEndpoint *)node->data;
 
-        if (ts.tv_sec > endpoint->t_created + HIBUS_MAX_NO_RESPONDING_TIME) {
+        if (t_curr > endpoint->t_created + HIBUS_MAX_NO_RESPONDING_TIME) {
             gslist_remove_node (&bus_srv->dangling_endpoints, node);
             cleanup_endpoint_client (bus_srv, endpoint);
             del_endpoint (bus_srv, endpoint, CDE_NO_RESPONDING);
@@ -728,7 +727,7 @@ static int handle_call_packet (BusServer* bus_srv, BusEndpoint* endpoint,
     assert (to_method->handler);
 
     hibus_generate_unique_id (result_id, "result");
-    clock_gettime (CLOCK_REALTIME, &ts_start);
+    clock_gettime (CLOCK_MONOTONIC, &ts_start);
     time_diff = hibus_get_elapsed_seconds (ts, &ts_start);
 
     call_info.call_id = call_id;
@@ -1142,7 +1141,7 @@ static int handle_event_packet (BusServer* bus_srv, BusEndpoint* endpoint,
         escaped_data = NULL;
     }
 
-    clock_gettime (CLOCK_REALTIME, &ts_start);
+    clock_gettime (CLOCK_MONOTONIC, &ts_start);
     time_diff = hibus_get_elapsed_seconds (ts, &ts_start);
 
     n = snprintf (packet_buff, sz_packet_buff, 

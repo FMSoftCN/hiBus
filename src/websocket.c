@@ -1856,7 +1856,7 @@ ws_manage_payload_opcode (WSServer * server, WSClient * client)
   case WS_OPCODE_BIN:
     ULOG_NOTE ("TEXT\n");
     client->message->opcode = (*frm)->opcode;
-    clock_gettime (CLOCK_REALTIME, &client->ts);
+    clock_gettime (CLOCK_MONOTONIC, &client->ts);
     ws_handle_text_bin (server, client);
     break;
   case WS_OPCODE_PONG:

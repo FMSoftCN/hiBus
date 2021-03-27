@@ -466,7 +466,7 @@ static inline void
 update_endpoint_living_time (BusServer *bus_srv, BusEndpoint* endpoint)
 {
     if (endpoint->avl.key) {
-        time_t t_curr = time (NULL);
+        time_t t_curr = hibus_get_monotoic_time ();
 
         if (endpoint->t_living != t_curr) {
             endpoint->t_living = t_curr;
@@ -486,7 +486,7 @@ run_server (void)
 {
     int us_listener = -1, ws_listener = -1;
     struct epoll_event ev, events[MAX_EVENTS];
-    time_t t_start = time (NULL);
+    time_t t_start = hibus_get_monotoic_time ();
     time_t t_elapsed, t_elapsed_last = 0;
 
     // create unix socket
@@ -570,7 +570,7 @@ run_server (void)
             goto error;
         }
         else if (nfds == 0) {
-            t_elapsed = time (NULL) - t_start;
+            t_elapsed = hibus_get_monotoic_time () - t_start;
             if (t_elapsed != t_elapsed_last) {
                 if (t_elapsed % 10 == 0) {
                     check_no_responding_endpoints (&the_server);

@@ -541,7 +541,7 @@ int us_handle_reads (USServer* server, USClient* usc)
                 break;
             }
 
-            clock_gettime (CLOCK_REALTIME, &usc->ts);
+            clock_gettime (CLOCK_MONOTONIC, &usc->ts);
             if (usc->header.op == US_OPCODE_TEXT)
                 usc->t_packet = PT_TEXT;
             else

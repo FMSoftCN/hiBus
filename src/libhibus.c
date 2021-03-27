@@ -1692,7 +1692,7 @@ static int dispatch_call_packet (hibus_conn* conn, const hibus_json *jo)
 
         mhi = *(struct method_handler_info *)data;
 
-        clock_gettime (CLOCK_REALTIME, &ts);
+        clock_gettime (CLOCK_MONOTONIC, &ts);
         if (mhi.type == MHT_CONST_STRING) {
             hibus_method_handler_const method_handler = mhi.handler;
             ret_value_const = method_handler (conn, from_endpoint,
@@ -1919,17 +1919,17 @@ static int wait_for_specific_call_result_packet (hibus_conn* conn,
     *ret_value = NULL;
 
     if (time_expected <= 0) {
-        time_to_return = time (NULL) + HIBUS_DEF_TIME_EXPECTED;
+        time_to_return = hibus_get_monotoic_time () + HIBUS_DEF_TIME_EXPECTED;
     }
     else {
-        time_to_return = time (NULL) + time_expected;
+        time_to_return = hibus_get_monotoic_time () + time_expected;
     }
 
-    while (1 /* time (NULL) < time_to_return */) {
+    while (1 /* hibus_get_monotoic_time () < time_to_return */) {
         FD_ZERO (&rfds);
         FD_SET (conn->fd, &rfds);
 
-        tv.tv_sec = time_to_return - time (NULL);
+        tv.tv_sec = time_to_return - hibus_get_monotoic_time ();
         tv.tv_usec = 0;
         retval = select (conn->fd + 1, &rfds, NULL, NULL, &tv);
 

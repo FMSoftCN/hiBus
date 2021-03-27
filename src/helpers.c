@@ -693,7 +693,7 @@ double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct times
     long dns;
 
     if (ts2 == NULL) {
-        clock_gettime (CLOCK_REALTIME, &ts_curr);
+        clock_gettime (CLOCK_MONOTONIC, &ts_curr);
         ts2 = &ts_curr;
     }
 

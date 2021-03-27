@@ -443,7 +443,7 @@ builtin_method_list_endpoints (BusServer *bus_srv,
         printbuf_strappend (pb, "{\"endpointName\":");
         sprintbuf (pb, "\"%s\",", endpoint_name);
         sprintbuf (pb, "\"livingSeconds\":%lu,",
-                time (NULL) - endpoint->t_created);
+                hibus_get_monotoic_time () - endpoint->t_created);
 
         n = 0;
         printbuf_strappend (pb, "\"methods\":[");
