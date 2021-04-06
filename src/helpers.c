@@ -246,16 +246,19 @@ int hibus_errcode_to_retcode (int err_code)
     return HIBUS_SC_INTERNAL_SERVER_ERROR;
 }
 
+// VW: donot use printbuf.
 hibus_json *hibus_json_object_from_string (const char* json, int len, int in_depth)
 {
-    struct printbuf *pb;
+    // struct printbuf *pb;
     struct json_object *obj = NULL;
     json_tokener *tok;
 
+#if 0
     if (!(pb = printbuf_new())) {
         ULOG_ERR ("Failed to allocate buffer for parse JSON.\n");
         return NULL;
     }
+#endif
 
     if (in_depth < 0)
         in_depth = JSON_TOKENER_DEFAULT_DEPTH;
@@ -263,12 +266,13 @@ hibus_json *hibus_json_object_from_string (const char* json, int len, int in_dep
     tok = json_tokener_new_ex (in_depth);
     if (!tok) {
         ULOG_ERR ("Failed to create a new JSON tokener.\n");
-        printbuf_free (pb);
+        // printbuf_free (pb);
         goto error;
     }
 
-    printbuf_memappend (pb, json, len);
-    obj = json_tokener_parse_ex (tok, pb->buf, printbuf_length (pb));
+    // printbuf_memappend (pb, json, len);
+    // obj = json_tokener_parse_ex (tok, pb->buf, printbuf_length (pb));
+    obj = json_tokener_parse_ex (tok, json, len);
     if (obj == NULL) {
         ULOG_ERR ("Failed to parse JSON: %s\n",
                 json_tokener_error_desc (json_tokener_get_error (tok)));
@@ -277,7 +281,7 @@ hibus_json *hibus_json_object_from_string (const char* json, int len, int in_dep
     json_tokener_free(tok);
 
 error:
-    printbuf_free(pb);
+    //printbuf_free(pb);
     return obj;
 }
 
