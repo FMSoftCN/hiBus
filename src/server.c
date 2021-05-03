@@ -402,9 +402,8 @@ static int
 on_close (void* sock_srv, SockClient* client)
 {
     if (epoll_ctl (the_server.epollfd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
-        ULOG_ERR ("Failed to call epoll_ctl to delete the client fd (%d): %s\n",
+        ULOG_WARN ("Failed to call epoll_ctl to delete the client fd (%d): %s\n",
                 client->fd, strerror (errno));
-        assert (0);
     }
 
     if (client->entity) {
@@ -437,6 +436,9 @@ on_error (void* sock_srv, SockClient* client, int err_code)
 {
     int n;
     char buff [HIBUS_MIN_PACKET_BUFF_SIZE];
+
+    if (err_code == HIBUS_SC_IOERR)
+        return;
 
     n = snprintf (buff, sizeof (buff), 
             "{"
