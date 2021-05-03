@@ -890,7 +890,7 @@ bool fire_system_event (BusServer* bus_srv, int bubble_type,
         }
         else {
             WSClient* wsc = (WSClient *)cause->entity.client;
-            strncpy (peer_info, wsc->remote_ip, sizeof (wsc->remote_ip));
+            strncpy (peer_info, wsc->remote_ip, /*sizeof (wsc->remote_ip)*/INET6_ADDRSTRLEN);
         }
 
         n = snprintf (bubble_data, sizeof (bubble_data), 
