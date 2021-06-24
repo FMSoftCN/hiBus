@@ -1,11 +1,11 @@
-# HiBus
+# HiDataBus
 
-HiBus is the data bus for device side of HybridOS.
+HiDataBus is the data bus for device side of HybridOS.
 
 - [Introduction](#introduction)
 - [Dependencies](#dependencies)
 - [Current Status](#current-status)
-- [Build HiBus for Standalone Use](#build-hibus-for-standalone-use)
+- [Build HiDataBus for Standalone Use](#build-hibus-for-standalone-use)
 - [TODO List](#todo-list)
 - [Copying](#copying)
    + [Commercial License](#commercial-license)
@@ -15,30 +15,30 @@ HiBus is the data bus for device side of HybridOS.
 
 In HybridOS, an important design idea is always implemented: data-driven.
 Regardless of whether it is a single app scenario or multiple apps scenarios,
-hiBus will act as the link between HybridOS app and the underlying functional
+hiDataBus will act as the link between HybridOS app and the underlying functional
 modules; and even in the future, it will become the link between different
 device nodes in the LAN.
 
-Some ideas of hiBus come from OpenWRT's uBus, such as passing data in JSON format.
-But compared to uBus, hiBus has the following important improvements:
+Some ideas of hiDataBus come from OpenWRT's uBus, such as passing data in JSON format.
+But compared to uBus, hiDataBus has the following important improvements:
 
 - Two types of underlying connection channels are provided: local Unix Domain Socket
   and Web Socket, so that modules developed in different programming languages can
-  be easily connected to hiBus.
+  be easily connected to hiDataBus.
 - Providing a basic security mechanism to determine whether an application or a remote
   node can subscribe to a specific event or call a specific procedure.
-- Considering that in the future, hiBus can provide services to other IoT device nodes
+- Considering that in the future, hiDataBus can provide services to other IoT device nodes
   in the local area network through Web Socket, we include host name
   information when subscribing to events and calling remote procedures.
-- The redesigned hiBus protocol can avoid deadlock when the same app plays
+- The redesigned hiDataBus protocol can avoid deadlock when the same app plays
   different roles.
 
-HiBus includes the following three components:
+HiDataBus includes the following three components:
 
-1. HiBus server, an executable program which runs as a daemon in the system.
-1. HiBus cmdline, an executable program which provides an interactive command line program
+1. HiDataBus server, an executable program which runs as a daemon in the system.
+1. HiDataBus cmdline, an executable program which provides an interactive command line program
    for test and debugging.
-1. HiBus library, an library which provides some APIs for clients to use hiBus easily.
+1. HiDataBus library, an library which provides some APIs for clients to use hiDataBus easily.
 
 For more information, please refer to:
 
@@ -46,7 +46,7 @@ For more information, please refer to:
 
 ## Dependencies
 
-HiBus depends on the following libraries:
+HiDataBus depends on the following libraries:
 
 - [hiBox](https://github.com/FMSoft/hibox) provides some utilities for HybridOS device side in C language.
 - [glib](https://github.com/GNOME/glib) provides data structure handling for C language.
@@ -58,16 +58,16 @@ HiBus depends on the following libraries:
 - Dec. 2020: First release (version 0.9).
 - Oct. 2020: Skeleton of source code.
 
-## Build HiBus for Standalone Use
+## Build HiDataBus for Standalone Use
 
-To build hiBus for your own usage on a generic Linux box without
+To build hiDataBus for your own usage on a generic Linux box without
 the app management of HybridOS, use the following options for `cmake`:
 
 ```
 $ cmake -DBUILD_APP_AUTH=OFF <directory_to_source_code>
 ```
 
-If you use the `-DBUILD_APP_AUTH=OFF` option, hiBus will use a dummy app
+If you use the `-DBUILD_APP_AUTH=OFF` option, hiDataBus will use a dummy app
 authentication method to avoid preparing your app authentication system.
 
 ## TODO List
