@@ -219,11 +219,11 @@ extern "C" {
  *
  * Since: 1.0
  */
-const char* hibus_get_ret_message (int ret_code);
+const char *hibus_get_ret_message(int ret_code);
 
 /**
  * Get the error message of an error code.
- * 
+ *
  * hibus_get_err_message:
  * @param err_code: the error code.
  *
@@ -233,11 +233,11 @@ const char* hibus_get_ret_message (int ret_code);
  *
  * Since: 1.0
  */
-const char* hibus_get_err_message (int err_code);
+const char *hibus_get_err_message(int err_code);
 
 /**
  * Convert an error code to a return code.
- * 
+ *
  * hibus_errcode_to_retcode:
  * @param err_code: the internal error code of hiBus.
  *
@@ -248,7 +248,7 @@ const char* hibus_get_err_message (int err_code);
  *
  * Since: 1.0
  */
-int hibus_errcode_to_retcode (int err_code);
+int hibus_errcode_to_retcode(int err_code);
 
 /**
  * Parse a JSON string to a hibus_json object.
@@ -269,7 +269,7 @@ int hibus_errcode_to_retcode (int err_code);
  *
  * Since: 1.0
  */
-hibus_json *hibus_json_object_from_string (const char* json, int len, int depth);
+hibus_json *hibus_json_object_from_string(const char *json, int len, int depth);
 
 /**
  * Check whether a string is a valid token.
@@ -287,7 +287,7 @@ hibus_json *hibus_json_object_from_string (const char* json, int len, int depth)
  *
  * Since: 1.0
  */
-bool hibus_is_valid_token (const char* token, int max_len);
+bool hibus_is_valid_token(const char *token, int max_len);
 
 /**
  * Check whether a string is a valid pattern list.
@@ -303,7 +303,7 @@ bool hibus_is_valid_token (const char* token, int max_len);
  *
  * Since: 1.0
  */
-bool hibus_is_valid_wildcard_pattern_list (const char* pattern_list);
+bool hibus_is_valid_wildcard_pattern_list(const char *pattern_list);
 
 /**
  * Check whether a string is a valid host name.
@@ -316,7 +316,7 @@ bool hibus_is_valid_wildcard_pattern_list (const char* pattern_list);
  *
  * Since: 1.0
  */
-bool hibus_is_valid_host_name (const char* host_name);
+bool hibus_is_valid_host_name(const char *host_name);
 
 /**
  * Check whether a string is a valid app name.
@@ -329,7 +329,7 @@ bool hibus_is_valid_host_name (const char* host_name);
  *
  * Since: 1.0
  */
-bool hibus_is_valid_app_name (const char* app_name);
+bool hibus_is_valid_app_name(const char *app_name);
 
 /**
  * Check whether a string is a valid endpoint name.
@@ -345,7 +345,7 @@ bool hibus_is_valid_app_name (const char* app_name);
  *
  * Since: 1.0
  */
-bool hibus_is_valid_endpoint_name (const char* endpoint_name);
+bool hibus_is_valid_endpoint_name(const char *endpoint_name);
 
 /**
  * Extract host name from endpoint name.
@@ -363,7 +363,7 @@ bool hibus_is_valid_endpoint_name (const char* endpoint_name);
  *
  * Since: 1.0
  */
-int hibus_extract_host_name (const char* endpoint, char* buff);
+int hibus_extract_host_name(const char *endpoint, char *buff);
 
 /**
  * Extract app name from endpoint name.
@@ -379,7 +379,7 @@ int hibus_extract_host_name (const char* endpoint, char* buff);
  *
  * Since: 1.0
  */
-int hibus_extract_app_name (const char* endpoint, char* buff);
+int hibus_extract_app_name(const char *endpoint, char *buff);
 
 /**
  * Extract runner name from endpoint name.
@@ -395,7 +395,7 @@ int hibus_extract_app_name (const char* endpoint, char* buff);
  *
  * Since: 1.0
  */
-int hibus_extract_runner_name (const char* endpoint, char* buff);
+int hibus_extract_runner_name(const char *endpoint, char *buff);
 
 /**
  * Extract host name from endpoint name (allocation version).
@@ -413,10 +413,10 @@ int hibus_extract_runner_name (const char* endpoint, char* buff);
  *
  * Since: 1.0
  */
-char* hibus_extract_host_name_alloc (const char* endpoint);
+char *hibus_extract_host_name_alloc(const char *endpoint);
 
 /**
- * Extract app name from endpoint name (allocation version).
+ * Extract app name from endpoint name(allocation version).
  * 
  * @param endpoint: the pointer to a string contains an endpoint name.
  *
@@ -431,7 +431,7 @@ char* hibus_extract_host_name_alloc (const char* endpoint);
  *
  * Since: 1.0
  */
-char* hibus_extract_app_name_alloc (const char* endpoint);
+char *hibus_extract_app_name_alloc(const char *endpoint);
 
 /**
  * Extract runner name from endpoint name (allocation version).
@@ -449,7 +449,7 @@ char* hibus_extract_app_name_alloc (const char* endpoint);
  *
  * Since: 1.0
  */
-char* hibus_extract_runner_name_alloc (const char* endpoint);
+char *hibus_extract_runner_name_alloc(const char *endpoint);
 
 /**
  * Assemble endpoint name.
@@ -471,7 +471,7 @@ char* hibus_extract_runner_name_alloc (const char* endpoint);
  *
  * Since: 1.0
  */
-int hibus_assemble_endpoint_name (const char *host_name, const char *app_name,
+int hibus_assemble_endpoint_name(const char *host_name, const char *app_name,
         const char *runner_name, char *buff);
 
 /**
@@ -491,8 +491,8 @@ int hibus_assemble_endpoint_name (const char *host_name, const char *app_name,
  *
  * Since: 1.0
  */
-char* hibus_assemble_endpoint_name_alloc (const char* host_name,
-        const char* app_name, const char* runner_name);
+char *hibus_assemble_endpoint_name_alloc(const char *host_name,
+        const char *app_name, const char *runner_name);
 
 /**
  * Sign a data.
@@ -515,8 +515,8 @@ char* hibus_assemble_endpoint_name_alloc (const char* host_name,
  *
  * Since: 1.0
  */
-int hibus_sign_data (const char *app_name,
-        const unsigned char* data, unsigned int data_len,
+int hibus_sign_data(const char *app_name,
+        const unsigned char *data, unsigned int data_len,
         unsigned char **sig, unsigned int *sig_len);
 
 /**
@@ -539,9 +539,9 @@ int hibus_sign_data (const char *app_name,
  *
  * Since: 1.0
  */
-int hibus_verify_signature (const char* app_name,
-        const unsigned char* data, unsigned int data_len,
-        const unsigned char* sig, unsigned int sig_len);
+int hibus_verify_signature(const char *app_name,
+        const unsigned char *data, unsigned int data_len,
+        const unsigned char *sig, unsigned int sig_len);
 
 /**
  * Parse a JSON string to a hibus_json object.
@@ -560,7 +560,7 @@ int hibus_verify_signature (const char* app_name,
  *
  * Since: 1.0
  */
-int hibus_json_packet_to_object (const char* json, unsigned int json_len,
+int hibus_json_packet_to_object(const char *json, unsigned int json_len,
         hibus_json **jo);
 
 /**
@@ -575,7 +575,7 @@ int hibus_json_packet_to_object (const char* json, unsigned int json_len,
  *
  * Since: 1.0
  */
-void hibus_generate_unique_id (char* id_buff, const char* prefix);
+void hibus_generate_unique_id(char *id_buff, const char *prefix);
 
 /**
  * Generate an unique MD5 identifier.
@@ -590,7 +590,7 @@ void hibus_generate_unique_id (char* id_buff, const char* prefix);
  *
  * Since: 1.0
  */
-void hibus_generate_md5_id (char* id_buff, const char* prefix);
+void hibus_generate_md5_id(char *id_buff, const char *prefix);
 
 /**
  * Check whether a string is a valid unique identifier.
@@ -603,7 +603,7 @@ void hibus_generate_md5_id (char* id_buff, const char* prefix);
  *
  * Since: 1.0
  */
-bool hibus_is_valid_unique_id (const char* id);
+bool hibus_is_valid_unique_id(const char *id);
 
 /**
  * Check whether a string is a valid MD5 identifier.
@@ -616,7 +616,7 @@ bool hibus_is_valid_unique_id (const char* id);
  *
  * Since: 1.0
  */
-bool hibus_is_valid_md5_id (const char* id);
+bool hibus_is_valid_md5_id(const char *id);
 
 /**
  * Get the elapsed seconds.
@@ -631,7 +631,7 @@ bool hibus_is_valid_md5_id (const char* id);
  *
  * Since: 1.0
  */
-double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct timespec *ts2);
+double hibus_get_elapsed_seconds(const struct timespec *ts1, const struct timespec *ts2);
 
 /**
  * Escape a string for JSON.
@@ -646,7 +646,7 @@ double hibus_get_elapsed_seconds (const struct timespec *ts1, const struct times
  *
  * Since: 1.0
  */
-char* hibus_escape_string_for_json (const char* str);
+char *hibus_escape_string_for_json(const char *str);
  
 /**@}*/
 
@@ -671,8 +671,8 @@ char* hibus_escape_string_for_json (const char* str);
  *
  * Since: 1.0
  */
-int hibus_connect_via_unix_socket (const char* path_to_socket,
-        const char* app_name, const char* runner_name, hibus_conn** conn);
+int hibus_connect_via_unix_socket(const char *path_to_socket,
+        const char *app_name, const char *runner_name, hibus_conn** conn);
 
 /**
  * Connect to the server via WebSocket.
@@ -689,8 +689,8 @@ int hibus_connect_via_unix_socket (const char* path_to_socket,
  *
  * Note that this function is not implemented so far.
  */
-int hibus_connect_via_web_socket (const char* srv_host_name, int port,
-        const char* app_name, const char* runner_name, hibus_conn** conn);
+int hibus_connect_via_web_socket(const char *srv_host_name, int port,
+        const char *app_name, const char *runner_name, hibus_conn** conn);
 
 /**
  * Disconnect to the server.
@@ -703,7 +703,7 @@ int hibus_connect_via_web_socket (const char* srv_host_name, int port,
  *
  * Since: 1.0
  */
-int hibus_disconnect (hibus_conn* conn);
+int hibus_disconnect(hibus_conn* conn);
 
 /**
  * Free a connection.
@@ -716,7 +716,7 @@ int hibus_disconnect (hibus_conn* conn);
  *
  * Since: 1.0
  */
-int hibus_free_connection (hibus_conn* conn);
+int hibus_free_connection(hibus_conn* conn);
 
 /**
  * The prototype of an error handler.
@@ -736,7 +736,7 @@ typedef void (*hibus_error_handler)(hibus_conn* conn, const hibus_json *jo);
  *
  * Since: 1.0
  */
-hibus_error_handler hibus_conn_get_error_handler (hibus_conn* conn);
+hibus_error_handler hibus_conn_get_error_handler(hibus_conn* conn);
 
 /**
  * Set the error handler of the connection.
@@ -748,7 +748,7 @@ hibus_error_handler hibus_conn_get_error_handler (hibus_conn* conn);
  *
  * Since: 1.0
  */
-hibus_error_handler hibus_conn_set_error_handler (hibus_conn* conn,
+hibus_error_handler hibus_conn_set_error_handler(hibus_conn* conn,
         hibus_error_handler error_handler);
 
 /**
@@ -760,7 +760,7 @@ hibus_error_handler hibus_conn_set_error_handler (hibus_conn* conn,
  *
  * Since: 1.0
  */
-void *hibus_conn_get_user_data (hibus_conn* conn);
+void *hibus_conn_get_user_data(hibus_conn* conn);
 
 /**
  * Set the user data associated with the connection.
@@ -772,7 +772,7 @@ void *hibus_conn_get_user_data (hibus_conn* conn);
  *
  * Since: 1.0
  */
-void *hibus_conn_set_user_data (hibus_conn* conn, void* user_data);
+void *hibus_conn_set_user_data(hibus_conn* conn, void* user_data);
 
 /**
  * Get the last return code from the server.
@@ -783,7 +783,7 @@ void *hibus_conn_set_user_data (hibus_conn* conn, void* user_data);
  *
  * Since: 1.0
  */
-int hibus_conn_get_last_ret_code (hibus_conn* conn);
+int hibus_conn_get_last_ret_code(hibus_conn* conn);
 
 /**
  * Get the server host name of a connection.
@@ -794,7 +794,7 @@ int hibus_conn_get_last_ret_code (hibus_conn* conn);
  *
  * Since: 1.0
  */
-const char* hibus_conn_srv_host_name (hibus_conn* conn);
+const char *hibus_conn_srv_host_name(hibus_conn* conn);
 
 /**
  * Get the own host name of a connection.
@@ -805,7 +805,7 @@ const char* hibus_conn_srv_host_name (hibus_conn* conn);
  *
  * Since: 1.0
  */
-const char* hibus_conn_own_host_name (hibus_conn* conn);
+const char *hibus_conn_own_host_name(hibus_conn* conn);
 
 /**
  * Get the app name of a connection.
@@ -816,7 +816,7 @@ const char* hibus_conn_own_host_name (hibus_conn* conn);
  *
  * Since: 1.0
  */
-const char* hibus_conn_app_name (hibus_conn* conn);
+const char *hibus_conn_app_name(hibus_conn* conn);
 
 /**
  * Get the runner name of a connection.
@@ -827,7 +827,7 @@ const char* hibus_conn_app_name (hibus_conn* conn);
  *
  * Since: 1.0
  */
-const char* hibus_conn_runner_name (hibus_conn* conn);
+const char *hibus_conn_runner_name(hibus_conn* conn);
 
 /**
  * Copy the endpoint name of a connection.
@@ -844,7 +844,7 @@ const char* hibus_conn_runner_name (hibus_conn* conn);
  *
  * Since: 1.0
  */
-int hibus_conn_endpoint_name (hibus_conn* conn, char *buff);
+int hibus_conn_endpoint_name(hibus_conn* conn, char *buff);
 
 /**
  * Get the endpoint name of connection (allocation version).
@@ -860,7 +860,7 @@ int hibus_conn_endpoint_name (hibus_conn* conn, char *buff);
  *
  * Since: 1.0
  */
-char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
+char *hibus_conn_endpoint_name_alloc(hibus_conn* conn);
 
 /**
  * Get the file descriptor of the connection.
@@ -873,7 +873,7 @@ char *hibus_conn_endpoint_name_alloc (hibus_conn* conn);
  *
  * Since: 1.0
  */
-int hibus_conn_socket_fd (hibus_conn* conn);
+int hibus_conn_socket_fd(hibus_conn* conn);
 
 /**
  * Get the connnection socket type.
@@ -886,7 +886,7 @@ int hibus_conn_socket_fd (hibus_conn* conn);
  *
  * Since: 1.0
  */
-int hibus_conn_socket_type (hibus_conn* conn);
+int hibus_conn_socket_type(hibus_conn* conn);
 
 /**
  * Read a packet (allocation version).
@@ -910,7 +910,7 @@ int hibus_conn_socket_type (hibus_conn* conn);
  *
  * Since: 1.0
  */
-int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
+int hibus_read_packet(hibus_conn* conn, void* packet_buf, unsigned int *packet_len);
 
 /**
  * Read a packet (allocation version).
@@ -933,7 +933,7 @@ int hibus_read_packet (hibus_conn* conn, void* packet_buf, unsigned int *packet_
  *
  * Since: 1.0
  */
-int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *packet_len);
+int hibus_read_packet_alloc(hibus_conn* conn, void **packet, unsigned int *packet_len);
 
 /**
  * Send a text packet to the server.
@@ -948,7 +948,7 @@ int hibus_read_packet_alloc (hibus_conn* conn, void **packet, unsigned int *pack
  *
  * Since: 1.0
  */
-int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt_len);
+int hibus_send_text_packet(hibus_conn* conn, const char *text, unsigned int txt_len);
 
 /**
  * Ping the server.
@@ -965,7 +965,7 @@ int hibus_send_text_packet (hibus_conn* conn, const char* text, unsigned int txt
  *
  * Since: 1.0
  */
-int hibus_ping_server (hibus_conn* conn);
+int hibus_ping_server(hibus_conn* conn);
 
 /**
  * The prototype of a method handler.
@@ -980,9 +980,9 @@ int hibus_ping_server (hibus_conn* conn);
  *
  * Since: 1.0
  */
-typedef char* (*hibus_method_handler)(hibus_conn* conn,
-        const char* from_endpoint, const char* to_method,
-        const char* method_param, int *err_code);
+typedef char *(*hibus_method_handler)(hibus_conn* conn,
+        const char *from_endpoint, const char *to_method,
+        const char *method_param, int *err_code);
 
 /**
  * Register a procedure.
@@ -999,8 +999,8 @@ typedef char* (*hibus_method_handler)(hibus_conn* conn,
  *
  * Since: 1.0
  */
-int hibus_register_procedure (hibus_conn* conn, const char* method_name,
-        const char* for_host, const char* for_app,
+int hibus_register_procedure(hibus_conn* conn, const char *method_name,
+        const char *for_host, const char *for_app,
         hibus_method_handler method_handler);
 
 /**
@@ -1016,9 +1016,9 @@ int hibus_register_procedure (hibus_conn* conn, const char* method_name,
  *
  * Since: 1.0
  */
-typedef const char* (*hibus_method_handler_const)(hibus_conn* conn,
-        const char* from_endpoint, const char* to_method,
-        const char* method_param, int *err_code);
+typedef const char *(*hibus_method_handler_const)(hibus_conn* conn,
+        const char *from_endpoint, const char *to_method,
+        const char *method_param, int *err_code);
 
 /**
  * Register a procedure with a const method handler.
@@ -1036,8 +1036,8 @@ typedef const char* (*hibus_method_handler_const)(hibus_conn* conn,
  *
  * Since: 1.0
  */
-int hibus_register_procedure_const (hibus_conn* conn, const char* method_name,
-        const char* for_host, const char* for_app,
+int hibus_register_procedure_const(hibus_conn* conn, const char *method_name,
+        const char *for_host, const char *for_app,
         hibus_method_handler_const method_handler);
 
 /**
@@ -1052,7 +1052,7 @@ int hibus_register_procedure_const (hibus_conn* conn, const char* method_name,
  *
  * Since: 1.0
  */
-int hibus_revoke_procedure (hibus_conn* conn, const char* method_name);
+int hibus_revoke_procedure(hibus_conn* conn, const char *method_name);
 
 /**
  * Register an event.
@@ -1068,8 +1068,8 @@ int hibus_revoke_procedure (hibus_conn* conn, const char* method_name);
  *
  * Since: 1.0
  */
-int hibus_register_event (hibus_conn* conn, const char* bubble_name,
-        const char* for_host, const char* for_app);
+int hibus_register_event(hibus_conn* conn, const char *bubble_name,
+        const char *for_host, const char *for_app);
 
 /**
  * Revoke a registered event.
@@ -1083,7 +1083,7 @@ int hibus_register_event (hibus_conn* conn, const char* bubble_name,
  *
  * Since: 1.0
  */
-int hibus_revoke_event (hibus_conn* conn, const char* bubble_name);
+int hibus_revoke_event(hibus_conn* conn, const char *bubble_name);
 
 /**
  * Fire an event.
@@ -1098,8 +1098,8 @@ int hibus_revoke_event (hibus_conn* conn, const char* bubble_name);
  *
  * Since: 1.0
  */
-int hibus_fire_event (hibus_conn* conn,
-        const char* bubble_name, const char* bubble_data);
+int hibus_fire_event(hibus_conn* conn,
+        const char *bubble_name, const char *bubble_data);
 
 /**
  * The prototype of an event handler.
@@ -1112,8 +1112,8 @@ int hibus_fire_event (hibus_conn* conn,
  * Since: 1.0
  */
 typedef void (*hibus_event_handler)(hibus_conn* conn,
-        const char* from_endpoint, const char* from_bubble,
-        const char* bubble_data);
+        const char *from_endpoint, const char *from_bubble,
+        const char *bubble_data);
 
 /**
  * Subscribe an event.
@@ -1131,8 +1131,8 @@ typedef void (*hibus_event_handler)(hibus_conn* conn,
  *
  * Since: 1.0
  */
-int hibus_subscribe_event (hibus_conn* conn,
-        const char* endpoint, const char* bubble_name,
+int hibus_subscribe_event(hibus_conn* conn,
+        const char *endpoint, const char *bubble_name,
         hibus_event_handler event_handler);
 
 /**
@@ -1148,8 +1148,8 @@ int hibus_subscribe_event (hibus_conn* conn,
  *
  * Since: 1.0
  */
-int hibus_unsubscribe_event (hibus_conn* conn,
-        const char* endpoint, const char* bubble_name);
+int hibus_unsubscribe_event(hibus_conn* conn,
+        const char *endpoint, const char *bubble_name);
 
 /**
  * The prototype of a result handler.
@@ -1165,8 +1165,8 @@ int hibus_unsubscribe_event (hibus_conn* conn,
  * Since: 1.0
  */
 typedef int (*hibus_result_handler)(hibus_conn* conn,
-        const char* from_endpoint, const char* from_method,
-        int ret_code, const char* ret_value);
+        const char *from_endpoint, const char *from_method,
+        int ret_code, const char *ret_value);
 
 /**
  * Call a procedure and handle the result in a callback handler.
@@ -1186,9 +1186,9 @@ typedef int (*hibus_result_handler)(hibus_conn* conn,
  *
  * Since: 1.0
  */
-int hibus_call_procedure (hibus_conn* conn,
-        const char* endpoint, const char* method,
-        const char* method_param,
+int hibus_call_procedure(hibus_conn* conn,
+        const char *endpoint, const char *method,
+        const char *method_param,
         int time_expected, hibus_result_handler result_handler);
 
 /**
@@ -1210,8 +1210,8 @@ int hibus_call_procedure (hibus_conn* conn,
  *
  * Since: 1.0
  */
-int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
-        const char* method_name, const char* method_param,
+int hibus_call_procedure_and_wait(hibus_conn* conn, const char *endpoint,
+        const char *method_name, const char *method_param,
         int time_expected, int *ret_code, char** ret_value);
 
 /**
@@ -1226,7 +1226,7 @@ int hibus_call_procedure_and_wait (hibus_conn* conn, const char* endpoint,
  *
  * Since: 1.0
  */
-int hibus_read_and_dispatch_packet (hibus_conn* conn);
+int hibus_read_and_dispatch_packet(hibus_conn* conn);
 
 /**
  * Wait and dispatch the packet from the server.
@@ -1245,7 +1245,7 @@ int hibus_read_and_dispatch_packet (hibus_conn* conn);
  *
  * Since: 1.0
  */
-int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms);
+int hibus_wait_and_dispatch_packet(hibus_conn* conn, int timeout_ms);
 
 /**@}*/
 
@@ -1275,9 +1275,9 @@ int hibus_wait_and_dispatch_packet (hibus_conn* conn, int timeout_ms);
  * Since: 1.0
  */
 static inline bool
-hibus_is_valid_runner_name (const char* runner_name)
+hibus_is_valid_runner_name(const char *runner_name)
 {
-    return hibus_is_valid_token (runner_name, HIBUS_LEN_RUNNER_NAME);
+    return hibus_is_valid_token(runner_name, HIBUS_LEN_RUNNER_NAME);
 }
 
 /**
@@ -1297,9 +1297,9 @@ hibus_is_valid_runner_name (const char* runner_name)
  * Since: 1.0
  */
 static inline bool
-hibus_is_valid_method_name (const char* method_name)
+hibus_is_valid_method_name(const char *method_name)
 {
-    return hibus_is_valid_token (method_name, HIBUS_LEN_METHOD_NAME);
+    return hibus_is_valid_token(method_name, HIBUS_LEN_METHOD_NAME);
 }
 
 /**
@@ -1319,15 +1319,15 @@ hibus_is_valid_method_name (const char* method_name)
  * Since: 1.0
  */
 static inline bool
-hibus_is_valid_bubble_name (const char* bubble_name)
+hibus_is_valid_bubble_name(const char *bubble_name)
 {
-    return hibus_is_valid_token (bubble_name, HIBUS_LEN_BUBBLE_NAME);
+    return hibus_is_valid_token(bubble_name, HIBUS_LEN_BUBBLE_NAME);
 }
 
 /**
  * Convert a string to lowercases in place.
  *
- * @param name: the pointer to a name string (not nullable).
+ * @param name: the pointer to a name string(not nullable).
  *
  * Converts a name string lowercase in place.
  *
@@ -1336,12 +1336,12 @@ hibus_is_valid_bubble_name (const char* bubble_name)
  * Since: 1.0
  */
 static inline int
-hibus_name_tolower (char* name)
+hibus_name_tolower(char *name)
 {
     int i = 0;
 
     while (name [i]) {
-        name [i] = tolower (name[i]);
+        name [i] = tolower(name[i]);
         i++;
     }
 
@@ -1360,12 +1360,12 @@ hibus_name_tolower (char* name)
  * Since: 1.0
  */
 static inline int
-hibus_name_toupper (char* name)
+hibus_name_toupper(char *name)
 {
     int i = 0;
 
     while (name [i]) {
-        name [i] = toupper (name[i]);
+        name [i] = toupper(name[i]);
         i++;
     }
 
@@ -1389,12 +1389,12 @@ hibus_name_toupper (char* name)
  * Since: 1.0
  */
 static inline int
-hibus_name_tolower_copy (const char* name, char* buff, int max_len)
+hibus_name_tolower_copy(const char *name, char *buff, int max_len)
 {
     int n = 0;
 
     while (*name) {
-        buff [n] = tolower (*name);
+        buff [n] = tolower(*name);
         name++;
         n++;
 
@@ -1423,12 +1423,12 @@ hibus_name_tolower_copy (const char* name, char* buff, int max_len)
  * Since: 1.0
  */
 static inline int
-hibus_name_toupper_copy (const char* name, char* buff, int max_len)
+hibus_name_toupper_copy(const char *name, char *buff, int max_len)
 {
     int n = 0;
 
     while (*name) {
-        buff [n] = toupper (*name);
+        buff [n] = toupper(*name);
         name++;
         n++;
 
@@ -1449,11 +1449,11 @@ hibus_name_toupper_copy (const char* name, char* buff, int max_len)
  *
  * Since: 1.0
  */
-static inline time_t hibus_get_monotoic_time (void)
+static inline time_t hibus_get_monotoic_time(void)
 {
     struct timespec tp;
 
-    clock_gettime (CLOCK_MONOTONIC, &tp);
+    clock_gettime(CLOCK_MONOTONIC, &tp);
     return tp.tv_sec;
 }
 
