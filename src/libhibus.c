@@ -1501,10 +1501,11 @@ int hibus_unsubscribe_event (hibus_conn* conn,
 int hibus_call_procedure (hibus_conn* conn,
         const char* endpoint,
         const char* method_name, const char* method_param,
-        int time_expected, hibus_result_handler result_handler)
+        int time_expected, hibus_result_handler result_handler,
+        const char** call_id)
 {
     int n, retv;
-    char call_id [HIBUS_LEN_UNIQUE_ID + 1];
+    char call_id_buf [HIBUS_LEN_UNIQUE_ID + 1];
     char buff [HIBUS_DEF_PACKET_BUFF_SIZE];
     char* escaped_param;
 
@@ -1518,7 +1519,7 @@ int hibus_call_procedure (hibus_conn* conn,
     if (escaped_param == NULL)
         return HIBUS_EC_NOMEM;
 
-    hibus_generate_unique_id (call_id, "call");
+    hibus_generate_unique_id (call_id_buf, "call");
 
     n = snprintf (buff, sizeof (buff), 
             "{"
@@ -1529,7 +1530,7 @@ int hibus_call_procedure (hibus_conn* conn,
             "\"expectedTime\": %d,"
             "\"parameter\": \"%s\""
             "}",
-            call_id,
+            call_id_buf,
             endpoint,
             method_name,
             time_expected,
@@ -1544,7 +1545,15 @@ int hibus_call_procedure (hibus_conn* conn,
     }
 
     if ((retv = hibus_send_text_packet (conn, buff, n)) == 0) {
-        kvlist_set (&conn->call_list, call_id, &result_handler);
+        const char* p;
+        p = kvlist_set_ex (&conn->call_list, call_id_buf, &result_handler);
+        if (p) {
+            if (call_id) {
+                *call_id = p;
+            }
+        }
+        else
+            retv = HIBUS_EC_NOMEM;
     }
 
     return retv;
@@ -1581,7 +1590,7 @@ int hibus_fire_event (hibus_conn* conn,
         if (packet_buff == NULL) {
             err_code = HIBUS_EC_NOMEM;
             return HIBUS_EC_NOMEM;
-	    }
+        }
     }
 
     if (bubble_data) {
@@ -1850,7 +1859,8 @@ static int dispatch_result_packet (hibus_conn* conn, const hibus_json *jo)
         return HIBUS_EC_PROTOCOL;
     }
 
-    if (result_handler (conn, from_endpoint, from_method, ret_code, ret_value) == 0)
+    if (result_handler (conn, from_endpoint, from_method, call_id,
+                ret_code, ret_value) == 0)
         kvlist_delete (&conn->call_list, call_id);
 
     return 0;

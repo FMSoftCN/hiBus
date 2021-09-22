@@ -205,7 +205,7 @@ static int main_of_player (struct run_info *info, int pn)
 
     err_code = hibus_call_procedure (conn, cmdline_endpoint,
             "notifyReady", player_name,
-            HIBUS_DEF_TIME_EXPECTED, 0);
+            HIBUS_DEF_TIME_EXPECTED, NULL, NULL);
     if (err_code) {
         goto failed;
     }

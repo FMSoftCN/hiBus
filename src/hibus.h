@@ -1157,6 +1157,7 @@ int hibus_unsubscribe_event(hibus_conn* conn,
  * @param conn: the pointer to the hiBus connection.
  * @param from_endpoint: the endpoint name of the result.
  * @param from_method: the method name of the result.
+ * @param call_id: the call identifier.
  * @param ret_code: the return code of the result.
  * @param ret_value: the return value (a string) of the result.
  *
@@ -1166,6 +1167,7 @@ int hibus_unsubscribe_event(hibus_conn* conn,
  */
 typedef int (*hibus_result_handler)(hibus_conn* conn,
         const char *from_endpoint, const char *from_method,
+        const char *call_id,
         int ret_code, const char *ret_value);
 
 /**
@@ -1177,6 +1179,7 @@ typedef int (*hibus_result_handler)(hibus_conn* conn,
  * @param method_param: the parameter of the method.
  * @param time_expected: the expected return time in seconds.
  * @param result_handler: the result handler.
+ * @param call_id (nullable): the buffer to store the call identifier.
  *
  * This function emits a call to a remote procedure and
  * returns immediately. The result handler will be called
@@ -1187,9 +1190,10 @@ typedef int (*hibus_result_handler)(hibus_conn* conn,
  * Since: 1.0
  */
 int hibus_call_procedure(hibus_conn* conn,
-        const char *endpoint, const char *method,
-        const char *method_param,
-        int time_expected, hibus_result_handler result_handler);
+        const char *endpoint,
+        const char *method, const char *method_param,
+        int time_expected, hibus_result_handler result_handler,
+        const char **call_id);
 
 /**
  * Call a procedure and wait the result.

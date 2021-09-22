@@ -642,7 +642,7 @@ static void on_cmd_unsubscribe (hibus_conn *conn,
 
 static int on_result_list_procedures (hibus_conn* conn,
         const char* from_endpoint, const char* from_method,
-        int ret_code, const char* ret_value)
+        const char* call_id, int ret_code, const char* ret_value)
 {
     if (ret_code == HIBUS_SC_OK) {
         struct run_info *info = hibus_conn_get_user_data (conn);
@@ -697,7 +697,7 @@ static void on_cmd_list_endpoints (hibus_conn* conn)
             "listEndpoints",
             "",
             HIBUS_DEF_TIME_EXPECTED,
-            on_result_list_procedures);
+            on_result_list_procedures, NULL);
 }
 
 static void on_cmd_show_history (hibus_conn* conn)
@@ -1356,6 +1356,7 @@ static const char* my_echo_method (hibus_conn* conn,
 
 static int my_echo_result (hibus_conn* conn,
         const char* from_endpoint, const char* from_method,
+        const char* call_id,
         int ret_code, const char* ret_value)
 {
     if (ret_code == HIBUS_SC_OK) {
@@ -1625,7 +1626,7 @@ int main (int argc, char **argv)
             "echo",
             "I AM HERE AGAIN",
             HIBUS_DEF_TIME_EXPECTED,
-            my_echo_result);
+            my_echo_result, NULL);
     ULOG_INFO ("error message for hibus_call_procedure: %s (%d)\n",
             hibus_get_err_message (err_code), err_code);
 
