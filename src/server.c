@@ -410,18 +410,17 @@ on_close (void* sock_srv, SockClient* client)
         BusEndpoint *endpoint = container_of (client->entity, BusEndpoint, entity);
         char endpoint_name [HIBUS_LEN_ENDPOINT_NAME + 1];
 
-        if (endpoint->status == ES_AUTHING) {
+        if (assemble_endpoint_name (endpoint, endpoint_name) > 0) {
+            if (kvlist_delete (&the_server.endpoint_list, endpoint_name)) {
+                the_server.nr_endpoints--;
+                ULOG_INFO ("An authenticated endpoint removed: %s (%p), %d endpoints left.\n",
+                    endpoint_name, endpoint, the_server.nr_endpoints);
+            }
+        }
+        else {
             remove_dangling_endpoint (&the_server, endpoint);
             ULOG_INFO ("An endpoint not authenticated removed: (%p), %d endpoints left.\n",
                     endpoint, the_server.nr_endpoints);
-        }
-        else {
-            assemble_endpoint_name (endpoint, endpoint_name);
-            if (kvlist_delete (&the_server.endpoint_list, endpoint_name))
-                the_server.nr_endpoints--;
-
-            ULOG_INFO ("An authenticated endpoint removed: %s (%p), %d endpoints left.\n",
-                    endpoint_name, endpoint, the_server.nr_endpoints);
         }
         del_endpoint (&the_server, endpoint, CDE_LOST_CONNECTION);
 
